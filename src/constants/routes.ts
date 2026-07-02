@@ -1,0 +1,33 @@
+export const ROUTES = {
+  HOME: "/",
+  LOGIN: "/login",
+  DASHBOARD: "/dashboard",
+  CUSTOMER_APP_CMS: "/customer-app-cms",
+  CENTRAL_WAREHOUSE: "/central-warehouse",
+  SUB_HUB_NETWORK: "/sub-hub-network",
+  USER_MANAGEMENT: "/user-management",
+  LOGISTICS: "/logistics",
+  FINANCE_PAYMENTS: "/finance-payments",
+  CUSTOMER_EXECUTIVE: "/customer-executive",
+  NOTIFICATION_CENTER: "/notification-center",
+  ANALYTICS_REPORTS: "/analytics-reports",
+  SYSTEM_SETTINGS: "/system-settings",
+  UNAUTHORIZED: "/unauthorized",
+  FORBIDDEN: "/forbidden",
+} as const;
+
+export const GUEST_ROUTES = [ROUTES.LOGIN] as const;
+
+export const PROTECTED_ROUTES = [
+  ROUTES.DASHBOARD,
+  ROUTES.CUSTOMER_APP_CMS,
+  ROUTES.CENTRAL_WAREHOUSE,
+  ROUTES.SUB_HUB_NETWORK,
+  ROUTES.USER_MANAGEMENT,
+  ROUTES.LOGISTICS,
+  ROUTES.FINANCE_PAYMENTS,
+  ROUTES.CUSTOMER_EXECUTIVE,
+  ROUTES.NOTIFICATION_CENTER,
+  ROUTES.ANALYTICS_REPORTS,
+  ROUTES.SYSTEM_SETTINGS,
+] as const;

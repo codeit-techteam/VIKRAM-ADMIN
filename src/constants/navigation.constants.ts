@@ -1,0 +1,184 @@
+import type { LucideIcon } from "lucide-react";
+import {
+  BarChart3,
+  Bell,
+  HelpCircle,
+  LayoutDashboard,
+  LifeBuoy,
+  LogOut,
+  Network,
+  Settings,
+  Smartphone,
+  Truck,
+  UserCog,
+  Users,
+  Wallet,
+  Warehouse,
+} from "lucide-react";
+
+export interface NavChildItem {
+  label: string;
+  href: string;
+}
+
+export interface NavItem {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  hasSubmenu?: boolean;
+  children?: NavChildItem[];
+}
+
+export interface NavSection {
+  label?: string;
+  items: NavItem[];
+}
+
+export const NAV_SECTIONS: NavSection[] = [
+  {
+    items: [
+      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      {
+        label: "Customer App CMS",
+        href: "/customer-app-cms",
+        icon: Smartphone,
+        hasSubmenu: true,
+        children: [
+          { label: "CMS Dashboard", href: "/customer-app-cms" },
+          { label: "Banner Management", href: "/customer-app-cms/banners" },
+          { label: "Video Management", href: "/customer-app-cms/videos" },
+          { label: "Product Catalog", href: "/customer-app-cms/catalog" },
+          { label: "Categories", href: "/customer-app-cms/categories" },
+          { label: "Offers & Promotions", href: "/customer-app-cms/offers" },
+          { label: "Media Library", href: "/customer-app-cms/media" },
+        ],
+      },
+      {
+        label: "Central Warehouse",
+        href: "/central-warehouse",
+        icon: Warehouse,
+      },
+      {
+        label: "Sub-Hub Network",
+        href: "/sub-hub-network",
+        icon: Network,
+        hasSubmenu: true,
+      },
+    ],
+  },
+  {
+    label: "MANAGEMENT",
+    items: [
+      { label: "User Management", href: "/user-management", icon: Users },
+      { label: "Logistics", href: "/logistics", icon: Truck },
+      {
+        label: "Finance & Payments",
+        href: "/finance-payments",
+        icon: Wallet,
+      },
+      {
+        label: "Customer Executive",
+        href: "/customer-executive",
+        icon: UserCog,
+        hasSubmenu: true,
+      },
+      {
+        label: "Notification Center",
+        href: "/notification-center",
+        icon: Bell,
+        hasSubmenu: true,
+      },
+    ],
+  },
+  {
+    label: "REPORTS",
+    items: [
+      {
+        label: "Analytics & Reports",
+        href: "/analytics-reports",
+        icon: BarChart3,
+        hasSubmenu: true,
+      },
+      { label: "System Settings", href: "/system-settings", icon: Settings },
+    ],
+  },
+];
+
+export const BOTTOM_NAV_ITEMS: NavItem[] = [
+  { label: "Help Center", href: "/help-center", icon: HelpCircle },
+  { label: "Support", href: "/support", icon: LifeBuoy },
+  { label: "Logout", href: "/login", icon: LogOut },
+];
+
+export const ALL_NAV_ITEMS: NavItem[] = [
+  ...NAV_SECTIONS.flatMap((section) =>
+    section.items.flatMap((item) => {
+      if (!item.children?.length) {
+        return [item];
+      }
+
+      return [
+        item,
+        ...item.children.map((child) => ({
+          label: child.label,
+          href: child.href,
+          icon: item.icon,
+        })),
+      ];
+    }),
+  ),
+  ...BOTTOM_NAV_ITEMS.filter((item) => item.label !== "Logout"),
+];
+
+export function findActiveChildItem(
+  children: NavChildItem[],
+  pathname: string,
+): NavChildItem | undefined {
+  if (!pathname) {
+    return undefined;
+  }
+
+  const matches = children.filter(
+    (child) => pathname === child.href || pathname.startsWith(`${child.href}/`),
+  );
+
+  if (matches.length === 0) {
+    return undefined;
+  }
+
+  return matches.reduce((best, current) =>
+    current.href.length > best.href.length ? current : best,
+  );
+}
+
+export function getNavContextFromPath(pathname: string): {
+  section?: string;
+  page: string;
+} {
+  for (const navSection of NAV_SECTIONS) {
+    for (const item of navSection.items) {
+      if (item.children?.length) {
+        const child = findActiveChildItem(item.children, pathname);
+
+        if (child) {
+          return { section: item.label, page: child.label };
+        }
+      }
+
+      if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
+        return { page: item.label };
+      }
+    }
+  }
+
+  const bottomItem = BOTTOM_NAV_ITEMS.find(
+    (navItem) =>
+      pathname === navItem.href || pathname.startsWith(`${navItem.href}/`),
+  );
+
+  return { page: bottomItem?.label ?? "Dashboard" };
+}
+
+export function getNavLabelFromPath(pathname: string): string {
+  return getNavContextFromPath(pathname).page;
+}

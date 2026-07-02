@@ -4,6 +4,8 @@ export {
 } from "@/features/cms/components/AnalyticsRow";
 export { BannerModificationsTable } from "@/features/cms/components/BannerModificationsTable";
 export { BannerPreviewTable } from "@/features/cms/components/BannerPreviewTable";
+export { CategoriesPageContent } from "@/features/cms/components/CategoriesPageContent";
+export { CategoryTable } from "@/features/cms/components/CategoryTable";
 export { ContentUpdatesTable } from "@/features/cms/components/ContentUpdatesTable";
 export { PlaylistCard } from "@/features/cms/components/PlaylistCard";
 export { VideoCard } from "@/features/cms/components/VideoCard";
@@ -18,6 +20,11 @@ export {
   VIDEOS,
 } from "@/features/cms/constants/video.mock";
 export {
+  CATEGORY_FILTER_TABS,
+  CATEGORY_MOCK_ROWS,
+  CATEGORY_STATS,
+} from "@/features/cms/constants/category.mock";
+export {
   CMS_QUICK_ACTIONS,
   CMS_STAT_CARDS,
   CONTENT_UPDATES,
@@ -28,6 +35,10 @@ export type {
   BannerStatus,
   ModificationStatus,
 } from "@/features/cms/types/banner.types";
+export type {
+  Category,
+  CategoryStatus,
+} from "@/features/cms/types/category.types";
 export type {
   CmsStatCardData,
   ContentUpdate,

@@ -6,6 +6,7 @@ import type {
 } from "@/features/cms/types/banner.types";
 import type { VideoStatus } from "@/features/cms/types/video.types";
 import type { ContentUpdateStatus } from "@/features/cms/types/cms.types";
+import type { CategoryStatus } from "@/features/cms/types/category.types";
 import type { ProductStatus } from "@/features/catalog/types/product.types";
 import type { OrderStatus } from "@/features/dashboard/types/dashboard.types";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,7 @@ type TableStatus =
   | ModificationStatus
   | VideoStatus
   | ProductStatus
+  | CategoryStatus
   | AnalyticsStatusLabel;
 
 type AnalyticsStatusLabel = "TOP_PERFORMER" | "STEADY" | "NEEDS_REVIEW";
@@ -42,6 +44,8 @@ const statusBadgeVariants = cva(
         LOW_STOCK: "bg-red-100 text-red-700",
         DRAFT: "bg-slate-100 text-slate-600",
         ACTIVE: "bg-green-100 text-green-700",
+        PENDING: "bg-amber-100 text-amber-700",
+        INACTIVE: "bg-slate-100 text-slate-600",
         SCHEDULED: "bg-amber-100 text-amber-700",
         PUBLISHED: "bg-emerald-600 text-white",
         TOP_PERFORMER: "bg-green-100 text-green-700",
@@ -71,6 +75,8 @@ const dotVariants = cva("size-2 shrink-0 rounded-full", {
       LOW_STOCK: "hidden",
       DRAFT: "hidden",
       ACTIVE: "hidden",
+      PENDING: "hidden",
+      INACTIVE: "hidden",
       SCHEDULED: "hidden",
       PUBLISHED: "hidden",
       TOP_PERFORMER: "hidden",

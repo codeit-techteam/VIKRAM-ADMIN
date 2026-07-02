@@ -8,12 +8,14 @@ import {
   LayoutGrid,
   Plus,
 } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { FilterTabs } from "@/components/shared/FilterTabs";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { CategoryTable } from "@/features/cms/components/CategoryTable";
 import {
   CATEGORY_DISPLAYED_COUNT,
@@ -54,10 +56,13 @@ export function CategoriesPageContent() {
               <Download className="size-4" />
               Export Categories
             </Button>
-            <Button size="lg" className="h-10 gap-2 px-4">
+            <Link
+              href="/customer-app-cms/categories/new"
+              className={cn(buttonVariants({ size: "lg" }), "h-10 gap-2 px-4")}
+            >
               <Plus className="size-4" />
               Add Category
-            </Button>
+            </Link>
           </>
         }
       />

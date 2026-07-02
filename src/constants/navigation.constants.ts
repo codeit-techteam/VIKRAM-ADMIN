@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
   Bell,
+  BellRing,
   HelpCircle,
   LayoutDashboard,
   LifeBuoy,
@@ -19,6 +20,7 @@ import {
 export interface NavChildItem {
   label: string;
   href: string;
+  icon?: LucideIcon;
 }
 
 export interface NavItem {
@@ -49,8 +51,11 @@ export const NAV_SECTIONS: NavSection[] = [
           { label: "Video Management", href: "/customer-app-cms/videos" },
           { label: "Product Catalog", href: "/customer-app-cms/catalog" },
           { label: "Categories", href: "/customer-app-cms/categories" },
-          { label: "Offers & Promotions", href: "/customer-app-cms/offers" },
-          { label: "Media Library", href: "/customer-app-cms/media" },
+          {
+            label: "Push Notification",
+            href: "/customer-app-cms/push-notifications",
+            icon: BellRing,
+          },
         ],
       },
       {

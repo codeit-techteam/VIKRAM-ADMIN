@@ -5,6 +5,7 @@ export {
 export { BannerModificationsTable } from "@/features/cms/components/BannerModificationsTable";
 export { BannerPreviewTable } from "@/features/cms/components/BannerPreviewTable";
 export { CategoriesPageContent } from "@/features/cms/components/CategoriesPageContent";
+export { CategoryForm } from "@/features/cms/components/CategoryForm";
 export { CategoryTable } from "@/features/cms/components/CategoryTable";
 export { ContentUpdatesTable } from "@/features/cms/components/ContentUpdatesTable";
 export { PlaylistCard } from "@/features/cms/components/PlaylistCard";
@@ -35,6 +36,8 @@ export type {
   BannerStatus,
   ModificationStatus,
 } from "@/features/cms/types/banner.types";
+export type { CategoryFormSchema } from "@/features/cms/schema/category-form.schema";
+export { categoryFormSchema } from "@/features/cms/schema/category-form.schema";
 export type {
   Category,
   CategoryStatus,

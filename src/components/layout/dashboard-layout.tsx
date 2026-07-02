@@ -14,6 +14,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const { section: sectionLabel, page: pageLabel } =
     getNavContextFromPath(pathname);
+  const isMinimalTopbar = pathname.startsWith(
+    "/customer-app-cms/videos/upload",
+  );
 
   return (
     <div className="flex min-h-screen bg-[#F5F6F8]">
@@ -24,6 +27,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           sectionLabel={sectionLabel}
           pageLabel={pageLabel}
           showUserId={!pathname.startsWith("/customer-app-cms/banners")}
+          variant={isMinimalTopbar ? "minimal" : "default"}
         />
 
         <main className="flex-1 overflow-y-auto p-6">{children}</main>

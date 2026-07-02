@@ -1,0 +1,91 @@
+import type { Product } from "@/features/catalog/types/product.types";
+
+export const MOCK_PRODUCTS: Product[] = [
+  {
+    id: "prod-001",
+    thumbnailUrl: "https://picsum.photos/seed/ultratech-cement/80/80",
+    name: "UltraTech PPC Cement",
+    sku: "UT-C-001",
+    brand: "UltraTech",
+    category: "Cement",
+    price: 450,
+    priceUnit: "bag",
+    stockUnits: 1200,
+    status: "LIVE",
+    isLive: true,
+  },
+  {
+    id: "prod-002",
+    thumbnailUrl: "https://picsum.photos/seed/tata-tiscon/80/80",
+    name: "TATA Tiscon TMT Bar",
+    sku: "TT-S-442",
+    brand: "TATA Tiscon",
+    category: "Steel",
+    price: 68500,
+    priceUnit: "ton",
+    stockUnits: 12,
+    status: "LOW_STOCK",
+    isLive: true,
+  },
+  {
+    id: "prod-003",
+    thumbnailUrl: "https://picsum.photos/seed/ambuja-kawach/80/80",
+    name: "Ambuja Kawach",
+    sku: "AC-889",
+    brand: "Ambuja",
+    category: "Cement",
+    price: 480,
+    priceUnit: "bag",
+    stockUnits: 0,
+    status: "DRAFT",
+    isLive: false,
+  },
+  {
+    id: "prod-004",
+    thumbnailUrl: "https://picsum.photos/seed/premium-sand/80/80",
+    name: "Premium Fine Sand",
+    sku: "SD-A-101",
+    brand: "BuildQuick Local",
+    category: "Aggregates",
+    price: 3200,
+    priceUnit: "unit",
+    stockUnits: 450,
+    status: "LIVE",
+    isLive: true,
+  },
+];
+
+export const CATALOG_STAT_CARDS = {
+  totalActiveSkus: 15,
+  lowStockItems: 5,
+  pendingPricing: 18,
+  topCategory: "Cement",
+} as const;
+
+export const CATALOG_FILTER_OPTIONS = {
+  categories: [
+    { value: "all", label: "All Categories" },
+    { value: "cement", label: "Cement" },
+    { value: "steel", label: "Steel" },
+    { value: "aggregates", label: "Aggregates" },
+  ],
+  brands: [
+    { value: "all", label: "All Brands" },
+    { value: "ultratech", label: "UltraTech" },
+    { value: "tata-tiscon", label: "TATA Tiscon" },
+    { value: "ambuja", label: "Ambuja" },
+    { value: "buildquick-local", label: "BuildQuick Local" },
+  ],
+  availability: [
+    { value: "all", label: "All Stock Levels" },
+    { value: "in-stock", label: "In Stock" },
+    { value: "low-stock", label: "Low Stock" },
+    { value: "out-of-stock", label: "Out of Stock" },
+  ],
+} as const;
+
+export const CATALOG_SUB_MODULE_TABS = [
+  { id: "inventory", label: "Inventory" },
+  { id: "orders", label: "Orders" },
+  { id: "logistics", label: "Logistics" },
+] as const;

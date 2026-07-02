@@ -5,6 +5,7 @@ interface PageHeaderProps {
   subtitle?: string;
   actions?: React.ReactNode;
   className?: string;
+  titleClassName?: string;
 }
 
 export function PageHeader({
@@ -12,6 +13,7 @@ export function PageHeader({
   subtitle,
   actions,
   className,
+  titleClassName,
 }: PageHeaderProps) {
   return (
     <div
@@ -21,7 +23,12 @@ export function PageHeader({
       )}
     >
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-[#1A1A1A]">
+        <h1
+          className={cn(
+            "text-2xl font-bold tracking-tight text-[#1A1A1A]",
+            titleClassName,
+          )}
+        >
           {title}
         </h1>
         {subtitle && <p className="mt-1 text-sm text-[#64748B]">{subtitle}</p>}

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import {
   BarChart3,
   CheckCircle2,
@@ -40,7 +41,11 @@ export default function VideoManagementPage() {
               <BarChart3 className="size-4" />
               Video Analytics
             </Button>
-            <Button size="lg" className="h-10 gap-2 px-4">
+            <Button
+              size="lg"
+              className="h-10 gap-2 px-4"
+              render={<Link href="/customer-app-cms/videos/upload" />}
+            >
               <Plus className="size-4" />
               Upload New Video
             </Button>

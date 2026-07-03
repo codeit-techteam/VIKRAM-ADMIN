@@ -236,3 +236,58 @@ export interface AllocationPayload {
   remarks?: string;
   adminName: string;
 }
+
+export type WarehouseStockStatus = "OPTIMAL" | "MODERATE" | "EMPTY" | "LOW";
+
+export interface WorkflowWarehouse {
+  id: string;
+  name: string;
+  location: string;
+  stock: number;
+  status: WarehouseStockStatus;
+  leadTimeHours: number;
+  insight?: string;
+}
+
+export interface MaterialBatch {
+  id: string;
+  label: string;
+  available: number;
+  expiresInDays?: number;
+  clearanceNote?: string;
+}
+
+export interface MaterialWorkflowDetail {
+  materialId: string;
+  name: string;
+  spec?: string;
+  sku: string;
+  grade: string;
+  category: string;
+  categoryLabel: string;
+  specifications: string[];
+  unit: string;
+  unitDensity?: number;
+}
+
+export type AllocationWorkflowStep = 1 | 2 | 3 | 4 | 5;
+
+export interface AllocationWorkflowFormValues {
+  warehouseSourceId: string;
+  batchId: string;
+  allocationQty: number;
+  remarks: string;
+}
+
+export interface AllocationWorkflowResult {
+  allocationId: string;
+  requestId: string;
+  destinationHub: string;
+  quantity: number;
+  unit: string;
+  material: string;
+  warehouseName: string;
+  batchLabel: string;
+  warehouseRemaining: number;
+  baseWeight?: number;
+}

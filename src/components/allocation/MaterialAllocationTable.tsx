@@ -6,7 +6,7 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Box, Eye, MoreVertical } from "lucide-react";
+import { Box, MoreVertical } from "lucide-react";
 import { useMemo } from "react";
 
 import { FilterBar } from "@/components/allocation/FilterBar";
@@ -20,7 +20,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -47,38 +46,22 @@ interface MaterialAllocationTableProps {
   onPageChange: (page: number) => void;
   onFilter?: () => void;
   onExport?: () => void;
-  onView: (item: MaterialAllocationItem) => void;
-  onAllocate: (item: MaterialAllocationItem) => void;
+  onStartWorkflow: (item: MaterialAllocationItem) => void;
 }
 
 const columnHelper = createColumnHelper<MaterialAllocationItem>();
 
 function RowActions({
   item,
-  onView,
-  onAllocate,
+  onStartWorkflow,
 }: {
   item: MaterialAllocationItem;
-  onView: (item: MaterialAllocationItem) => void;
-  onAllocate: (item: MaterialAllocationItem) => void;
+  onStartWorkflow: (item: MaterialAllocationItem) => void;
 }) {
   const canAllocate = item.status !== "ALLOCATED";
 
   return (
     <div className="flex items-center justify-end gap-0.5">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="hover:text-primary size-8 text-[#64748B] hover:bg-orange-50"
-        onClick={(event) => {
-          event.stopPropagation();
-          onView(item);
-        }}
-        aria-label={`View ${item.requestId}`}
-      >
-        <Eye className="size-4" />
-      </Button>
       <Button
         type="button"
         variant="ghost"
@@ -91,7 +74,7 @@ function RowActions({
         )}
         onClick={(event) => {
           event.stopPropagation();
-          if (canAllocate) onAllocate(item);
+          if (canAllocate) onStartWorkflow(item);
         }}
         disabled={!canAllocate}
         aria-label={`Allocate ${item.requestId}`}
@@ -114,15 +97,10 @@ function RowActions({
           }
         />
         <DropdownMenuContent align="end" className="w-44">
-          <DropdownMenuItem className="gap-2" onClick={() => onView(item)}>
-            <Eye className="size-4" />
-            View Details
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
           <DropdownMenuItem
             className="gap-2"
             disabled={!canAllocate}
-            onClick={() => onAllocate(item)}
+            onClick={() => onStartWorkflow(item)}
           >
             <Box className="size-4" />
             Allocate Material
@@ -142,25 +120,35 @@ export function MaterialAllocationTable({
   onPageChange,
   onFilter,
   onExport,
-  onView,
-  onAllocate,
+  onStartWorkflow,
 }: MaterialAllocationTableProps) {
   const columns = useMemo(
     () => [
       columnHelper.accessor("requestId", {
         header: "Request ID",
-        cell: (info) => (
-          <button
-            type="button"
-            className="hover:text-primary font-semibold text-[#1A1A1A] transition-colors"
-            onClick={(event) => {
-              event.stopPropagation();
-              onView(info.row.original);
-            }}
-          >
-            {info.getValue()}
-          </button>
-        ),
+        cell: (info) => {
+          const item = info.row.original;
+          const canAllocate = item.status !== "ALLOCATED";
+
+          return (
+            <button
+              type="button"
+              className={cn(
+                "font-semibold transition-colors",
+                canAllocate
+                  ? "text-primary hover:text-primary/80"
+                  : "cursor-default text-[#64748B]",
+              )}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (canAllocate) onStartWorkflow(item);
+              }}
+              disabled={!canAllocate}
+            >
+              {info.getValue()}
+            </button>
+          );
+        },
       }),
       columnHelper.accessor("destinationHub", {
         header: "Destination Hub",
@@ -232,15 +220,11 @@ export function MaterialAllocationTable({
         id: "actions",
         header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => (
-          <RowActions
-            item={row.original}
-            onView={onView}
-            onAllocate={onAllocate}
-          />
+          <RowActions item={row.original} onStartWorkflow={onStartWorkflow} />
         ),
       }),
     ],
-    [onAllocate, onView],
+    [onStartWorkflow],
   );
 
   const table = useReactTable({

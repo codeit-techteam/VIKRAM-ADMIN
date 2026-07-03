@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Calendar, Info } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { AllocationStepper } from "@/components/allocation/workflow/AllocationStepper";
 import { AllocationSummary } from "@/components/allocation/workflow/AllocationSummary";
@@ -36,6 +36,7 @@ import {
 } from "@/store/allocation-workflow-store";
 import { ROUTES } from "@/constants/routes";
 import { notify } from "@/utils/notify";
+import { resolveWorkflowRequisitionFromAllocationId } from "@/utils/allocation-workflow-bridge";
 
 const stepVariants = {
   initial: { opacity: 0, x: 24 },
@@ -45,6 +46,8 @@ const stepVariants = {
 
 export function AllocationWorkflow() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const allocationId = searchParams.get("allocationId");
   const handleCancel = useWorkflowCancel();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -62,6 +65,7 @@ export function AllocationWorkflow() {
     form,
     result,
     reset,
+    startWithRequisition,
     selectRequisition,
     selectWarehouse,
     updateForm,
@@ -73,10 +77,25 @@ export function AllocationWorkflow() {
   } = useAllocationWorkflowStore();
 
   useEffect(() => {
-    reset();
+    if (allocationId) {
+      const requisition =
+        resolveWorkflowRequisitionFromAllocationId(allocationId);
+      if (requisition) {
+        startWithRequisition(requisition, { autoAdvance: true });
+      } else {
+        reset();
+        notify.error(
+          "Requisition unavailable",
+          "This request cannot be allocated or was not found.",
+        );
+      }
+    } else {
+      reset();
+    }
+
     const timer = window.setTimeout(() => setInitialLoading(false), 500);
     return () => window.clearTimeout(timer);
-  }, [reset]);
+  }, [allocationId, reset, startWithRequisition]);
 
   const materialDetail = useMemo(
     () => getWorkflowMaterialDetail(selectedRequisition),

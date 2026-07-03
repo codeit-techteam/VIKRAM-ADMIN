@@ -7,6 +7,7 @@ import {
   getWorkflowRequisitionSeed,
   getWorkflowWarehouses,
 } from "@/mock/allocation-workflow";
+import { mergeRequisitionIntoWorkflowList } from "@/utils/allocation-workflow-bridge";
 import { INVENTORY_ITEMS } from "@/mock/inventory";
 import type { InventoryItem } from "@/types/inventory.types";
 import type {
@@ -53,6 +54,10 @@ interface AllocationWorkflowState {
   confirmAllocation: () => Promise<AllocationWorkflowResult>;
   hydrateWarehouses: () => void;
   hydrateFormDefaults: () => void;
+  startWithRequisition: (
+    requisition: RequisitionListItem,
+    options?: { autoAdvance?: boolean },
+  ) => void;
 }
 
 function applyRequisitionUpdates(
@@ -112,6 +117,30 @@ export const useAllocationWorkflowStore = create<AllocationWorkflowState>(
 
     selectRequisition: (requisition) => {
       set({ selectedRequisition: requisition });
+    },
+
+    startWithRequisition: (requisition, options) => {
+      const autoAdvance = options?.autoAdvance ?? false;
+      const requisitions = mergeRequisitionIntoWorkflowList(requisition);
+
+      set({
+        currentStep: autoAdvance ? 2 : 1,
+        maxCompletedStep: autoAdvance ? 1 : 0,
+        isTransitioning: false,
+        isSubmitting: false,
+        requisitions,
+        inventory: INVENTORY_ITEMS,
+        selectedRequisition: requisition,
+        selectedWarehouse: null,
+        warehouses: [],
+        form: DEFAULT_FORM,
+        result: null,
+        draftSaved: false,
+      });
+
+      if (autoAdvance) {
+        get().hydrateWarehouses();
+      }
     },
 
     hydrateWarehouses: () => {

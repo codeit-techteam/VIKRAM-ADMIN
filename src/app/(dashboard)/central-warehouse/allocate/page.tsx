@@ -1,17 +1,11 @@
-import { DevModuleScreen } from "@/components/shared/DevModuleScreen";
+import type { Metadata } from "next";
+
+import { AllocationPageContent } from "@/components/allocation/AllocationPageContent";
+
+export const metadata: Metadata = {
+  title: "Material Allocation Center",
+};
 
 export default function AllocationCenterPage() {
-  return (
-    <DevModuleScreen
-      title="Allocation Center"
-      subtitle="Allocate available inventory to approved requisitions and regional hubs."
-      features={[
-        "Stock Allocation",
-        "Hub Priority Rules",
-        "Reservation Management",
-        "Allocation History",
-        "Capacity Planning",
-      ]}
-    />
-  );
+  return <AllocationPageContent />;
 }

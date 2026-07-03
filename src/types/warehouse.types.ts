@@ -180,3 +180,59 @@ export interface WarehouseQuickAction {
 }
 
 export type WarehouseIconMap<T extends string> = Record<T, LucideIcon>;
+
+export type MaterialAllocationStatus =
+  "NOT_ALLOCATED" | "PARTIALLY_ALLOCATED" | "ALLOCATED";
+
+export type StockAvailabilityLevel = "enough" | "low" | "out-of-stock";
+
+export interface MaterialAllocationItem {
+  id: string;
+  requestId: string;
+  destinationHub: string;
+  hubId: string;
+  materialId: string;
+  material: string;
+  materialSpec?: string;
+  sku: string;
+  requestedQty: number;
+  allocatedQty: number;
+  unit: string;
+  priority: RequisitionPriority;
+  status: MaterialAllocationStatus;
+  allocatedAt?: string;
+}
+
+export interface AllocationStats {
+  pendingAllocation: number;
+  criticalAllocation: number;
+  allocatedToday: number;
+  outOfStock: number;
+}
+
+export interface WarehouseSource {
+  id: string;
+  label: string;
+}
+
+export interface AllocationQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  priority?: RequisitionPriority | "all";
+  status?: MaterialAllocationStatus | "all";
+}
+
+export interface AllocationFormValues {
+  warehouseSourceId: string;
+  allocationQty: number;
+  remarks?: string;
+}
+
+export interface AllocationPayload {
+  allocationId: string;
+  warehouseSourceId: string;
+  allocationQty: number;
+  remarks?: string;
+  adminName: string;
+}

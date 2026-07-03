@@ -1,6 +1,14 @@
 "use client";
 
-import { Calendar, Copy, Eye, Heart, Pencil, Trash2 } from "lucide-react";
+import {
+  Calendar,
+  Copy,
+  Eye,
+  Heart,
+  MousePointerClick,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import Image from "next/image";
 
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -74,6 +82,12 @@ export function VideoCard({ video, layout = "grid" }: VideoCardProps) {
               {tag}
             </span>
           ))}
+          {video.cta.enabled && (
+            <span className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium">
+              <MousePointerClick className="size-3" />
+              {video.cta.label}
+            </span>
+          )}
         </div>
 
         <div className="mt-3 flex items-center justify-between gap-3">

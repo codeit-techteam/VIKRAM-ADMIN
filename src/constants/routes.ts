@@ -12,6 +12,10 @@ export const ROUTES = {
   NOTIFICATION_CENTER: "/notification-center",
   ANALYTICS_REPORTS: "/analytics-reports",
   SYSTEM_SETTINGS: "/system-settings",
+  PURCHASE_ORDERS: "/central-warehouse",
+  ORDERS: "/logistics",
+  CUSTOMERS: "/customer-executive",
+  MANAGERS: "/user-management",
   UNAUTHORIZED: "/unauthorized",
   FORBIDDEN: "/forbidden",
 } as const;

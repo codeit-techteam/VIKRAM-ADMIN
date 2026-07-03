@@ -1,10 +1,4 @@
-import { FileText, Shield } from "lucide-react";
-
-import type {
-  AnalyticsCategory,
-  Playlist,
-  Video,
-} from "@/features/cms/types/video.types";
+import type { Video } from "@/features/cms/types/video.types";
 
 export const VIDEO_STAT_CARDS = [
   { label: "Total Videos", value: "48" },
@@ -22,6 +16,12 @@ export const VIDEOS: Video[] = [
     tags: ["Home Screen", "Tutorial"],
     views: 12400,
     likes: 1200,
+    cta: {
+      enabled: true,
+      label: "Shop TMT Bars",
+      path: "/category/tmt-bars",
+      destinationType: "category",
+    },
   },
   {
     id: "2",
@@ -32,6 +32,12 @@ export const VIDEOS: Video[] = [
     tags: ["Offers"],
     views: 0,
     scheduledDate: "12 May",
+    cta: {
+      enabled: true,
+      label: "View Bulk Offers",
+      path: "/offers/bulk-2024",
+      destinationType: "offer",
+    },
   },
   {
     id: "3",
@@ -41,62 +47,11 @@ export const VIDEOS: Video[] = [
     duration: "08:20",
     tags: ["Training"],
     lastEditedLabel: "Last edited 2h ago",
-  },
-];
-
-export const ANALYTICS_CATEGORIES: AnalyticsCategory[] = [
-  {
-    id: "1",
-    name: "Construction Tips",
-    accentColor: "bg-orange-500",
-    accentBarClass: "bg-orange-500",
-    totalViews: 82450,
-    ctr: 14.2,
-    ctrTrend: "up",
-    watchEfficiencyPercent: 90,
-    status: "TOP_PERFORMER",
-  },
-  {
-    id: "2",
-    name: "Product Demos",
-    accentColor: "bg-blue-500",
-    accentBarClass: "bg-blue-500",
-    totalViews: 45120,
-    ctr: 8.5,
-    ctrTrend: "up",
-    watchEfficiencyPercent: 60,
-    status: "STEADY",
-  },
-  {
-    id: "3",
-    name: "Market Insights",
-    accentColor: "bg-purple-500",
-    accentBarClass: "bg-purple-500",
-    totalViews: 22100,
-    ctr: 3.2,
-    ctrTrend: "flat",
-    watchEfficiencyPercent: 30,
-    status: "NEEDS_REVIEW",
-  },
-];
-
-export const PLAYLISTS: Playlist[] = [
-  {
-    id: "1",
-    icon: FileText,
-    iconBg: "bg-blue-50",
-    iconColor: "text-blue-600",
-    title: "Product Demonstrations",
-    videoCount: 12,
-    lastUpdateLabel: "2d ago",
-  },
-  {
-    id: "2",
-    icon: Shield,
-    iconBg: "bg-purple-50",
-    iconColor: "text-purple-600",
-    title: "Safety Training",
-    videoCount: 8,
-    lastUpdateLabel: "5d ago",
+    cta: {
+      enabled: false,
+      label: "Start Safety Course",
+      path: "/training/safety",
+      destinationType: "external",
+    },
   },
 ];

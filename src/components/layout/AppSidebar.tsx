@@ -59,7 +59,7 @@ export function AppSidebar() {
                 BuildQuick India
               </p>
               <p className="truncate text-[10px] tracking-wide text-gray-400 uppercase">
-                Super Admin Control Tower
+                Operations Control Tower
               </p>
             </div>
           )}

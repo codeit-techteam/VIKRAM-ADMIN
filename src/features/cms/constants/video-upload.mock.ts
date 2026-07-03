@@ -28,6 +28,22 @@ export const PLACEMENT_OPTIONS = [
   { id: "category-landing-pages", label: "Category Landing Pages" },
 ] as const;
 
+export const CTA_DESTINATION_OPTIONS = [
+  { value: "category", label: "Category Page" },
+  { value: "product", label: "Product Page" },
+  { value: "offer", label: "Offer / Promotion" },
+  { value: "external", label: "External Link" },
+] as const;
+
+export const CTA_REDIRECT_OPTIONS: SelectOption[] = [
+  { value: "/category/tmt-bars", label: "TMT Bars Category" },
+  { value: "/category/cement", label: "Cement Category" },
+  { value: "/offers/bulk-2024", label: "Bulk Offers 2024" },
+  { value: "/products/ultratech-cement", label: "UltraTech Cement" },
+  { value: "/training/safety", label: "Safety Training Hub" },
+  { value: "custom", label: "Custom Path..." },
+];
+
 export const THUMBNAIL_FRAMES: ThumbnailFrame[] = [
   {
     id: "frame-1",

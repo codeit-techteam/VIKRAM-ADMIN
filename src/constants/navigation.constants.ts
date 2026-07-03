@@ -1,8 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  BarChart3,
   Bell,
-  BellRing,
   HelpCircle,
   LayoutDashboard,
   LifeBuoy,
@@ -38,26 +36,11 @@ export interface NavSection {
 
 export const NAV_SECTIONS: NavSection[] = [
   {
+    items: [{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard }],
+  },
+  {
+    label: "OPERATIONS",
     items: [
-      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      {
-        label: "Customer App CMS",
-        href: "/customer-app-cms",
-        icon: Smartphone,
-        hasSubmenu: true,
-        children: [
-          { label: "CMS Dashboard", href: "/customer-app-cms" },
-          { label: "Banner Management", href: "/customer-app-cms/banners" },
-          { label: "Video Management", href: "/customer-app-cms/videos" },
-          { label: "Product Catalog", href: "/customer-app-cms/catalog" },
-          { label: "Categories", href: "/customer-app-cms/categories" },
-          {
-            label: "Push Notification",
-            href: "/customer-app-cms/push-notifications",
-            icon: BellRing,
-          },
-        ],
-      },
       {
         label: "Central Warehouse",
         href: "/central-warehouse",
@@ -69,18 +52,18 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Network,
         hasSubmenu: true,
       },
-    ],
-  },
-  {
-    label: "MANAGEMENT",
-    items: [
-      { label: "User Management", href: "/user-management", icon: Users },
       { label: "Logistics", href: "/logistics", icon: Truck },
       {
         label: "Finance & Payments",
         href: "/finance-payments",
         icon: Wallet,
       },
+    ],
+  },
+  {
+    label: "MANAGEMENT",
+    items: [
+      { label: "User Management", href: "/user-management", icon: Users },
       {
         label: "Customer Executive",
         href: "/customer-executive",
@@ -96,14 +79,30 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    label: "REPORTS",
+    label: "CONTENT",
     items: [
       {
-        label: "Analytics & Reports",
-        href: "/analytics-reports",
-        icon: BarChart3,
+        label: "Customer App CMS",
+        href: "/customer-app-cms",
+        icon: Smartphone,
         hasSubmenu: true,
+        children: [
+          { label: "CMS Dashboard", href: "/customer-app-cms" },
+          { label: "Banner Management", href: "/customer-app-cms/banners" },
+          { label: "Video Management", href: "/customer-app-cms/videos" },
+          { label: "Product Catalog", href: "/customer-app-cms/catalog" },
+          { label: "Categories", href: "/customer-app-cms/categories" },
+          {
+            label: "Push Notification",
+            href: "/customer-app-cms/push-notifications",
+          },
+        ],
       },
+    ],
+  },
+  {
+    label: "SYSTEM",
+    items: [
       { label: "System Settings", href: "/system-settings", icon: Settings },
     ],
   },
@@ -171,7 +170,7 @@ export function getNavContextFromPath(pathname: string): {
       }
 
       if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
-        return { page: item.label };
+        return { page: item.label, section: navSection.label };
       }
     }
   }

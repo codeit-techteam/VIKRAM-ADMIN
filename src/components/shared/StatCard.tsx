@@ -1,3 +1,6 @@
+import Link from "next/link";
+
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 
@@ -9,9 +12,12 @@ interface StatCardProps {
   icon?: LucideIcon;
   iconContainerClassName?: string;
   iconClassName?: string;
+  href?: string;
+  isLoading?: boolean;
+  className?: string;
 }
 
-export function StatCard({
+function StatCardContent({
   label,
   value,
   subtext,
@@ -19,9 +25,20 @@ export function StatCard({
   icon: Icon,
   iconContainerClassName,
   iconClassName,
-}: StatCardProps) {
+  isLoading,
+}: Omit<StatCardProps, "href" | "className">) {
+  if (isLoading) {
+    return (
+      <>
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="mt-3 h-8 w-16" />
+        <Skeleton className="mt-2 h-4 w-40" />
+      </>
+    );
+  }
+
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+    <>
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium tracking-wide text-gray-400 uppercase">
@@ -50,6 +67,62 @@ export function StatCard({
           </div>
         ) : null}
       </div>
+    </>
+  );
+}
+
+export function StatCard({
+  label,
+  value,
+  subtext,
+  valueVariant = "default",
+  icon,
+  iconContainerClassName,
+  iconClassName,
+  href,
+  isLoading,
+  className,
+}: StatCardProps) {
+  const cardClassName = cn(
+    "rounded-xl border border-gray-100 bg-white p-6 shadow-sm",
+    href &&
+      !isLoading &&
+      "transition-colors hover:border-primary/20 hover:bg-gray-50/50",
+    className,
+  );
+
+  if (href && !isLoading) {
+    return (
+      <Link href={href} className={cn(cardClassName, "block")}>
+        <StatCardContent
+          label={label}
+          value={value}
+          subtext={subtext}
+          valueVariant={valueVariant}
+          icon={icon}
+          iconContainerClassName={iconContainerClassName}
+          iconClassName={iconClassName}
+        />
+      </Link>
+    );
+  }
+
+  return (
+    <div className={cardClassName}>
+      <StatCardContent
+        label={label}
+        value={value}
+        subtext={subtext}
+        valueVariant={valueVariant}
+        icon={icon}
+        iconContainerClassName={iconContainerClassName}
+        iconClassName={iconClassName}
+        isLoading={isLoading}
+      />
     </div>
   );
+}
+
+export function StatCardSkeleton() {
+  return <StatCard label="" value="" isLoading />;
 }

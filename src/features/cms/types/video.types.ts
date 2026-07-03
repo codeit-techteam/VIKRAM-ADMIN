@@ -1,6 +1,13 @@
-import type { LucideIcon } from "lucide-react";
-
 export type VideoStatus = "PUBLISHED" | "SCHEDULED" | "DRAFT";
+
+export type CtaDestinationType = "product" | "category" | "offer" | "external";
+
+export interface VideoCta {
+  enabled: boolean;
+  label: string;
+  path: string;
+  destinationType: CtaDestinationType;
+}
 
 export interface Video {
   id: string;
@@ -13,32 +20,7 @@ export interface Video {
   likes?: number;
   scheduledDate?: string;
   lastEditedLabel?: string;
-}
-
-export type CtrTrend = "up" | "down" | "flat";
-
-export type AnalyticsStatus = "TOP_PERFORMER" | "STEADY" | "NEEDS_REVIEW";
-
-export interface AnalyticsCategory {
-  id: string;
-  name: string;
-  accentColor: string;
-  accentBarClass: string;
-  totalViews: number;
-  ctr: number;
-  ctrTrend: CtrTrend;
-  watchEfficiencyPercent: number;
-  status: AnalyticsStatus;
-}
-
-export interface Playlist {
-  id: string;
-  icon: LucideIcon;
-  iconBg: string;
-  iconColor: string;
-  title: string;
-  videoCount: number;
-  lastUpdateLabel: string;
+  cta: VideoCta;
 }
 
 export type ViewMode = "grid" | "list";

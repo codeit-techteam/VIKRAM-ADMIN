@@ -1,25 +1,17 @@
-export {
-  AnalyticsRow,
-  AnalyticsTableHeader,
-} from "@/features/cms/components/AnalyticsRow";
 export { BannerModificationsTable } from "@/features/cms/components/BannerModificationsTable";
 export { BannerPreviewTable } from "@/features/cms/components/BannerPreviewTable";
 export { CategoriesPageContent } from "@/features/cms/components/CategoriesPageContent";
 export { CategoryForm } from "@/features/cms/components/CategoryForm";
 export { CategoryTable } from "@/features/cms/components/CategoryTable";
 export { ContentUpdatesTable } from "@/features/cms/components/ContentUpdatesTable";
-export { PlaylistCard } from "@/features/cms/components/PlaylistCard";
 export { VideoCard } from "@/features/cms/components/VideoCard";
+export { VideoCtaTable } from "@/features/cms/components/VideoCtaTable";
 export { VideoLibrarySection } from "@/features/cms/components/VideoLibrarySection";
 export {
   BANNER_MODIFICATIONS,
   BANNERS,
 } from "@/features/cms/constants/banner.mock";
-export {
-  ANALYTICS_CATEGORIES,
-  PLAYLISTS,
-  VIDEOS,
-} from "@/features/cms/constants/video.mock";
+export { VIDEOS } from "@/features/cms/constants/video.mock";
 export {
   CATEGORY_FILTER_TABS,
   CATEGORY_MOCK_ROWS,
@@ -49,11 +41,9 @@ export type {
   QuickActionData,
 } from "@/features/cms/types/cms.types";
 export type {
-  AnalyticsCategory,
-  AnalyticsStatus,
-  CtrTrend,
-  Playlist,
+  CtaDestinationType,
   Video,
+  VideoCta,
   VideoStatus,
   ViewMode,
 } from "@/features/cms/types/video.types";

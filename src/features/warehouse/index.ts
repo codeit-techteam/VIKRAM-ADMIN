@@ -1,1 +1,1 @@
-// Feature module: Warehouse
+export { WarehouseDashboard } from "@/components/warehouse/WarehouseDashboard";

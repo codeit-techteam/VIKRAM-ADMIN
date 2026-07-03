@@ -6,15 +6,11 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Eye, Package } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Package } from "lucide-react";
 import { useMemo } from "react";
 
 import { DashboardCard } from "@/components/shared/DashboardCard";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { StatusBadge } from "@/components/shared/StatusBadge";
-import { buttonVariants } from "@/components/ui/button";
 import { DataTableSkeleton } from "@/components/tables/data-table-skeleton";
 import {
   Table,
@@ -24,113 +20,131 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { RecentOrder } from "@/features/dashboard/types/dashboard.types";
+import type {
+  InventoryActivity,
+  InventoryActivityStatus,
+  QuantityChangeType,
+} from "@/types/warehouse.types";
 import { cn } from "@/lib/utils";
 
-interface RecentOrdersTableProps {
-  orders: RecentOrder[];
+interface InventoryActivityTableProps {
+  activities: InventoryActivity[];
   isLoading?: boolean;
 }
 
-const columnHelper = createColumnHelper<RecentOrder>();
+const columnHelper = createColumnHelper<InventoryActivity>();
 
-export function RecentOrdersTable({
-  orders,
+const quantityStyles: Record<QuantityChangeType, string> = {
+  positive: "font-medium text-green-600",
+  negative: "font-medium text-red-600",
+  neutral: "text-[#64748B]",
+};
+
+const statusDotStyles: Record<InventoryActivityStatus, string> = {
+  completed: "bg-green-500",
+  verified: "bg-green-500",
+  processing: "bg-blue-500",
+  pending: "bg-amber-500",
+};
+
+const statusLabelStyles: Record<InventoryActivityStatus, string> = {
+  completed: "text-green-700",
+  verified: "text-green-700",
+  processing: "text-blue-700",
+  pending: "text-amber-700",
+};
+
+function ActivityStatusBadge({ status }: { status: InventoryActivityStatus }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-2 text-sm font-medium capitalize",
+        statusLabelStyles[status],
+      )}
+    >
+      <span
+        className={cn("size-2 shrink-0 rounded-full", statusDotStyles[status])}
+        aria-hidden="true"
+      />
+      {status}
+    </span>
+  );
+}
+
+export function InventoryActivityTable({
+  activities,
   isLoading,
-}: RecentOrdersTableProps) {
-  const router = useRouter();
-
+}: InventoryActivityTableProps) {
   const columns = useMemo(
     () => [
-      columnHelper.accessor("orderId", {
-        header: "Order ID",
+      columnHelper.accessor("time", {
+        header: "Time",
         cell: (info) => (
           <span className="font-medium text-[#1A1A1A]">{info.getValue()}</span>
         ),
       }),
-      columnHelper.accessor("customer", {
-        header: "Customer",
+      columnHelper.accessor("activity", {
+        header: "Activity",
         cell: (info) => (
           <span className="text-[#64748B]">{info.getValue()}</span>
         ),
       }),
-      columnHelper.accessor("source", {
-        header: "Source",
-        cell: (info) => <StatusBadge status={info.getValue()} />,
+      columnHelper.accessor("material", {
+        header: "Material",
+        cell: (info) => (
+          <span className="font-semibold text-[#1A1A1A]">
+            {info.getValue()}
+          </span>
+        ),
       }),
-      columnHelper.accessor("assignedHub", {
-        header: "Assigned Hub",
+      columnHelper.accessor("quantity", {
+        header: "Qty",
+        cell: ({ row }) => (
+          <span className={quantityStyles[row.original.quantityChange]}>
+            {row.original.quantity}
+          </span>
+        ),
+      }),
+      columnHelper.accessor("by", {
+        header: "By",
         cell: (info) => (
           <span className="text-[#64748B]">{info.getValue()}</span>
         ),
-      }),
-      columnHelper.accessor("paymentStatus", {
-        header: "Payment",
-        cell: (info) => {
-          const status = info.getValue();
-
-          return (
-            <span
-              className={cn(
-                "text-xs font-semibold tracking-wide uppercase",
-                status === "PAID" ? "text-green-600" : "text-red-600",
-              )}
-            >
-              {status}
-            </span>
-          );
-        },
       }),
       columnHelper.accessor("status", {
         header: "Status",
-        cell: (info) => <StatusBadge status={info.getValue()} />,
-      }),
-      columnHelper.display({
-        id: "actions",
-        header: "Actions",
-        cell: ({ row }) => (
-          <Link
-            href={row.original.href}
-            aria-label={`View ${row.original.orderId}`}
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "icon" }),
-              "size-8 text-[#8B5E3C] hover:bg-orange-50 hover:text-[#8B5E3C]",
-            )}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <Eye className="size-4" />
-          </Link>
-        ),
+        cell: (info) => <ActivityStatusBadge status={info.getValue()} />,
       }),
     ],
     [],
   );
 
   const table = useReactTable({
-    data: orders,
+    data: activities,
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
 
   return (
     <DashboardCard
-      title="Recent Orders"
+      title="Recent Inventory Activity"
       action={
         <button
           type="button"
-          className="text-primary text-sm font-medium hover:underline"
+          className="text-primary text-sm font-medium transition-colors hover:underline"
         >
-          Download Master Sheet
+          Full Log
         </button>
       }
       contentClassName="mt-6"
+      className="h-full"
     >
       {isLoading ? (
-        <DataTableSkeleton columns={7} rows={5} />
-      ) : orders.length === 0 ? (
+        <DataTableSkeleton columns={6} rows={6} />
+      ) : activities.length === 0 ? (
         <EmptyState
-          title="No recent orders"
-          description="New orders will appear here as they are raised."
+          title="No recent activity"
+          description="Inventory movements will appear here as they occur."
           icon={<Package className="size-8" />}
         />
       ) : (
@@ -162,8 +176,7 @@ export function RecentOrdersTable({
               {table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className="cursor-pointer border-gray-100 transition-colors hover:bg-gray-50/80"
-                  onClick={() => router.push(row.original.href)}
+                  className="border-gray-100 transition-colors hover:bg-gray-50/80"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className="py-4">

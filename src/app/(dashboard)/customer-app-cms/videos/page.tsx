@@ -1,55 +1,41 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  BarChart3,
   CheckCircle2,
-  ExternalLink,
   Mail,
+  MousePointerClick,
   Play,
   Plus,
-  SlidersHorizontal,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
 import { Button } from "@/components/ui/button";
-import {
-  AnalyticsRow,
-  AnalyticsTableHeader,
-} from "@/features/cms/components/AnalyticsRow";
-import { PlaylistCard } from "@/features/cms/components/PlaylistCard";
+import { VideoCtaTable } from "@/features/cms/components/VideoCtaTable";
 import { VideoLibrarySection } from "@/features/cms/components/VideoLibrarySection";
-import {
-  ANALYTICS_CATEGORIES,
-  PLAYLISTS,
-  VIDEOS,
-} from "@/features/cms/constants/video.mock";
+import { VIDEOS } from "@/features/cms/constants/video.mock";
 
 export const metadata: Metadata = {
   title: "Video Management",
 };
+
+const videosWithCta = VIDEOS.filter((video) => video.cta.enabled);
 
 export default function VideoManagementPage() {
   return (
     <div className="space-y-6">
       <PageHeader
         title="Video Management"
-        subtitle="Manage promotional and educational videos displayed in the customer application."
+        subtitle="Upload videos and configure CTA buttons that appear on the customer application."
         actions={
-          <>
-            <Button variant="outline" size="lg" className="h-10 gap-2 px-4">
-              <BarChart3 className="size-4" />
-              Video Analytics
-            </Button>
-            <Button
-              size="lg"
-              className="h-10 gap-2 px-4"
-              render={<Link href="/customer-app-cms/videos/upload" />}
-            >
-              <Plus className="size-4" />
-              Upload New Video
-            </Button>
-          </>
+          <Button
+            size="lg"
+            className="h-10 gap-2 px-4"
+            render={<Link href="/customer-app-cms/videos/upload" />}
+          >
+            <Plus className="size-4" />
+            Upload New Video
+          </Button>
         }
       />
 
@@ -69,58 +55,33 @@ export default function VideoManagementPage() {
           iconClassName="text-emerald-600"
         />
         <StatCard
-          label="Drafts"
-          value="12"
-          icon={Mail}
-          iconContainerClassName="bg-amber-50"
-          iconClassName="text-amber-600"
+          label="Active CTAs"
+          value={String(videosWithCta.length)}
+          icon={MousePointerClick}
+          iconContainerClassName="bg-orange-50"
+          iconClassName="text-primary"
         />
       </div>
 
       <VideoLibrarySection videos={VIDEOS} />
 
       <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-        <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-base font-semibold text-[#1A1A1A]">
-            Performance Analytics
-          </h2>
-          <button
-            type="button"
-            className="text-primary hover:text-primary/80 inline-flex items-center gap-1.5 text-sm font-medium"
-          >
-            View Full Report
-            <ExternalLink className="size-3.5" />
-          </button>
-        </div>
-
-        <div>
-          <AnalyticsTableHeader />
-          {ANALYTICS_CATEGORIES.map((category) => (
-            <AnalyticsRow key={category.id} category={category} />
-          ))}
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <h2 className="text-base font-semibold text-[#1A1A1A]">
-            Collections & Playlists
-          </h2>
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-9 shrink-0"
-            aria-label="Sort and filter playlists"
-          >
-            <SlidersHorizontal className="size-4" />
+        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-[#1A1A1A]">
+              Customer App CTA Buttons
+            </h2>
+            <p className="mt-1 text-sm text-[#64748B]">
+              Manage call-to-action buttons shown on videos in the customer app.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" className="shrink-0 gap-2">
+            <MousePointerClick className="size-4" />
+            CTA Guidelines
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {PLAYLISTS.map((playlist) => (
-            <PlaylistCard key={playlist.id} playlist={playlist} />
-          ))}
-        </div>
+        <VideoCtaTable videos={VIDEOS} />
       </div>
     </div>
   );

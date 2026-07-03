@@ -8,6 +8,7 @@ import {
   FileText,
   Image as ImageIcon,
   LayoutGrid,
+  MousePointerClick,
   Upload,
 } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
@@ -34,6 +35,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { PrioritySlider } from "@/features/cms/components/PrioritySlider";
 import { ThumbnailPicker } from "@/features/cms/components/ThumbnailPicker";
 import {
+  CTA_DESTINATION_OPTIONS,
+  CTA_REDIRECT_OPTIONS,
   MOCK_UPLOAD_FILE,
   PLACEMENT_OPTIONS,
   THUMBNAIL_FRAMES,
@@ -57,7 +60,7 @@ export function VideoUploadForm() {
     THUMBNAIL_FRAMES[0]?.id ?? "",
   );
 
-  const { control, handleSubmit } = useForm<VideoUploadSchema>({
+  const { control, handleSubmit, watch } = useForm<VideoUploadSchema>({
     resolver: zodResolver(videoUploadSchema),
     defaultValues: {
       title: "",
@@ -68,8 +71,16 @@ export function VideoUploadForm() {
       priorityLevel: 8,
       publishImmediately: false,
       scheduledAt: "",
+      ctaEnabled: true,
+      ctaLabel: "",
+      ctaPath: "",
+      ctaDestinationType: "category",
     },
   });
+
+  const ctaEnabled = watch("ctaEnabled");
+  const ctaPath = watch("ctaPath");
+  const showCustomPath = ctaPath === "custom";
 
   const onSubmit = (data: VideoUploadSchema) => {
     console.log("Publish video:", { ...data, uploadFile, selectedThumbnailId });
@@ -230,6 +241,130 @@ export function VideoUploadForm() {
           selectedId={selectedThumbnailId}
           onSelect={setSelectedThumbnailId}
         />
+      </FormSectionCard>
+
+      <FormSectionCard icon={MousePointerClick} title="Customer App CTA Button">
+        <div className="space-y-5">
+          <Controller
+            control={control}
+            name="ctaEnabled"
+            render={({ field }) => (
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-gray-100 bg-gray-50/50 px-4 py-3">
+                <div>
+                  <Label
+                    htmlFor="cta-enabled"
+                    className="text-sm font-medium text-[#1A1A1A]"
+                  >
+                    Show CTA on Customer App
+                  </Label>
+                  <p className="mt-0.5 text-sm text-[#64748B]">
+                    Display a call-to-action button below this video in the app.
+                  </p>
+                </div>
+                <Switch
+                  id="cta-enabled"
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </div>
+            )}
+          />
+
+          {ctaEnabled && (
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              <Controller
+                control={control}
+                name="ctaLabel"
+                render={({ field, fieldState }) => (
+                  <div className="space-y-2">
+                    <Label htmlFor="cta-label" className={fieldLabelClassName}>
+                      Button Label
+                    </Label>
+                    <Input
+                      {...field}
+                      id="cta-label"
+                      placeholder="e.g. Shop Now, Get Quote"
+                      aria-invalid={!!fieldState.error}
+                    />
+                    {fieldState.error && (
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
+                    )}
+                  </div>
+                )}
+              />
+
+              <Controller
+                control={control}
+                name="ctaDestinationType"
+                render={({ field, fieldState }) => (
+                  <div className="space-y-2">
+                    <Label className={fieldLabelClassName}>
+                      Destination Type
+                    </Label>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger aria-invalid={!!fieldState.error}>
+                        <SelectValue placeholder="Select destination type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CTA_DESTINATION_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              />
+
+              <Controller
+                control={control}
+                name="ctaPath"
+                render={({ field, fieldState }) => (
+                  <div className="space-y-2 lg:col-span-2">
+                    <Label className={fieldLabelClassName}>
+                      Redirect Destination
+                    </Label>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger aria-invalid={!!fieldState.error}>
+                        <SelectValue placeholder="Select where the button redirects" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CTA_REDIRECT_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {fieldState.error && (
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
+                    )}
+                  </div>
+                )}
+              />
+
+              {showCustomPath && (
+                <div className="space-y-2 lg:col-span-2">
+                  <Label
+                    htmlFor="custom-cta-path"
+                    className={fieldLabelClassName}
+                  >
+                    Custom Path
+                  </Label>
+                  <Input
+                    id="custom-cta-path"
+                    placeholder="/category/your-path"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </FormSectionCard>
 
       <FormSectionCard icon={LayoutGrid} title="Placement & Priority">

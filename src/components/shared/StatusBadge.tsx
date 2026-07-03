@@ -8,12 +8,16 @@ import type { VideoStatus } from "@/features/cms/types/video.types";
 import type { ContentUpdateStatus } from "@/features/cms/types/cms.types";
 import type { CategoryStatus } from "@/features/cms/types/category.types";
 import type { ProductStatus } from "@/features/catalog/types/product.types";
-import type { OrderStatus } from "@/features/dashboard/types/dashboard.types";
+import type {
+  OrderSource,
+  OrderStatus,
+} from "@/features/dashboard/types/dashboard.types";
 import type { NotificationStatus } from "@/features/notifications/types/notification.types";
 import { cn } from "@/lib/utils";
 
 type TableStatus =
   | OrderStatus
+  | OrderSource
   | ContentUpdateStatus
   | BannerStatus
   | ModificationStatus
@@ -37,8 +41,11 @@ const statusBadgeVariants = cva(
         neutral:
           "inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-1.5 text-[10px] font-semibold tracking-wider text-white/80 uppercase backdrop-blur-md bg-black/40",
         DISPATCHED: "bg-blue-100 text-blue-700",
-        PROCESSING: "bg-orange-100 text-orange-700",
-        DELIVERED: "bg-green-100 text-green-700",
+        PROCESSING: "bg-blue-100 text-blue-700",
+        DELIVERED: "bg-slate-100 text-slate-600",
+        "AWAITING HUB": "bg-orange-100 text-orange-700",
+        App: "bg-blue-50 text-blue-600 border border-blue-100",
+        Exec: "bg-orange-50 text-orange-600 border border-orange-100",
         Live: "bg-green-100 text-green-700",
         Draft: "bg-slate-100 text-slate-600",
         Expired: "bg-red-100 text-red-700",
@@ -71,6 +78,9 @@ const dotVariants = cva("size-2 shrink-0 rounded-full", {
       DISPATCHED: "hidden",
       PROCESSING: "hidden",
       DELIVERED: "hidden",
+      "AWAITING HUB": "hidden",
+      App: "hidden",
+      Exec: "hidden",
       Live: "hidden",
       Draft: "hidden",
       Expired: "hidden",

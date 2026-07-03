@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { Calendar, Download, Plus } from "lucide-react";
 import type { Metadata } from "next";
 
 import { InventoryPage } from "@/components/inventory/InventoryPage";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import { ROUTES } from "@/constants/routes";
 
 export const metadata: Metadata = {
   title: "Inventory Management",
@@ -28,7 +30,14 @@ export default function InventoryManagementPage() {
               <Download className="size-4" />
               Export CSV
             </Button>
-            <Button className="h-10 gap-2 px-4">
+            <Button
+              className="h-10 gap-2 px-4"
+              render={
+                <Link
+                  href={`${ROUTES.CENTRAL_WAREHOUSE}/inventory/add-material`}
+                />
+              }
+            >
               <Plus className="size-4" />
               Add New Material
             </Button>

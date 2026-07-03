@@ -36,7 +36,7 @@ export interface MaterialFormData {
   brand: string;
   manufacturer: string;
   hsnCode: string;
-  gstPercent: number | "";
+  gstPercent: number;
   productStatus: ProductStatus;
 
   category: string;
@@ -46,13 +46,13 @@ export interface MaterialFormData {
 
   skus: MaterialSku[];
 
-  purchasePrice: number | "";
-  sellingPrice: number | "";
-  dealerPrice: number | "";
-  bulkPrice: number | "";
-  minimumOrderQuantity: number | "";
-  maximumOrderQuantity: number | "";
-  discountPercent: number | "";
+  purchasePrice: number;
+  sellingPrice: number;
+  dealerPrice: number;
+  bulkPrice: number;
+  minimumOrderQuantity: number;
+  maximumOrderQuantity: number;
+  discountPercent: number;
   gstIncluded: boolean;
 
   warehouse: string;
@@ -60,10 +60,10 @@ export interface MaterialFormData {
   rackNumber: string;
   binNumber: string;
   shelfNumber: string;
-  openingStock: number | "";
-  warehouseMinimumStock: number | "";
-  warehouseMaximumStock: number | "";
-  reorderLevel: number | "";
+  openingStock: number;
+  warehouseMinimumStock: number;
+  warehouseMaximumStock: number;
+  reorderLevel: number;
   lowStockAlert: boolean;
   allowInventoryTracking: InventoryTracking;
 }

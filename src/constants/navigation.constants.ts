@@ -15,10 +15,13 @@ import {
   Warehouse,
 } from "lucide-react";
 
+import { CENTRAL_WAREHOUSE_NAV_CHILDREN } from "@/constants/warehouse-navigation.constants";
+
 export interface NavChildItem {
   label: string;
   href: string;
   icon?: LucideIcon;
+  badge?: number;
 }
 
 export interface NavItem {
@@ -45,6 +48,8 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Central Warehouse",
         href: "/central-warehouse",
         icon: Warehouse,
+        hasSubmenu: true,
+        children: CENTRAL_WAREHOUSE_NAV_CHILDREN,
       },
       {
         label: "Sub-Hub Network",

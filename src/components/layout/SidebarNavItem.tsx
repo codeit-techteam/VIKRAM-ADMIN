@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 import {
   findActiveChildItem,
+  type NavChildItem,
   type NavItem,
 } from "@/constants/navigation.constants";
 import { ROUTES } from "@/constants/routes";
@@ -26,6 +27,49 @@ function isPathActive(pathname: string, href: string): boolean {
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function SidebarChildLink({
+  child,
+  isActive,
+}: {
+  child: NavChildItem;
+  isActive: boolean;
+}) {
+  return (
+    <Link
+      href={child.href}
+      aria-current={isActive ? "page" : undefined}
+      className={cn(
+        "flex items-center justify-between gap-3 rounded-2xl px-4 py-2.5 text-sm font-medium transition-all duration-200",
+        isActive
+          ? "bg-primary text-[#1A1A1A] shadow-md"
+          : "text-[#1A1A1A] hover:bg-gray-50",
+      )}
+    >
+      <span className="leading-snug">{child.label}</span>
+      <div className="flex shrink-0 items-center gap-2">
+        {child.badge ? (
+          <span
+            className={cn(
+              "inline-flex min-w-6 items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold",
+              isActive
+                ? "bg-white/80 text-[#1A1A1A]"
+                : "bg-red-100 text-[#1A1A1A]",
+            )}
+          >
+            {child.badge}
+          </span>
+        ) : null}
+        {isActive ? (
+          <span
+            className="size-2 shrink-0 rounded-full bg-[#1A1A1A]"
+            aria-hidden="true"
+          />
+        ) : null}
+      </div>
+    </Link>
+  );
 }
 
 export function SidebarNavItem({
@@ -56,7 +100,7 @@ export function SidebarNavItem({
   const isExpanded =
     hasChildren && !isCollapsed && (isInSection || isManualOpen);
   const isActive = hasChildren ? false : isParentRouteActive;
-  const isSectionActive = hasChildren && isChildActive;
+  const isSectionActive = hasChildren && isInSection;
 
   const toggleSubmenu = () => {
     setIsManualOpen((open) => !open);
@@ -83,16 +127,29 @@ export function SidebarNavItem({
           : "text-gray-400",
   );
 
+  const iconWrapperClassName = cn(
+    hasChildren &&
+      !isCollapsed &&
+      isSectionActive &&
+      "bg-primary/15 flex size-8 shrink-0 items-center justify-center rounded-lg",
+  );
+
   const content = (
     <>
-      <Icon className={iconClassName} />
+      {iconWrapperClassName ? (
+        <div className={iconWrapperClassName}>
+          <Icon className={iconClassName} />
+        </div>
+      ) : (
+        <Icon className={iconClassName} />
+      )}
       {!isCollapsed && (
         <>
           <span className="flex-1 truncate">{item.label}</span>
           {hasChildren ? (
             <ChevronDown
               className={cn(
-                "size-4 shrink-0 transition-transform",
+                "size-4 shrink-0 transition-transform duration-200",
                 isSectionActive ? "text-primary" : "text-gray-400",
                 isExpanded && "rotate-180",
               )}
@@ -137,26 +194,14 @@ export function SidebarNavItem({
         </button>
 
         {isExpanded && item.children ? (
-          <div className="border-primary/20 mt-0.5 ml-4 flex flex-col gap-0.5 border-l-2 pl-1">
-            {item.children.map((child) => {
-              const childIsActive = activeChild?.href === child.href;
-
-              return (
-                <Link
-                  key={child.href}
-                  href={child.href}
-                  aria-current={childIsActive ? "page" : undefined}
-                  className={cn(
-                    "rounded-lg py-2 pr-3 pl-5 text-sm font-medium transition-colors",
-                    childIsActive
-                      ? "bg-primary text-white shadow-sm"
-                      : "text-muted-foreground hover:text-foreground hover:bg-gray-50",
-                  )}
-                >
-                  {child.label}
-                </Link>
-              );
-            })}
+          <div className="mt-2 flex flex-col gap-1.5 pl-1">
+            {item.children.map((child) => (
+              <SidebarChildLink
+                key={child.href}
+                child={child}
+                isActive={activeChild?.href === child.href}
+              />
+            ))}
           </div>
         ) : null}
       </div>

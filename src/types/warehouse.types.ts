@@ -291,3 +291,57 @@ export interface AllocationWorkflowResult {
   warehouseRemaining: number;
   baseWeight?: number;
 }
+
+export type TransferStatus =
+  | "CREATED"
+  | "VEHICLE_ASSIGNED"
+  | "DRIVER_ASSIGNED"
+  | "READY"
+  | "DISPATCHED"
+  | "IN_TRANSIT"
+  | "REACHED_HUB"
+  | "DELIVERED";
+
+export interface TransferDriver {
+  name: string;
+  employeeId: string;
+}
+
+export interface TransferListItem {
+  id: string;
+  transferId: string;
+  sourceWarehouseId: string;
+  sourceWarehouse: string;
+  destinationHubId: string;
+  destinationHub: string;
+  vehicleNumber?: string;
+  assignedDriver?: TransferDriver;
+  status: TransferStatus;
+  createdAt: string;
+  dispatchAt?: string;
+  eta: string;
+  deliveredAt?: string;
+  materials: string[];
+}
+
+export interface TransferFilters {
+  status: TransferStatus | "all" | "delayed";
+  sourceWarehouseId: string;
+  destinationHubId: string;
+  dateFrom: string;
+  dateTo: string;
+  search: string;
+}
+
+export interface TransferStats {
+  pendingDispatch: number;
+  inTransit: number;
+  deliveredToday: number;
+  delayedTransfers: number;
+}
+
+export interface TransferQueryParams {
+  page?: number;
+  limit?: number;
+  filters?: Partial<TransferFilters>;
+}

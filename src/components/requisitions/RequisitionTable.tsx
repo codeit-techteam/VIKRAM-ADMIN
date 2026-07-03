@@ -6,8 +6,7 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Check, Download, Eye, Filter, MoreVertical, X } from "lucide-react";
-import Link from "next/link";
+import { Download, Eye, Filter, MoreVertical } from "lucide-react";
 import { useMemo } from "react";
 
 import { RequisitionFilterChips } from "@/components/requisitions/RequisitionFilterChips";
@@ -51,8 +50,7 @@ interface RequisitionTableProps {
   onPageChange: (page: number) => void;
   onAdvancedFilter: () => void;
   onExport?: () => void;
-  onApprove?: (item: RequisitionListItem) => void;
-  onReject?: (item: RequisitionListItem) => void;
+  onRowSelect: (item: RequisitionListItem) => void;
 }
 
 const columnHelper = createColumnHelper<RequisitionListItem>();
@@ -86,12 +84,10 @@ function getPaginationItems(
 
 function RequisitionRowActions({
   item,
-  onApprove,
-  onReject,
+  onView,
 }: {
   item: RequisitionListItem;
-  onApprove?: (item: RequisitionListItem) => void;
-  onReject?: (item: RequisitionListItem) => void;
+  onView: (item: RequisitionListItem) => void;
 }) {
   return (
     <div className="flex items-center justify-end gap-0.5">
@@ -100,39 +96,13 @@ function RequisitionRowActions({
         variant="ghost"
         size="icon-sm"
         className="hover:text-primary size-8 text-[#64748B] hover:bg-orange-50"
-        render={<Link href={item.href} />}
+        onClick={(event) => {
+          event.stopPropagation();
+          onView(item);
+        }}
         aria-label={`View details for ${item.requestId}`}
-        onClick={(event) => event.stopPropagation()}
       >
         <Eye className="size-4" />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="size-8 text-[#64748B] hover:bg-green-50 hover:text-green-600"
-        disabled={item.status !== "PENDING"}
-        onClick={(event) => {
-          event.stopPropagation();
-          onApprove?.(item);
-        }}
-        aria-label={`Approve ${item.requestId}`}
-      >
-        <Check className="size-4" />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="size-8 text-[#64748B] hover:bg-red-50 hover:text-red-600"
-        disabled={item.status !== "PENDING"}
-        onClick={(event) => {
-          event.stopPropagation();
-          onReject?.(item);
-        }}
-        aria-label={`Reject ${item.requestId}`}
-      >
-        <X className="size-4" />
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger
@@ -150,10 +120,7 @@ function RequisitionRowActions({
           }
         />
         <DropdownMenuContent align="end" className="w-44">
-          <DropdownMenuItem
-            className="gap-2"
-            render={<Link href={item.href} />}
-          >
+          <DropdownMenuItem className="gap-2" onClick={() => onView(item)}>
             <Eye className="size-4" />
             View Details
           </DropdownMenuItem>
@@ -181,8 +148,7 @@ export function RequisitionTable({
   onPageChange,
   onAdvancedFilter,
   onExport,
-  onApprove,
-  onReject,
+  onRowSelect,
 }: RequisitionTableProps) {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const paginationItems = getPaginationItems(currentPage, totalPages);
@@ -194,9 +160,16 @@ export function RequisitionTable({
       columnHelper.accessor("requestId", {
         header: "Request ID",
         cell: (info) => (
-          <span className="font-semibold text-[#1A1A1A]">
+          <button
+            type="button"
+            className="hover:text-primary font-semibold text-[#1A1A1A] transition-colors"
+            onClick={(event) => {
+              event.stopPropagation();
+              onRowSelect(info.row.original);
+            }}
+          >
             {info.getValue()}
-          </span>
+          </button>
         ),
       }),
       columnHelper.accessor("requestedBy", {
@@ -278,15 +251,11 @@ export function RequisitionTable({
         id: "actions",
         header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => (
-          <RequisitionRowActions
-            item={row.original}
-            onApprove={onApprove}
-            onReject={onReject}
-          />
+          <RequisitionRowActions item={row.original} onView={onRowSelect} />
         ),
       }),
     ],
-    [onApprove, onReject],
+    [onRowSelect],
   );
 
   const table = useReactTable({
@@ -372,7 +341,8 @@ export function RequisitionTable({
                 table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}
-                    className="border-gray-100 transition-colors hover:bg-gray-50/80"
+                    className="cursor-pointer border-gray-100 transition-colors hover:bg-gray-50/80"
+                    onClick={() => onRowSelect(row.original)}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id} className="py-4">

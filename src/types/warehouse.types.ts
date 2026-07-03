@@ -52,6 +52,9 @@ export interface RequisitionListItem {
   allocationStatus: RequisitionAllocationStatus;
   createdAt: string;
   href: string;
+  customerName?: string;
+  adminRemarks?: string;
+  rejectionReason?: string;
 }
 
 export type RequisitionFilterChip =
@@ -87,6 +90,52 @@ export interface RequisitionQueryParams {
   chip?: RequisitionFilterChip;
   advanced?: Partial<RequisitionAdvancedFilters>;
   search?: string;
+}
+
+export type RequisitionAttachmentType =
+  "purchase-sheet" | "quotation" | "supporting-document";
+
+export interface RequisitionAttachment {
+  id: string;
+  name: string;
+  type: RequisitionAttachmentType;
+  url: string;
+  mimeType: string;
+}
+
+export type RequisitionAuditAction = "APPROVE" | "REJECT";
+
+export interface RequisitionAuditEntry {
+  id: string;
+  requisitionId: string;
+  adminName: string;
+  action: RequisitionAuditAction;
+  date: string;
+  time: string;
+  remarks?: string;
+}
+
+export interface RequisitionDetail extends RequisitionListItem {
+  customerName?: string;
+  region: string;
+  destinationWarehouse: string;
+  assignedWarehouse: string;
+  sku: string;
+  category: string;
+  requestReason: string;
+  attachments: RequisitionAttachment[];
+  adminRemarks?: string;
+  rejectionReason?: string;
+}
+
+export interface RequisitionApprovalPayload {
+  adminName: string;
+  remarks?: string;
+}
+
+export interface RequisitionRejectionPayload {
+  adminName: string;
+  remarks: string;
 }
 
 export type InventoryActivityStatus =

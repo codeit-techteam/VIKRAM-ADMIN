@@ -3,10 +3,15 @@ import { getAvailableStock, INVENTORY_ITEMS } from "@/mock/inventory";
 import type { PaginationMeta } from "@/types/api";
 import type {
   RequisitionAdvancedFilters,
+  RequisitionApprovalPayload,
+  RequisitionAttachment,
+  RequisitionAuditEntry,
+  RequisitionDetail,
   RequisitionFilterChip,
   RequisitionListItem,
   RequisitionPriority,
   RequisitionQueryParams,
+  RequisitionRejectionPayload,
   RequisitionStats,
   RequisitionStatus,
 } from "@/types/warehouse.types";
@@ -29,6 +34,29 @@ export const REQUISITION_WAREHOUSE_OPTIONS = [
   { id: "wh-gurgaon-hub", label: "Gurgaon Distribution Hub" },
   { id: "wh-delhi-south", label: "Delhi South Warehouse" },
 ] as const;
+
+const HUB_REGIONS: Record<string, string> = {
+  "hub-gurgaon-north": "NCR North",
+  "hub-noida-62": "NCR East",
+  "hub-manesar": "NCR West",
+  "hub-dwarka": "NCR South-West",
+  "hub-noida-north": "NCR North",
+  "hub-gurgaon-west": "NCR West",
+  "hub-delhi-south": "NCR South",
+  "hub-faridabad-east": "NCR East",
+};
+
+const REQUEST_REASONS = [
+  "Required for upcoming customer dispatch scheduled tomorrow.",
+  "Critical stock replenishment needed for ongoing construction phase.",
+  "Emergency request due to site material shortage before concrete pour.",
+  "Scheduled hub transfer to meet weekly project milestone.",
+  "Customer order fulfillment for premium residential project.",
+  "Preventive restock ahead of monsoon construction slowdown.",
+] as const;
+
+// TODO: Replace with requisition audit log API
+export const REQUISITION_AUDIT_LOG: RequisitionAuditEntry[] = [];
 
 const REQUESTERS = [
   { name: "Amit Sharma", role: "Project Manager" },
@@ -176,8 +204,192 @@ function buildRequisition(
     allocationStatus,
     createdAt: createDate(dayOffset, hour, minute),
     href: `${ROUTES.CENTRAL_WAREHOUSE}/requisitions/${id}`,
+    customerName: index % 3 === 0 ? "BuildQuick Homes Pvt. Ltd." : undefined,
     ...overrides,
   };
+}
+
+function buildAttachments(
+  index: number,
+  requestId: string,
+): RequisitionAttachment[] {
+  if (index % 4 === 3) {
+    return [];
+  }
+
+  const baseUrl = `/mock/requisitions/${requestId.replace("#", "")}`;
+
+  return [
+    {
+      id: `${requestId}-purchase-sheet`,
+      name: "Purchase Sheet.pdf",
+      type: "purchase-sheet",
+      url: `${baseUrl}/purchase-sheet.pdf`,
+      mimeType: "application/pdf",
+    },
+    ...(index % 2 === 0
+      ? [
+          {
+            id: `${requestId}-quotation`,
+            name: "Quotation.pdf",
+            type: "quotation" as const,
+            url: `${baseUrl}/quotation.pdf`,
+            mimeType: "application/pdf",
+          },
+        ]
+      : []),
+    ...(index % 3 === 0
+      ? [
+          {
+            id: `${requestId}-supporting`,
+            name: "Supporting Document.pdf",
+            type: "supporting-document" as const,
+            url: `${baseUrl}/supporting-document.pdf`,
+            mimeType: "application/pdf",
+          },
+        ]
+      : []),
+  ];
+}
+
+export function getRequisitionDetail(
+  item: RequisitionListItem,
+): RequisitionDetail {
+  const inventory = INVENTORY_ITEMS.find(
+    (entry) => entry.id === item.materialId,
+  );
+  const index = Number.parseInt(item.id.replace("req-", ""), 10) || 0;
+
+  return {
+    ...item,
+    region: HUB_REGIONS[item.hubId] ?? "NCR",
+    destinationWarehouse: item.warehouseName,
+    assignedWarehouse: item.warehouseName,
+    sku: inventory?.sku ?? "N/A",
+    category: inventory?.category ?? "General Materials",
+    requestReason: REQUEST_REASONS[index % REQUEST_REASONS.length],
+    attachments: buildAttachments(index, item.requestId),
+    adminRemarks: item.adminRemarks,
+    rejectionReason: item.rejectionReason,
+  };
+}
+
+export function formatRequisitionDateOnly(isoDate: string): string {
+  return new Date(isoDate).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+export function formatRequisitionTimeOnly(isoDate: string): string {
+  return new Date(isoDate).toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+function createAuditEntry(
+  requisitionId: string,
+  adminName: string,
+  action: RequisitionAuditEntry["action"],
+  remarks?: string,
+): RequisitionAuditEntry {
+  const now = new Date();
+
+  return {
+    id: `audit-${requisitionId}-${now.getTime()}`,
+    requisitionId,
+    adminName,
+    action,
+    date: now.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }),
+    time: now.toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }),
+    remarks,
+  };
+}
+
+// TODO: Replace with requisition approval API
+export function approveRequisition(
+  items: RequisitionListItem[],
+  requisitionId: string,
+  payload: RequisitionApprovalPayload,
+): {
+  items: RequisitionListItem[];
+  auditEntry: RequisitionAuditEntry;
+} {
+  const auditEntry = createAuditEntry(
+    requisitionId,
+    payload.adminName,
+    "APPROVE",
+    payload.remarks,
+  );
+  REQUISITION_AUDIT_LOG.unshift(auditEntry);
+
+  const updatedItems = items.map((item) => {
+    if (item.id !== requisitionId) {
+      return item;
+    }
+
+    return {
+      ...item,
+      status: "APPROVED" as RequisitionStatus,
+      allocationStatus: "PENDING" as const,
+      adminRemarks: payload.remarks?.trim() || item.adminRemarks,
+    };
+  });
+
+  return { items: updatedItems, auditEntry };
+}
+
+// TODO: Replace with requisition rejection API
+export function rejectRequisition(
+  items: RequisitionListItem[],
+  requisitionId: string,
+  payload: RequisitionRejectionPayload,
+): {
+  items: RequisitionListItem[];
+  auditEntry: RequisitionAuditEntry;
+} {
+  const auditEntry = createAuditEntry(
+    requisitionId,
+    payload.adminName,
+    "REJECT",
+    payload.remarks,
+  );
+  REQUISITION_AUDIT_LOG.unshift(auditEntry);
+
+  const updatedItems = items.map((item) => {
+    if (item.id !== requisitionId) {
+      return item;
+    }
+
+    return {
+      ...item,
+      status: "REJECTED" as RequisitionStatus,
+      allocationStatus: "NOT_APPLICABLE" as const,
+      adminRemarks: payload.remarks,
+      rejectionReason: payload.remarks,
+    };
+  });
+
+  return { items: updatedItems, auditEntry };
+}
+
+export function getRequisitionAuditLog(
+  requisitionId: string,
+): RequisitionAuditEntry[] {
+  return REQUISITION_AUDIT_LOG.filter(
+    (entry) => entry.requisitionId === requisitionId,
+  );
 }
 
 // TODO: Replace with requisition list API
@@ -452,18 +664,21 @@ export function paginateRequisitions(
 }
 
 // TODO: Replace with requisition list API
-export function fetchRequisitions(params: RequisitionQueryParams = {}): {
+export function fetchRequisitions(
+  items: RequisitionListItem[],
+  params: RequisitionQueryParams = {},
+): {
   data: RequisitionListItem[];
   meta: PaginationMeta;
   stats: RequisitionStats;
 } {
   const page = params.page ?? 1;
   const limit = params.limit ?? REQUISITION_PAGE_SIZE;
-  const filtered = filterRequisitions(REQUISITION_LIST, params);
+  const filtered = filterRequisitions(items, params);
   const paginated = paginateRequisitions(filtered, page, limit);
 
   return {
     ...paginated,
-    stats: computeRequisitionStats(REQUISITION_LIST),
+    stats: computeRequisitionStats(items),
   };
 }

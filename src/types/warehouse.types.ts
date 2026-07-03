@@ -12,7 +12,17 @@ export interface WarehouseStat {
   variant?: "default" | "warning";
 }
 
-export type RequisitionPriority = "critical" | "high" | "medium";
+export type RequisitionPriority = "critical" | "high" | "medium" | "low";
+
+export type RequisitionStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export type RequisitionAllocationStatus =
+  "PENDING" | "ALLOCATED" | "NOT_APPLICABLE";
+
+export interface RequisitionRequester {
+  name: string;
+  role: string;
+}
 
 export interface Requisition {
   id: string;
@@ -22,6 +32,61 @@ export interface Requisition {
   quantity: string;
   priority: RequisitionPriority;
   href: string;
+}
+
+export interface RequisitionListItem {
+  id: string;
+  requestId: string;
+  requestedBy: RequisitionRequester;
+  hubName: string;
+  hubId: string;
+  warehouseId: string;
+  warehouseName: string;
+  materialId: string;
+  material: string;
+  materialSpec?: string;
+  requestedQty: number;
+  unit: string;
+  priority: RequisitionPriority;
+  status: RequisitionStatus;
+  allocationStatus: RequisitionAllocationStatus;
+  createdAt: string;
+  href: string;
+}
+
+export type RequisitionFilterChip =
+  | "all"
+  | "critical"
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "today"
+  | "last-7-days";
+
+export interface RequisitionAdvancedFilters {
+  priority: RequisitionPriority | "all";
+  status: RequisitionStatus | "all";
+  hubId: string;
+  warehouseId: string;
+  material: string;
+  requestedBy: string;
+  dateFrom: string;
+  dateTo: string;
+}
+
+export interface RequisitionStats {
+  pendingRequests: number;
+  criticalRequests: number;
+  awaitingAllocation: number;
+  todaysRequests: number;
+}
+
+export interface RequisitionQueryParams {
+  page?: number;
+  limit?: number;
+  chip?: RequisitionFilterChip;
+  advanced?: Partial<RequisitionAdvancedFilters>;
+  search?: string;
 }
 
 export type InventoryActivityStatus =

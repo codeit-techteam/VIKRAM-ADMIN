@@ -17,6 +17,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const isMinimalTopbar = pathname.startsWith(
     "/customer-app-cms/videos/upload",
   );
+  const isRequisitionsPage = pathname.startsWith(
+    "/central-warehouse/requisitions",
+  );
 
   return (
     <div className="flex min-h-screen bg-[#F5F6F8]">
@@ -28,6 +31,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           pageLabel={pageLabel}
           showUserId={!pathname.startsWith("/customer-app-cms/banners")}
           variant={isMinimalTopbar ? "minimal" : "default"}
+          searchPlaceholder={
+            isRequisitionsPage
+              ? "Search Requisitions, Hubs or Materials..."
+              : undefined
+          }
         />
 
         <main className="flex-1 overflow-y-auto p-6">{children}</main>

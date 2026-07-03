@@ -16,6 +16,7 @@ interface AppTopbarProps {
   pageLabel: string;
   showUserId?: boolean;
   variant?: "default" | "minimal";
+  searchPlaceholder?: string;
 }
 
 function formatTopbarDate(date: Date) {
@@ -31,6 +32,7 @@ export function AppTopbar({
   pageLabel,
   showUserId = true,
   variant = "default",
+  searchPlaceholder,
 }: AppTopbarProps) {
   const { user } = useAuth();
   const isMinimal = variant === "minimal";
@@ -76,9 +78,10 @@ export function AppTopbar({
         <Input
           type="search"
           placeholder={
-            isMinimal
+            searchPlaceholder ??
+            (isMinimal
               ? "Search resources, logs, or assets..."
-              : "Search orders, hubs, customers..."
+              : "Search orders, hubs, customers...")
           }
           className="focus-visible:ring-primary/20 h-11 w-full rounded-full border-transparent bg-[#EEF4FF] pl-10 text-sm placeholder:text-gray-400 focus-visible:border-transparent"
         />

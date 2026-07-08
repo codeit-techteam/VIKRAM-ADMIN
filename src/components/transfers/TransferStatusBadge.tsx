@@ -3,6 +3,8 @@ import { isTransferDelayed } from "@/mock/transfers";
 import { cn } from "@/lib/utils";
 
 type DisplayStatus =
+  | "Draft"
+  | "Pending Dispatch"
   | "Created"
   | "Vehicle Assigned"
   | "Ready"
@@ -13,6 +15,8 @@ type DisplayStatus =
   | "Delayed";
 
 const statusStyles: Record<DisplayStatus, string> = {
+  Draft: "bg-slate-100 text-slate-600",
+  "Pending Dispatch": "bg-orange-50 text-orange-700",
   Created: "bg-slate-100 text-slate-700",
   "Vehicle Assigned": "bg-blue-50 text-blue-700",
   Ready: "bg-emerald-50 text-emerald-700",
@@ -31,6 +35,10 @@ const statusDots: Partial<Record<DisplayStatus, string>> = {
 
 function mapStatus(status: TransferStatus): DisplayStatus {
   switch (status) {
+    case "DRAFT":
+      return "Draft";
+    case "PENDING_DISPATCH":
+      return "Pending Dispatch";
     case "CREATED":
       return "Created";
     case "VEHICLE_ASSIGNED":

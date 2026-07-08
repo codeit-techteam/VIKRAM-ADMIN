@@ -293,6 +293,8 @@ export interface AllocationWorkflowResult {
 }
 
 export type TransferStatus =
+  | "DRAFT"
+  | "PENDING_DISPATCH"
   | "CREATED"
   | "VEHICLE_ASSIGNED"
   | "DRIVER_ASSIGNED"
@@ -302,6 +304,76 @@ export type TransferStatus =
   | "REACHED_HUB"
   | "DELIVERED";
 
+export type TransferType = "standard" | "critical" | "express";
+
+export type FleetAvailability = "now" | "2hr" | "4hr";
+
+export type FleetVehicleStatus =
+  "idle" | "assigned" | "maintenance" | "in-transit";
+
+export type FleetDriverStatus = "ready" | "assigned" | "on-duty" | "leave";
+
+export interface FleetVehicle {
+  id: string;
+  vehicleNumber: string;
+  vehicleType: string;
+  capacityKg: number;
+  location: string;
+  availability: FleetAvailability;
+  status: FleetVehicleStatus;
+}
+
+export interface FleetDriver {
+  id: string;
+  name: string;
+  employeeId: string;
+  licenseType: string;
+  experienceYears: number;
+  rating: number;
+  status: FleetDriverStatus;
+  phone?: string;
+  avatarInitials?: string;
+}
+
+export type TransferWorkflowStep = 1 | 2 | 3 | 4 | 5;
+
+export interface TransferWorkflowContext {
+  allocationId: string;
+  requisitionId: string;
+  material: string;
+  sku: string;
+  quantity: number;
+  unit: string;
+  sourceWarehouse: string;
+  sourceWarehouseId: string;
+  destinationHub: string;
+  destinationHubId: string;
+  estimatedWeightKg: number;
+}
+
+export interface TransferWorkflowFormValues {
+  transferType: TransferType;
+  dispatchDate: string;
+  expectedArrival: string;
+  logisticsRemarks: string;
+  vehicleId: string;
+  driverId: string;
+}
+
+export interface TransferWorkflowResult {
+  transferId: string;
+  allocationId: string;
+  requisitionId: string;
+  vehicleNumber: string;
+  driverName: string;
+  destinationHub: string;
+  material: string;
+  quantity: number;
+  unit: string;
+  status: "PENDING_DISPATCH";
+  createdAt: string;
+}
+
 export interface TransferDriver {
   name: string;
   employeeId: string;
@@ -310,13 +382,25 @@ export interface TransferDriver {
 export interface TransferListItem {
   id: string;
   transferId: string;
+  allocationId?: string;
+  requisitionId?: string;
   sourceWarehouseId: string;
   sourceWarehouse: string;
   destinationHubId: string;
   destinationHub: string;
   vehicleNumber?: string;
+  vehicleId?: string;
+  driverId?: string;
   assignedDriver?: TransferDriver;
   status: TransferStatus;
+  transferType?: TransferType;
+  sku?: string;
+  quantity?: number;
+  quantityUnit?: string;
+  estimatedWeightKg?: number;
+  logisticsRemarks?: string;
+  dispatchDate?: string;
+  expectedArrival?: string;
   createdAt: string;
   dispatchAt?: string;
   eta: string;

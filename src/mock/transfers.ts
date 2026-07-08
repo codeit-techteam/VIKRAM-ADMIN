@@ -567,9 +567,11 @@ export const TRANSFER_LIST: TransferListItem[] = [
 ];
 
 const PENDING_DISPATCH_STATUSES: TransferStatus[] = [
+  "PENDING_DISPATCH",
   "CREATED",
   "VEHICLE_ASSIGNED",
   "DRIVER_ASSIGNED",
+  "READY",
 ];
 
 export function isTransferDelayed(

@@ -10,9 +10,9 @@ import { TransferTable } from "@/components/transfers/TransferTable";
 import {
   EMPTY_TRANSFER_FILTERS,
   fetchTransfers,
-  TRANSFER_LIST,
   TRANSFER_PAGE_SIZE,
 } from "@/mock/transfers";
+import { useTransferListStore } from "@/store/transfer-list-store";
 import type {
   TransferFilters,
   TransferListItem,
@@ -20,7 +20,7 @@ import type {
 import { notify } from "@/utils/notify";
 
 export function TransferPage() {
-  const [transfers] = useState<TransferListItem[]>(TRANSFER_LIST);
+  const transfers = useTransferListStore((state) => state.transfers);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState<TransferFilters>(

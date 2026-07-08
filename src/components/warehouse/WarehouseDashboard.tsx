@@ -1,29 +1,46 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CriticalRequisitionTable } from "@/components/warehouse/CriticalRequisitionTable";
 import { InventoryActivityTable } from "@/components/warehouse/InventoryActivityTable";
 import { LowStockAlertCard } from "@/components/warehouse/LowStockAlertCard";
 import { QuickActions } from "@/components/warehouse/QuickActions";
 import { WarehouseStatsCard } from "@/components/warehouse/WarehouseStatsCard";
+import { computeTransferStats } from "@/mock/transfers";
 import {
   activities,
   alerts,
   quickActions,
   requisitions,
-  stats,
+  stats as baseStats,
 } from "@/mock/warehouse-dashboard";
+import { useTransferListStore } from "@/store/transfer-list-store";
 
 export function WarehouseDashboard() {
   const [isLoading, setIsLoading] = useState(true);
+  const transfers = useTransferListStore((state) => state.transfers);
 
   useEffect(() => {
-    // TODO: Replace simulated loading with warehouse dashboard API fetch
     const timer = window.setTimeout(() => setIsLoading(false), 600);
 
     return () => window.clearTimeout(timer);
   }, []);
+
+  const stats = useMemo(() => {
+    const pendingDispatch = computeTransferStats(transfers).pendingDispatch;
+
+    return baseStats.map((stat) =>
+      stat.id === "todays-dispatch"
+        ? {
+            ...stat,
+            label: "Pending Dispatch",
+            value: String(pendingDispatch).padStart(2, "0"),
+            subtitle: "Awaiting dispatch confirmation",
+          }
+        : stat,
+    );
+  }, [transfers]);
 
   const lowStockCount = stats.find(
     (item) => item.id === "low-stock-items",

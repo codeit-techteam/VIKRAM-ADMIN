@@ -72,6 +72,8 @@ const columnHelper = createColumnHelper<TransferListItem>();
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All Statuses" },
+  { value: "DRAFT", label: "Draft" },
+  { value: "PENDING_DISPATCH", label: "Pending Dispatch" },
   { value: "CREATED", label: "Created" },
   { value: "VEHICLE_ASSIGNED", label: "Vehicle Assigned" },
   { value: "DRIVER_ASSIGNED", label: "Driver Assigned" },

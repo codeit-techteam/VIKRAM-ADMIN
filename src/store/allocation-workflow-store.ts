@@ -8,6 +8,7 @@ import {
   getWorkflowWarehouses,
 } from "@/mock/allocation-workflow";
 import { mergeRequisitionIntoWorkflowList } from "@/utils/allocation-workflow-bridge";
+import { persistAllocationForTransfer } from "@/utils/allocation-transfer-bridge";
 import { INVENTORY_ITEMS } from "@/mock/inventory";
 import type { InventoryItem } from "@/types/inventory.types";
 import type {
@@ -278,6 +279,8 @@ export const useAllocationWorkflowStore = create<AllocationWorkflowState>(
           inventory,
           warehouses,
         );
+
+        persistAllocationForTransfer(outcome.result);
 
         set((current) => ({
           requisitions: applyRequisitionUpdates(

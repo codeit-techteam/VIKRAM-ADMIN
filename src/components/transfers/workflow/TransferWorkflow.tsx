@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { TransferDetailsStep } from "@/components/transfers/workflow/TransferDetailsStep";
@@ -17,7 +17,7 @@ import { ROUTES } from "@/constants/routes";
 import { useTransferWorkflowStore } from "@/store/transfer-workflow-store";
 import {
   mapAllocationToTransferContext,
-  readAllocationForTransfer,
+  resolveAllocationForTransfer,
 } from "@/utils/allocation-transfer-bridge";
 import { notify } from "@/utils/notify";
 
@@ -51,6 +51,8 @@ const stepTitles: Record<number, { title: string; subtitle?: string }> = {
 
 export function TransferWorkflow() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const allocationId = searchParams.get("allocationId");
   const [initialLoading, setInitialLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
 
@@ -75,12 +77,12 @@ export function TransferWorkflow() {
   } = useTransferWorkflowStore();
 
   useEffect(() => {
-    const allocationResult = readAllocationForTransfer();
+    const allocationResult = resolveAllocationForTransfer(allocationId);
 
     if (!allocationResult) {
       notify.error(
         "Allocation required",
-        "Create Transfer is only available after a successful material allocation.",
+        "Select a completed material allocation to create a transfer.",
       );
       router.replace(`${ROUTES.CENTRAL_WAREHOUSE}/transfers`);
       return;
@@ -88,13 +90,21 @@ export function TransferWorkflow() {
 
     if (!initialized) {
       const transferContext = mapAllocationToTransferContext(allocationResult);
-      initializeFromContext(transferContext);
+      const started = initializeFromContext(transferContext);
+      if (!started) {
+        notify.error(
+          "Transfer already exists",
+          "This allocation already has an active transfer.",
+        );
+        router.replace(`${ROUTES.CENTRAL_WAREHOUSE}/transfers`);
+        return;
+      }
       setInitialized(true);
     }
 
     const timer = window.setTimeout(() => setInitialLoading(false), 500);
     return () => window.clearTimeout(timer);
-  }, [initializeFromContext, initialized, router]);
+  }, [allocationId, initializeFromContext, initialized, router]);
 
   const selectedVehicle = useMemo(
     () => vehicles.find((vehicle) => vehicle.id === form.vehicleId),
@@ -115,15 +125,15 @@ export function TransferWorkflow() {
 
   const handleCancel = useCallback(() => {
     reset();
-    router.push(`${ROUTES.CENTRAL_WAREHOUSE}/transfers`);
+    router.push(`${ROUTES.CENTRAL_WAREHOUSE}/allocate`);
   }, [reset, router]);
 
   const handleConfirm = useCallback(async () => {
     try {
       await confirmTransfer();
       notify.success(
-        "Transfer confirmed",
-        "Transfer is now pending dispatch. Inventory remains reserved.",
+        "Transfer created",
+        "Transfer created successfully. Assign vehicle and driver, then mark ready for dispatch.",
       );
     } catch (error) {
       notify.error(

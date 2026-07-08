@@ -572,6 +572,8 @@ export function confirmWorkflowAllocation(
       batchLabel: batch?.label ?? form.batchId,
       warehouseRemaining,
       baseWeight,
+      status: "COMPLETED",
+      inventoryReserved: true,
     },
   };
 }

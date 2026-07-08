@@ -219,7 +219,7 @@ export const quickActions: WarehouseQuickAction[] = [
     id: "create-transfer",
     label: "Create Transfer",
     icon: "create-transfer",
-    href: `${ROUTES.CENTRAL_WAREHOUSE}/transfers`,
+    href: `${ROUTES.CENTRAL_WAREHOUSE}/transfers/new`,
   },
   {
     id: "inventory-management",

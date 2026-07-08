@@ -4,6 +4,7 @@ import type {
   TransferWorkflowFormValues,
   TransferWorkflowResult,
 } from "@/types/warehouse.types";
+import { createTimelineEvent } from "@/utils/transfer-actions";
 
 import {
   assignDriver,
@@ -75,6 +76,8 @@ export function buildDraftTransfer(
     destinationHub: context.destinationHub,
     status: "DRAFT",
     transferType: form.transferType,
+    priority: form.transferType,
+    material: context.material,
     sku: context.sku,
     quantity: context.quantity,
     quantityUnit: context.unit,
@@ -85,6 +88,9 @@ export function buildDraftTransfer(
     createdAt: new Date().toISOString(),
     eta: eta.toISOString(),
     materials: [`${context.material} x${context.quantity}`],
+    timeline: [],
+    activityLogs: [],
+    documents: [],
   };
 }
 
@@ -100,15 +106,41 @@ export function confirmTransferWorkflow(
   vehicles: typeof FLEET_VEHICLES;
   drivers: typeof FLEET_DRIVERS;
 } {
-  const vehicle = vehicles.find((entry) => entry.id === form.vehicleId);
-  const driver = drivers.find((entry) => entry.id === form.driverId);
-
-  if (!vehicle) throw new Error("Selected vehicle not found.");
-  if (!driver) throw new Error("Selected driver not found.");
+  const vehicle = form.vehicleId
+    ? vehicles.find((entry) => entry.id === form.vehicleId)
+    : undefined;
+  const driver = form.driverId
+    ? drivers.find((entry) => entry.id === form.driverId)
+    : undefined;
 
   const createdAt = new Date().toISOString();
   const eta = new Date(form.expectedArrival);
   eta.setHours(18, 30, 0, 0);
+
+  const timeline = [
+    createTimelineEvent(
+      "TRANSFER_CREATED",
+      `Transfer ${transferId} created from allocation ${context.allocationId}`,
+    ),
+  ];
+
+  if (vehicle) {
+    timeline.push(
+      createTimelineEvent(
+        "VEHICLE_ASSIGNED",
+        `Vehicle ${vehicle.vehicleNumber} assigned`,
+      ),
+    );
+  }
+
+  if (driver) {
+    timeline.push(
+      createTimelineEvent(
+        "DRIVER_ASSIGNED",
+        `${driver.name} (${driver.employeeId}) assigned`,
+      ),
+    );
+  }
 
   const transfer: TransferListItem = {
     id: `transfer-${transferId}`,
@@ -119,15 +151,16 @@ export function confirmTransferWorkflow(
     sourceWarehouse: context.sourceWarehouse,
     destinationHubId: context.destinationHubId,
     destinationHub: context.destinationHub,
-    vehicleNumber: vehicle.vehicleNumber,
-    vehicleId: vehicle.id,
-    driverId: driver.id,
-    assignedDriver: {
-      name: driver.name,
-      employeeId: driver.employeeId,
-    },
-    status: "PENDING_DISPATCH",
+    vehicleNumber: vehicle?.vehicleNumber,
+    vehicleId: vehicle?.id,
+    driverId: driver?.id,
+    assignedDriver: driver
+      ? { name: driver.name, employeeId: driver.employeeId }
+      : undefined,
+    status: "CREATED",
     transferType: form.transferType,
+    priority: form.transferType,
+    material: context.material,
     sku: context.sku,
     quantity: context.quantity,
     quantityUnit: context.unit,
@@ -138,27 +171,48 @@ export function confirmTransferWorkflow(
     createdAt,
     eta: eta.toISOString(),
     materials: [`${context.material} x${context.quantity}`],
+    timeline,
+    activityLogs: [
+      {
+        id: `log-created-${transferId}`,
+        action: "Transfer Created",
+        actor: "Warehouse Manager",
+        timestamp: createdAt,
+        details: `From allocation ${context.allocationId}`,
+      },
+    ],
+    documents: [],
   };
 
   const result: TransferWorkflowResult = {
     transferId,
     allocationId: context.allocationId,
     requisitionId: context.requisitionId,
-    vehicleNumber: vehicle.vehicleNumber,
-    driverName: driver.name,
+    vehicleNumber: vehicle?.vehicleNumber,
+    driverName: driver?.name,
     destinationHub: context.destinationHub,
     material: context.material,
     quantity: context.quantity,
     unit: context.unit,
-    status: "PENDING_DISPATCH",
+    status: "CREATED",
     createdAt,
   };
+
+  let updatedVehicles = vehicles;
+  let updatedDrivers = drivers;
+
+  if (vehicle) {
+    updatedVehicles = assignVehicle(vehicle.id, vehicles);
+  }
+  if (driver) {
+    updatedDrivers = assignDriver(driver.id, drivers);
+  }
 
   return {
     transfer,
     result,
-    vehicles: assignVehicle(vehicle.id, vehicles),
-    drivers: assignDriver(driver.id, drivers),
+    vehicles: updatedVehicles,
+    drivers: updatedDrivers,
   };
 }
 

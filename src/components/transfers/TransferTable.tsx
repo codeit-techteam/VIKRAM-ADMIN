@@ -11,6 +11,7 @@ import {
   Download,
   Eye,
   MoreVertical,
+  Plus,
   Search,
   SlidersHorizontal,
 } from "lucide-react";
@@ -54,7 +55,13 @@ import type {
   TransferListItem,
 } from "@/types/warehouse.types";
 import { cn } from "@/lib/utils";
-import { notify } from "@/utils/notify";
+import {
+  getPriorityLabel,
+  getPriorityStyles,
+  getTransferActionLabel,
+  getTransferRowActions,
+  type TransferRowAction,
+} from "@/utils/transfer-actions";
 
 interface TransferTableProps {
   items: TransferListItem[];
@@ -66,6 +73,8 @@ interface TransferTableProps {
   onFiltersChange: (filters: TransferFilters) => void;
   onPageChange: (page: number) => void;
   onView: (item: TransferListItem) => void;
+  onAction: (action: TransferRowAction, item: TransferListItem) => void;
+  onCreateTransfer?: () => void;
 }
 
 const columnHelper = createColumnHelper<TransferListItem>();
@@ -73,15 +82,16 @@ const columnHelper = createColumnHelper<TransferListItem>();
 const STATUS_OPTIONS = [
   { value: "all", label: "All Statuses" },
   { value: "DRAFT", label: "Draft" },
-  { value: "PENDING_DISPATCH", label: "Pending Dispatch" },
-  { value: "CREATED", label: "Created" },
+  { value: "CREATED", label: "Transfer Created" },
   { value: "VEHICLE_ASSIGNED", label: "Vehicle Assigned" },
   { value: "DRIVER_ASSIGNED", label: "Driver Assigned" },
-  { value: "READY", label: "Ready" },
-  { value: "DISPATCHED", label: "Dispatched" },
+  { value: "READY_FOR_DISPATCH", label: "Ready For Dispatch" },
+  { value: "PENDING_DISPATCH", label: "Pending Dispatch" },
+  { value: "DISPATCH_STARTED", label: "Dispatch Started" },
   { value: "IN_TRANSIT", label: "In Transit" },
-  { value: "REACHED_HUB", label: "Reached Hub" },
-  { value: "DELIVERED", label: "Completed" },
+  { value: "DELIVERED", label: "Delivered" },
+  { value: "HUB_RECEIVED", label: "Hub Received" },
+  { value: "COMPLETED", label: "Completed" },
   { value: "delayed", label: "Delayed" },
 ] as const;
 
@@ -115,16 +125,14 @@ function getPaginationItems(
 function TransferRowActions({
   item,
   onView,
+  onAction,
 }: {
   item: TransferListItem;
   onView: (item: TransferListItem) => void;
+  onAction: (action: TransferRowAction, item: TransferListItem) => void;
 }) {
-  const handleAction = (action: string) => {
-    notify.info(
-      action,
-      `${action} for ${item.transferId} will be available in the next release.`,
-    );
-  };
+  const actions = getTransferRowActions(item);
+  const menuActions = actions.filter((action) => action !== "view-details");
 
   return (
     <div className="flex items-center justify-end gap-0.5">
@@ -141,55 +149,45 @@ function TransferRowActions({
       >
         <Eye className="size-4" />
       </Button>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-8 text-[#64748B] hover:bg-gray-100 hover:text-[#1A1A1A]"
-              onClick={(event) => event.stopPropagation()}
-              aria-label={`More actions for ${item.transferId}`}
-            >
-              <MoreVertical className="size-4" />
-            </Button>
-          }
-        />
-        <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem
-            className="gap-2"
-            onClick={() => handleAction("Assign Vehicle")}
-          >
-            Assign Vehicle
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="gap-2"
-            onClick={() => handleAction("Assign Driver")}
-          >
-            Assign Driver
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="gap-2"
-            onClick={() => handleAction("Start Dispatch")}
-          >
-            Start Dispatch
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="gap-2"
-            onClick={() => handleAction("Track Transfer")}
-          >
-            Track Transfer
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="gap-2"
-            onClick={() => handleAction("Mark Delivered")}
-          >
-            Mark Delivered
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {menuActions.length > 0 ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-8 text-[#64748B] hover:bg-gray-100 hover:text-[#1A1A1A]"
+                onClick={(event) => event.stopPropagation()}
+                aria-label={`More actions for ${item.transferId}`}
+              >
+                <MoreVertical className="size-4" />
+              </Button>
+            }
+          />
+          <DropdownMenuContent align="end" className="w-52">
+            {menuActions.map((action, index) => (
+              <div key={action}>
+                {index > 0 &&
+                (action === "start-dispatch" ||
+                  action === "track" ||
+                  action === "delete") ? (
+                  <DropdownMenuSeparator />
+                ) : null}
+                <DropdownMenuItem
+                  className={cn(
+                    "gap-2",
+                    action === "delete" && "text-red-600 focus:text-red-600",
+                  )}
+                  onClick={() => onAction(action, item)}
+                >
+                  {getTransferActionLabel(action)}
+                </DropdownMenuItem>
+              </div>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
     </div>
   );
 }
@@ -204,6 +202,8 @@ export function TransferTable({
   onFiltersChange,
   onPageChange,
   onView,
+  onAction,
+  onCreateTransfer,
 }: TransferTableProps) {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const paginationItems = getPaginationItems(currentPage, totalPages);
@@ -243,6 +243,14 @@ export function TransferTable({
           );
         },
       }),
+      columnHelper.accessor("allocationId", {
+        header: "Allocation ID",
+        cell: (info) => (
+          <span className="text-sm font-medium text-[#64748B]">
+            {info.getValue() ?? "—"}
+          </span>
+        ),
+      }),
       columnHelper.accessor("sourceWarehouse", {
         header: "Source Warehouse",
         cell: (info) => (
@@ -258,7 +266,7 @@ export function TransferTable({
         ),
       }),
       columnHelper.accessor("vehicleNumber", {
-        header: "Vehicle Number",
+        header: "Vehicle",
         cell: (info) => (
           <span className="text-sm text-[#64748B]">
             {info.getValue() ?? "—"}
@@ -267,7 +275,7 @@ export function TransferTable({
       }),
       columnHelper.display({
         id: "assignedDriver",
-        header: "Assigned Driver",
+        header: "Driver",
         cell: ({ row }) => {
           const driver = row.original.assignedDriver;
           if (!driver) {
@@ -298,11 +306,11 @@ export function TransferTable({
       }),
       columnHelper.display({
         id: "status",
-        header: "Current Status",
+        header: "Dispatch Status",
         cell: ({ row }) => <TransferStatusBadge transfer={row.original} />,
       }),
       columnHelper.accessor("dispatchAt", {
-        header: "Dispatch Date & Time",
+        header: "Dispatch Date",
         cell: (info) => {
           const value = info.getValue();
           return (
@@ -336,14 +344,32 @@ export function TransferTable({
         },
       }),
       columnHelper.display({
+        id: "priority",
+        header: "Priority",
+        cell: ({ row }) => (
+          <span
+            className={cn(
+              "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
+              getPriorityStyles(row.original),
+            )}
+          >
+            {getPriorityLabel(row.original)}
+          </span>
+        ),
+      }),
+      columnHelper.display({
         id: "actions",
         header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => (
-          <TransferRowActions item={row.original} onView={onView} />
+          <TransferRowActions
+            item={row.original}
+            onView={onView}
+            onAction={onAction}
+          />
         ),
       }),
     ],
-    [onView],
+    [onAction, onView],
   );
 
   const table = useReactTable({
@@ -361,7 +387,7 @@ export function TransferTable({
             type="search"
             value={filters.search}
             onChange={(event) => updateFilter("search", event.target.value)}
-            placeholder="Search by Transfer ID, Vehicle Number, Driver Name, or Hub..."
+            placeholder="Search by Transfer ID, Allocation ID, Vehicle, Driver, or Hub..."
             className="h-10 border-gray-200 bg-[#F8F9FB] pl-9 text-sm placeholder:text-gray-400"
           />
         </div>
@@ -455,6 +481,17 @@ export function TransferTable({
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
+            {onCreateTransfer ? (
+              <Button
+                type="button"
+                size="sm"
+                className="h-9 gap-2 px-3 text-sm font-semibold"
+                onClick={onCreateTransfer}
+              >
+                <Plus className="size-4" />
+                Create Transfer
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
@@ -479,7 +516,7 @@ export function TransferTable({
 
       {isLoading ? (
         <div className="p-5">
-          <DataTableSkeleton columns={9} rows={8} />
+          <DataTableSkeleton columns={10} rows={8} />
         </div>
       ) : (
         <div className="overflow-x-auto">

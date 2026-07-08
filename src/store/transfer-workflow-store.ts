@@ -11,17 +11,11 @@ import { useTransferListStore } from "@/store/transfer-list-store";
 import type {
   FleetDriver,
   FleetVehicle,
-  TransferListItem,
   TransferWorkflowContext,
   TransferWorkflowFormValues,
   TransferWorkflowResult,
   TransferWorkflowStep,
 } from "@/types/warehouse.types";
-import {
-  buildAllocationFromTransfer,
-  extractMaterialName,
-  getResumeStep,
-} from "@/utils/transfer-actions";
 import { clearAllocationTransferContext } from "@/utils/allocation-transfer-bridge";
 
 const STEP_TRANSITION_MS = 500;
@@ -39,11 +33,7 @@ interface TransferWorkflowState {
   drivers: FleetDriver[];
   draftSaved: boolean;
 
-  initializeFromContext: (context: TransferWorkflowContext) => void;
-  resumeTransfer: (
-    transfer: TransferListItem,
-    step?: TransferWorkflowStep,
-  ) => void;
+  initializeFromContext: (context: TransferWorkflowContext) => boolean;
   reset: () => void;
   updateForm: (values: Partial<TransferWorkflowFormValues>) => void;
   saveDraft: () => void;
@@ -67,13 +57,20 @@ export const useTransferWorkflowStore = create<TransferWorkflowState>(
     draftSaved: false,
 
     initializeFromContext: (context) => {
-      const existingDraft = useTransferListStore
+      const existingForAllocation = useTransferListStore
         .getState()
         .transfers.find(
-          (transfer) =>
-            transfer.allocationId === context.allocationId &&
-            transfer.status === "DRAFT",
+          (transfer) => transfer.allocationId === context.allocationId,
         );
+
+      if (existingForAllocation && existingForAllocation.status !== "DRAFT") {
+        return false;
+      }
+
+      const existingDraft =
+        existingForAllocation?.status === "DRAFT"
+          ? existingForAllocation
+          : undefined;
 
       if (existingDraft) {
         set({
@@ -89,7 +86,7 @@ export const useTransferWorkflowStore = create<TransferWorkflowState>(
           drivers: FLEET_DRIVERS,
           draftSaved: false,
         });
-        return;
+        return true;
       }
 
       const transferId = generateTransferId();
@@ -111,6 +108,7 @@ export const useTransferWorkflowStore = create<TransferWorkflowState>(
 
       const draft = buildDraftTransfer(transferId, context, form);
       useTransferListStore.getState().addTransfer(draft);
+      return true;
     },
 
     reset: () => {

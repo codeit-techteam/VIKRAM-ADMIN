@@ -6,6 +6,7 @@ import {
   TRANSFER_HUB_OPTIONS,
   TRANSFER_WAREHOUSE_OPTIONS,
 } from "@/mock/transfers";
+import { useAllocationRegistryStore } from "@/store/allocation-registry-store";
 
 export const ALLOCATION_TRANSFER_CONTEXT_KEY = "bq-allocation-transfer-context";
 
@@ -41,6 +42,31 @@ export function persistAllocationForTransfer(
     ALLOCATION_TRANSFER_CONTEXT_KEY,
     JSON.stringify(result),
   );
+  useAllocationRegistryStore.getState().addAllocation(result);
+}
+
+export function setActiveAllocationForTransfer(
+  result: AllocationWorkflowResult,
+): void {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem(
+    ALLOCATION_TRANSFER_CONTEXT_KEY,
+    JSON.stringify(result),
+  );
+}
+
+export function resolveAllocationForTransfer(
+  allocationId?: string | null,
+): AllocationWorkflowResult | null {
+  const fromSession = readAllocationForTransfer();
+  if (fromSession) return fromSession;
+
+  if (!allocationId) return null;
+
+  return (
+    useAllocationRegistryStore.getState().getAllocationById(allocationId) ??
+    null
+  );
 }
 
 export function readAllocationForTransfer(): AllocationWorkflowResult | null {
@@ -58,10 +84,6 @@ export function readAllocationForTransfer(): AllocationWorkflowResult | null {
 export function clearAllocationTransferContext(): void {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(ALLOCATION_TRANSFER_CONTEXT_KEY);
-}
-
-export function hasAllocationReadyForTransfer(): boolean {
-  return readAllocationForTransfer() !== null;
 }
 
 export function mapAllocationToTransferContext(

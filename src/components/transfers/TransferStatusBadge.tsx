@@ -1,28 +1,34 @@
+"use client";
+
 import type { TransferListItem, TransferStatus } from "@/types/warehouse.types";
 import { isTransferDelayed } from "@/mock/transfers";
 import { cn } from "@/lib/utils";
 
 type DisplayStatus =
   | "Draft"
-  | "Pending Dispatch"
-  | "Created"
+  | "Transfer Created"
   | "Vehicle Assigned"
-  | "Ready"
-  | "Dispatched"
+  | "Driver Assigned"
+  | "Ready For Dispatch"
+  | "Pending Dispatch"
+  | "Dispatch Started"
   | "In Transit"
-  | "Reached Hub"
+  | "Delivered"
+  | "Hub Received"
   | "Completed"
   | "Delayed";
 
 const statusStyles: Record<DisplayStatus, string> = {
   Draft: "bg-slate-100 text-slate-600",
-  "Pending Dispatch": "bg-orange-50 text-orange-700",
-  Created: "bg-slate-100 text-slate-700",
+  "Transfer Created": "bg-slate-100 text-slate-700",
   "Vehicle Assigned": "bg-blue-50 text-blue-700",
-  Ready: "bg-emerald-50 text-emerald-700",
-  Dispatched: "bg-violet-50 text-violet-700",
+  "Driver Assigned": "bg-indigo-50 text-indigo-700",
+  "Ready For Dispatch": "bg-emerald-50 text-emerald-700",
+  "Pending Dispatch": "bg-orange-50 text-orange-700",
+  "Dispatch Started": "bg-violet-50 text-violet-700",
   "In Transit": "bg-sky-50 text-sky-700",
-  "Reached Hub": "bg-indigo-50 text-indigo-700",
+  Delivered: "bg-amber-50 text-amber-700",
+  "Hub Received": "bg-teal-50 text-teal-700",
   Completed: "bg-green-50 text-green-700",
   Delayed: "bg-orange-50 text-orange-700",
 };
@@ -31,31 +37,35 @@ const statusDots: Partial<Record<DisplayStatus, string>> = {
   "In Transit": "bg-sky-500",
   Delayed: "bg-orange-500",
   Completed: "bg-green-500",
+  Delivered: "bg-amber-500",
 };
 
 function mapStatus(status: TransferStatus): DisplayStatus {
   switch (status) {
     case "DRAFT":
       return "Draft";
-    case "PENDING_DISPATCH":
-      return "Pending Dispatch";
     case "CREATED":
-      return "Created";
+      return "Transfer Created";
     case "VEHICLE_ASSIGNED":
       return "Vehicle Assigned";
     case "DRIVER_ASSIGNED":
-    case "READY":
-      return "Ready";
-    case "DISPATCHED":
-      return "Dispatched";
+      return "Driver Assigned";
+    case "READY_FOR_DISPATCH":
+      return "Ready For Dispatch";
+    case "PENDING_DISPATCH":
+      return "Pending Dispatch";
+    case "DISPATCH_STARTED":
+      return "Dispatch Started";
     case "IN_TRANSIT":
       return "In Transit";
-    case "REACHED_HUB":
-      return "Reached Hub";
     case "DELIVERED":
+      return "Delivered";
+    case "HUB_RECEIVED":
+      return "Hub Received";
+    case "COMPLETED":
       return "Completed";
     default:
-      return "Created";
+      return "Transfer Created";
   }
 }
 

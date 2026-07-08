@@ -279,6 +279,8 @@ export interface AllocationWorkflowFormValues {
   remarks: string;
 }
 
+export type AllocationTransferStatus = "COMPLETED";
+
 export interface AllocationWorkflowResult {
   allocationId: string;
   requestId: string;
@@ -290,19 +292,57 @@ export interface AllocationWorkflowResult {
   batchLabel: string;
   warehouseRemaining: number;
   baseWeight?: number;
+  status: AllocationTransferStatus;
+  inventoryReserved: boolean;
 }
 
 export type TransferStatus =
   | "DRAFT"
-  | "PENDING_DISPATCH"
   | "CREATED"
   | "VEHICLE_ASSIGNED"
   | "DRIVER_ASSIGNED"
-  | "READY"
-  | "DISPATCHED"
+  | "READY_FOR_DISPATCH"
+  | "PENDING_DISPATCH"
+  | "DISPATCH_STARTED"
   | "IN_TRANSIT"
-  | "REACHED_HUB"
-  | "DELIVERED";
+  | "DELIVERED"
+  | "HUB_RECEIVED"
+  | "COMPLETED";
+
+export type TransferTimelineEventType =
+  | "TRANSFER_CREATED"
+  | "VEHICLE_ASSIGNED"
+  | "DRIVER_ASSIGNED"
+  | "READY_FOR_DISPATCH"
+  | "DISPATCH_STARTED"
+  | "REACHED_DESTINATION"
+  | "DELIVERED"
+  | "HUB_RECEIVED"
+  | "COMPLETED";
+
+export interface TransferTimelineEvent {
+  id: string;
+  type: TransferTimelineEventType;
+  label: string;
+  timestamp: string;
+  description?: string;
+}
+
+export interface TransferActivityLog {
+  id: string;
+  action: string;
+  actor: string;
+  timestamp: string;
+  details?: string;
+}
+
+export interface TransferDocument {
+  id: string;
+  name: string;
+  type: "gate-pass" | "dispatch-log" | "delivery-note" | "supporting";
+  url: string;
+  createdAt: string;
+}
 
 export type TransferType = "standard" | "critical" | "express";
 
@@ -364,13 +404,13 @@ export interface TransferWorkflowResult {
   transferId: string;
   allocationId: string;
   requisitionId: string;
-  vehicleNumber: string;
-  driverName: string;
+  vehicleNumber?: string;
+  driverName?: string;
   destinationHub: string;
   material: string;
   quantity: number;
   unit: string;
-  status: "PENDING_DISPATCH";
+  status: "CREATED";
   createdAt: string;
 }
 
@@ -394,6 +434,8 @@ export interface TransferListItem {
   assignedDriver?: TransferDriver;
   status: TransferStatus;
   transferType?: TransferType;
+  priority?: TransferType;
+  material?: string;
   sku?: string;
   quantity?: number;
   quantityUnit?: string;
@@ -405,7 +447,13 @@ export interface TransferListItem {
   dispatchAt?: string;
   eta: string;
   deliveredAt?: string;
+  hubReceivedAt?: string;
+  completedAt?: string;
+  gatePassId?: string;
   materials: string[];
+  timeline: TransferTimelineEvent[];
+  activityLogs: TransferActivityLog[];
+  documents: TransferDocument[];
 }
 
 export interface TransferFilters {

@@ -68,8 +68,8 @@ export function TransferSuccessPage({
             <p className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
               Status
             </p>
-            <span className="mt-1 inline-flex rounded-full bg-orange-50 px-3 py-1 text-[10px] font-bold tracking-wider text-orange-600 uppercase">
-              Pending Dispatch
+            <span className="mt-1 inline-flex rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold tracking-wider text-slate-700 uppercase">
+              Transfer Created
             </span>
           </div>
           <div>
@@ -77,14 +77,16 @@ export function TransferSuccessPage({
               Vehicle Number
             </p>
             <p className="mt-1 font-bold text-[#1A1A1A]">
-              {result.vehicleNumber}
+              {result.vehicleNumber ?? "Not assigned"}
             </p>
           </div>
           <div>
             <p className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
               Assigned Driver
             </p>
-            <p className="mt-1 font-bold text-[#1A1A1A]">{result.driverName}</p>
+            <p className="mt-1 font-bold text-[#1A1A1A]">
+              {result.driverName ?? "Not assigned"}
+            </p>
           </div>
           <div>
             <p className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">

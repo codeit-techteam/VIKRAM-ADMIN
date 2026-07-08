@@ -104,7 +104,7 @@ export function SuccessPage({ result, onReset }: SuccessPageProps) {
       >
         <Button
           className="h-11 w-full gap-2"
-          render={<Link href={`${ROUTES.CENTRAL_WAREHOUSE}/transfers`} />}
+          render={<Link href={`${ROUTES.CENTRAL_WAREHOUSE}/transfers/new`} />}
         >
           Create Transfer
           <Truck className="size-4" />

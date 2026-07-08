@@ -398,6 +398,7 @@ export interface FleetVehicle {
   location: string;
   availability: FleetAvailability;
   status: FleetVehicleStatus;
+  hubId?: string;
 }
 
 export interface FleetDriver {
@@ -410,6 +411,7 @@ export interface FleetDriver {
   status: FleetDriverStatus;
   phone?: string;
   avatarInitials?: string;
+  hubId?: string;
 }
 
 export type TransferWorkflowStep = 1 | 2 | 3 | 4 | 5;

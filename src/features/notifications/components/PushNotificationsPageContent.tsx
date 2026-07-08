@@ -136,7 +136,7 @@ export function PushNotificationsPageContent() {
     <div className="space-y-6">
       <PageHeader
         title="Push Notifications"
-        subtitle="Send targeted announcements directly to the BuildQuick customer app."
+        subtitle="Send targeted announcements directly to the Bajriwala customer app."
         actions={
           <>
             <Button
@@ -323,7 +323,7 @@ export function PushNotificationsPageContent() {
                     render={({ field }) => (
                       <Input
                         {...field}
-                        placeholder="https://buildquick.in/offers/monsoon-sale"
+                        placeholder="https://bajriwala.in/offers/monsoon-sale"
                       />
                     )}
                   />

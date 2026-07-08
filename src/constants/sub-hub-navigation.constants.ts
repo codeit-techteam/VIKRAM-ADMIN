@@ -24,6 +24,6 @@ export const SUB_HUB_NETWORK_NAV_CHILDREN: NavChildItem[] = [
   },
   {
     label: "Add New Hub",
-    href: ROUTES.SUB_HUB_NETWORK,
+    href: ROUTES.SUB_HUB_ADD,
   },
 ];

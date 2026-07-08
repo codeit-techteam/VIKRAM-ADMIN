@@ -18,7 +18,7 @@ export async function generateMetadata({
   );
 
   return {
-    title: hub ? `${hub.name} · Sub-Hub` : "Hub Details",
+    title: hub ? `${hub.name} Hub · Profile` : "Hub Profile",
   };
 }
 

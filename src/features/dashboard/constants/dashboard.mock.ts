@@ -72,7 +72,7 @@ export const QUICK_ACTIONS: QuickActionItem[] = [
   {
     id: "add-hub",
     label: "Add New Hub",
-    href: ROUTES.SUB_HUB_NETWORK,
+    href: ROUTES.SUB_HUB_ADD,
     iconName: "building",
   },
   {

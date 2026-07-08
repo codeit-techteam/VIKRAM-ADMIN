@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 export default function CustomerAppCmsPage() {
   return (
     <div className="space-y-6">
-      <PageHeader title="BuildQuick Dashboard" actions={<SearchInput />} />
+      <PageHeader title="Bajriwala Dashboard" actions={<SearchInput />} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {CMS_STAT_CARDS.map((card) => (

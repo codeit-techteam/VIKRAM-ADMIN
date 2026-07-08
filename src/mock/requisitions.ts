@@ -205,7 +205,7 @@ function buildRequisition(
     allocationStatus,
     createdAt: createDate(dayOffset, hour, minute),
     href: `${ROUTES.CENTRAL_WAREHOUSE}/requisitions/${id}`,
-    customerName: index % 3 === 0 ? "BuildQuick Homes Pvt. Ltd." : undefined,
+    customerName: index % 3 === 0 ? "Bajriwala Homes Pvt. Ltd." : undefined,
     ...overrides,
   };
 }

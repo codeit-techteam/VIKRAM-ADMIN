@@ -263,7 +263,7 @@ export function RequisitionPage() {
       />
 
       <p className="pt-2 text-center text-xs text-gray-400">
-        BuildQuick India | Enterprise Resource Planning v4.2.0 | © 2023
+        Bajriwala | Enterprise Resource Planning v4.2.0 | © 2023
       </p>
     </div>
   );

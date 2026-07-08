@@ -56,7 +56,7 @@ export function AppSidebar() {
           {!isCollapsed && (
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-[#1A1A1A]">
-                BuildQuick India
+                Bajriwala
               </p>
               <p className="truncate text-[10px] tracking-wide text-gray-400 uppercase">
                 Operations Control Tower

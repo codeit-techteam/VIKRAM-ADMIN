@@ -25,7 +25,7 @@ export function PhoneNotificationPreview({
   title,
   message,
   imageUrl,
-  appName = "BuildQuick India",
+  appName = "Bajriwala",
   className,
 }: PhoneNotificationPreviewProps) {
   const displayTitle = title.trim() || "Notification title";

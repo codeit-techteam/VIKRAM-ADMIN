@@ -83,7 +83,23 @@ export interface HubInventoryEntry {
   purchasePrice: number;
   unit: string;
   lastUpdated?: string;
+  /** Optional seed override; otherwise derived from active orders/allocations. */
+  reservedQty?: number;
+  category?: string;
+  safetyStock?: number;
+  maxStock?: number;
+  reorderLevel?: number;
 }
+
+export type HubStockStatus =
+  | "healthy"
+  | "low-stock"
+  | "critical"
+  | "reserved"
+  | "out-of-stock"
+  | "overstock";
+
+export type HubHealthGrade = "excellent" | "healthy" | "warning" | "critical";
 
 export type SubHubOperationalStatus = "healthy" | "warning" | "critical";
 
@@ -111,6 +127,23 @@ export interface SubHub {
   nodeId: string;
   isActive: boolean;
   lastInventorySync: string;
+  address?: string;
+  managerPhone?: string;
+  managerEmail?: string;
+  hubSince?: string;
+  capacityMt?: number;
+  capacitySqFt?: number;
+  workingHours?: string;
+  hubType?: string;
+  hubTypeLabel?: string;
+  coverageRadiusKm?: number;
+  linkedWarehouseId?: string;
+  linkedWarehouseName?: string;
+  fulfillmentPriority?: string;
+  servicePincodes?: string[];
+  deliverySlots?: string[];
+  autoRestocking?: boolean;
+  allowedCategories?: string[];
 }
 
 export interface SubHubSummary {

@@ -64,7 +64,7 @@ export function CategoryForm() {
             Add New Category
           </h1>
           <p className="mt-1 text-sm text-[#64748B]">
-            Configure global product categories for the BuildQuick customer
+            Configure global product categories for the Bajriwala customer
             marketplace.
           </p>
         </div>

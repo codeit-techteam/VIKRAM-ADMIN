@@ -4,7 +4,7 @@ export const BRAND_OPTIONS = [
   { value: "ultratech-cement", label: "UltraTech Cement" },
   { value: "tata-tiscon", label: "TATA Tiscon" },
   { value: "ambuja", label: "Ambuja" },
-  { value: "buildquick-local", label: "BuildQuick Local" },
+  { value: "bajriwala-local", label: "Bajriwala Local" },
 ] as const;
 
 export const CATEGORY_OPTIONS = [

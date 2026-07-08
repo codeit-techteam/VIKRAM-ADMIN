@@ -24,6 +24,8 @@ export function normalizeHubInventory(
       quantity: entry.quantity ?? 0,
       minimumRequired: entry.minimumRequired ?? defaults.minimumRequired,
       purchasePrice: entry.purchasePrice ?? defaults.purchasePrice,
+      category: entry.category ?? defaults.category,
+      safetyStock: entry.safetyStock ?? defaults.safetyStock,
     };
   });
 }

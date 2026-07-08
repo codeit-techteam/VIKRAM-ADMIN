@@ -94,7 +94,7 @@ export function AppTopbar({
             <span className="sr-only">Notifications</span>
           </Button>
           <span className="text-primary hidden text-sm font-semibold sm:inline">
-            BuildQuick India
+            Bajriwala
           </span>
         </div>
       ) : (

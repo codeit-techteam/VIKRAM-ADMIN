@@ -30,6 +30,8 @@ import type {
   SubHubSummary,
   SubHubTableRow,
 } from "@/types/erp.types";
+import type { CreateHubResult, HubDraft } from "@/types/hub-onboarding.types";
+import { buildHubFromDraft } from "@/utils/hub-onboarding";
 import type { InventoryItem } from "@/types/inventory.types";
 import type {
   AllocationWorkflowResult,
@@ -168,6 +170,7 @@ export interface WarehouseErpState {
   getSubHubDashboardKpis: () => SubHubStat[];
   getSubHubSummaries: () => SubHubSummary[];
   getSubHubTableRows: () => SubHubTableRow[];
+  addSubHub: (draft: HubDraft) => CreateHubResult;
   resetDatabase: () => void;
 }
 
@@ -1129,6 +1132,8 @@ export const useWarehouseErpStore = create<WarehouseErpState>((set, get) => ({
             quantity: qty,
             minimumRequired: materialDefaults.minimumRequired,
             purchasePrice: materialDefaults.purchasePrice,
+            category: materialDefaults.category,
+            safetyStock: materialDefaults.safetyStock,
             unit: transfer.quantityUnit ?? allocation?.unit ?? requisition.unit,
             lastUpdated: hubReceivedAt,
           }
@@ -1302,6 +1307,48 @@ export const useWarehouseErpStore = create<WarehouseErpState>((set, get) => ({
       state.transfers,
       state.requisitions,
     );
+  },
+
+  addSubHub: (draft) => {
+    const state = get();
+    const { hub, inventory, drivers, vehicles, result } = buildHubFromDraft(
+      draft,
+      resolveSubHubs(state.subHubs),
+    );
+
+    const nameConflict = resolveSubHubs(state.subHubs).some(
+      (item) => item.name.toLowerCase() === hub.name.toLowerCase(),
+    );
+    if (nameConflict) {
+      throw new Error(`A hub named "${hub.name}" already exists.`);
+    }
+
+    const codeConflict = resolveSubHubs(state.subHubs).some(
+      (item) => item.nodeId.toLowerCase() === hub.nodeId.toLowerCase(),
+    );
+    if (codeConflict) {
+      throw new Error(`Hub code "${hub.nodeId}" is already in use.`);
+    }
+
+    set({
+      subHubs: [hub, ...resolveSubHubs(state.subHubs)],
+      hubInventory: [
+        ...inventory,
+        ...normalizeHubInventory(state.hubInventory),
+      ],
+      drivers: [...drivers, ...state.drivers],
+      vehicles: [...vehicles, ...state.vehicles],
+      activityLogs: logActivityEntry(state.activityLogs, {
+        user: "Super Admin",
+        module: "Sub-Hub Network",
+        action: "Hub created",
+        remarks: `${hub.name} (${hub.nodeId}) onboarded via hub wizard`,
+        entityId: hub.id,
+        entityType: "sub-hub",
+      }),
+    });
+
+    return result;
   },
 
   resetDatabase: () => {

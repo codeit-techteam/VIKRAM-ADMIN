@@ -45,7 +45,7 @@ export const MOCK_PRODUCTS: Product[] = [
     thumbnailUrl: "https://picsum.photos/seed/premium-sand/80/80",
     name: "Premium Fine Sand",
     sku: "SD-A-101",
-    brand: "BuildQuick Local",
+    brand: "Bajriwala Local",
     category: "Aggregates",
     price: 3200,
     priceUnit: "unit",
@@ -74,7 +74,7 @@ export const CATALOG_FILTER_OPTIONS = {
     { value: "ultratech", label: "UltraTech" },
     { value: "tata-tiscon", label: "TATA Tiscon" },
     { value: "ambuja", label: "Ambuja" },
-    { value: "buildquick-local", label: "BuildQuick Local" },
+    { value: "bajriwala-local", label: "Bajriwala Local" },
   ],
   availability: [
     { value: "all", label: "All Stock Levels" },

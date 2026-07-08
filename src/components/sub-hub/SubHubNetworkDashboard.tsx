@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, Plus } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -9,7 +9,6 @@ import { OperationsAlertsPanel } from "@/components/sub-hub/OperationsAlertsPane
 import { SubHubStatsCard } from "@/components/sub-hub/SubHubStatsCard";
 import { SubHubSummaryCard } from "@/components/sub-hub/SubHubSummaryCard";
 import { SubHubTable } from "@/components/sub-hub/SubHubTable";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -203,7 +202,7 @@ export function SubHubNetworkDashboard() {
         ))}
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm lg:flex-row lg:items-center">
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           <Select
             value={regionFilter}
@@ -254,11 +253,6 @@ export function SubHubNetworkDashboard() {
             </SelectContent>
           </Select>
         </div>
-
-        <Button className="h-10 gap-2 px-4">
-          <Plus className="size-4" />
-          Add New Hub
-        </Button>
       </div>
 
       <div className="grid grid-cols-1 gap-x-8 gap-y-6 min-[1440px]:grid-cols-[3fr_1fr] min-[1440px]:items-start">

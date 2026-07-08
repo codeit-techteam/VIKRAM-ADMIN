@@ -5,6 +5,7 @@ export const ROUTES = {
   CUSTOMER_APP_CMS: "/customer-app-cms",
   CENTRAL_WAREHOUSE: "/central-warehouse",
   SUB_HUB_NETWORK: "/sub-hub-network",
+  SUB_HUB_ADD: "/sub-hub-network/add",
   USER_MANAGEMENT: "/user-management",
   LOGISTICS: "/logistics",
   FINANCE_PAYMENTS: "/finance-payments",

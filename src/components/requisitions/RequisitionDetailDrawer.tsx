@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Eye, FileText } from "lucide-react";
+import { Download, Eye, FileText, Info } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { RequisitionConfirmDialog } from "@/components/requisitions/RequisitionConfirmDialog";
@@ -43,6 +43,7 @@ interface RequisitionDetailDrawerProps {
   onOpenChange: (open: boolean) => void;
   requisition: RequisitionListItem | null;
   isSubmitting?: boolean;
+  initialAction?: "approve" | "reject" | null;
   onApprove: (remarks: string) => void;
   onReject: (remarks: string) => void;
 }
@@ -149,6 +150,7 @@ export function RequisitionDetailDrawer({
   onOpenChange,
   requisition,
   isSubmitting = false,
+  initialAction = null,
   onApprove,
   onReject,
 }: RequisitionDetailDrawerProps) {
@@ -168,6 +170,7 @@ export function RequisitionDetailDrawer({
     : null;
 
   const isPending = detail?.status === "PENDING";
+  const isApproved = detail?.status === "APPROVED";
 
   useEffect(() => {
     if (open && requisition) {
@@ -176,6 +179,23 @@ export function RequisitionDetailDrawer({
       setConfirmType(null);
     }
   }, [open, requisition]);
+
+  useEffect(() => {
+    if (!open || !isPending || !initialAction) return;
+
+    if (initialAction === "approve") {
+      setConfirmType("approve");
+      return;
+    }
+
+    if (initialAction === "reject") {
+      window.setTimeout(() => {
+        document
+          .querySelector<HTMLTextAreaElement>("[data-requisition-remarks]")
+          ?.focus();
+      }, 100);
+    }
+  }, [open, isPending, initialAction]);
 
   const handleApproveClick = () => {
     setRemarksError(null);
@@ -365,6 +385,7 @@ export function RequisitionDetailDrawer({
               <DetailSection title="Admin Remarks">
                 <div className="space-y-2">
                   <Textarea
+                    data-requisition-remarks
                     value={remarks}
                     onChange={(event) => {
                       setRemarks(event.target.value);
@@ -386,6 +407,17 @@ export function RequisitionDetailDrawer({
                   )}
                 </div>
               </DetailSection>
+
+              {isApproved ? (
+                <div className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+                  <Info className="mt-0.5 size-4 shrink-0 text-blue-600" />
+                  <p className="text-sm text-blue-800">
+                    This requisition has been approved. Stock allocation can be
+                    performed from the{" "}
+                    <span className="font-semibold">Allocation Center</span>.
+                  </p>
+                </div>
+              ) : null}
             </div>
           ) : null}
 

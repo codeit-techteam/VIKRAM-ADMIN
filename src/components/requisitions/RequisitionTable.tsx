@@ -6,7 +6,7 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Download, Eye, Filter, MoreVertical } from "lucide-react";
+import { Check, Download, Eye, Filter, MoreVertical, X } from "lucide-react";
 import { useMemo } from "react";
 
 import { RequisitionFilterChips } from "@/components/requisitions/RequisitionFilterChips";
@@ -51,6 +51,8 @@ interface RequisitionTableProps {
   onAdvancedFilter: () => void;
   onExport?: () => void;
   onRowSelect: (item: RequisitionListItem) => void;
+  onApprove?: (item: RequisitionListItem) => void;
+  onReject?: (item: RequisitionListItem) => void;
 }
 
 const columnHelper = createColumnHelper<RequisitionListItem>();
@@ -85,10 +87,16 @@ function getPaginationItems(
 function RequisitionRowActions({
   item,
   onView,
+  onApprove,
+  onReject,
 }: {
   item: RequisitionListItem;
   onView: (item: RequisitionListItem) => void;
+  onApprove?: (item: RequisitionListItem) => void;
+  onReject?: (item: RequisitionListItem) => void;
 }) {
+  const isPending = item.status === "PENDING";
+
   return (
     <div className="flex items-center justify-end gap-0.5">
       <Button
@@ -120,16 +128,38 @@ function RequisitionRowActions({
           }
         />
         <DropdownMenuContent align="end" className="w-44">
-          <DropdownMenuItem className="gap-2" onClick={() => onView(item)}>
+          <DropdownMenuItem
+            className="gap-2"
+            onClick={(event) => {
+              event.stopPropagation();
+              onView(item);
+            }}
+          >
             <Eye className="size-4" />
             View Details
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem disabled className="gap-2 text-[#64748B]">
-            Allocate Stock
+          <DropdownMenuItem
+            className="gap-2"
+            disabled={!isPending}
+            onClick={(event) => {
+              event.stopPropagation();
+              onApprove?.(item);
+            }}
+          >
+            <Check className="size-4" />
+            Approve
           </DropdownMenuItem>
-          <DropdownMenuItem disabled className="gap-2 text-[#64748B]">
-            Download PDF
+          <DropdownMenuItem
+            className="gap-2 text-red-600 focus:text-red-600"
+            disabled={!isPending}
+            onClick={(event) => {
+              event.stopPropagation();
+              onReject?.(item);
+            }}
+          >
+            <X className="size-4" />
+            Reject
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -149,6 +179,8 @@ export function RequisitionTable({
   onAdvancedFilter,
   onExport,
   onRowSelect,
+  onApprove,
+  onReject,
 }: RequisitionTableProps) {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const paginationItems = getPaginationItems(currentPage, totalPages);
@@ -251,11 +283,16 @@ export function RequisitionTable({
         id: "actions",
         header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => (
-          <RequisitionRowActions item={row.original} onView={onRowSelect} />
+          <RequisitionRowActions
+            item={row.original}
+            onView={onRowSelect}
+            onApprove={onApprove}
+            onReject={onReject}
+          />
         ),
       }),
     ],
-    [onRowSelect],
+    [onRowSelect, onApprove, onReject],
   );
 
   const table = useReactTable({

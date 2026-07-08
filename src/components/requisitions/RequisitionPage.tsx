@@ -42,6 +42,9 @@ export function RequisitionPage() {
   const [selectedRequisition, setSelectedRequisition] =
     useState<RequisitionListItem | null>(null);
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
+  const [drawerInitialAction, setDrawerInitialAction] = useState<
+    "approve" | "reject" | null
+  >(null);
 
   useEffect(() => {
     // TODO: Replace simulated loading with requisition API fetch
@@ -114,6 +117,21 @@ export function RequisitionPage() {
 
   const handleRowSelect = useCallback((item: RequisitionListItem) => {
     setSelectedRequisition(item);
+    setDrawerInitialAction(null);
+    setIsDetailDrawerOpen(true);
+  }, []);
+
+  const handleRowApprove = useCallback((item: RequisitionListItem) => {
+    if (item.status !== "PENDING") return;
+    setSelectedRequisition(item);
+    setDrawerInitialAction("approve");
+    setIsDetailDrawerOpen(true);
+  }, []);
+
+  const handleRowReject = useCallback((item: RequisitionListItem) => {
+    if (item.status !== "PENDING") return;
+    setSelectedRequisition(item);
+    setDrawerInitialAction("reject");
     setIsDetailDrawerOpen(true);
   }, []);
 
@@ -121,6 +139,7 @@ export function RequisitionPage() {
     setIsDetailDrawerOpen(open);
     if (!open) {
       setSelectedRequisition(null);
+      setDrawerInitialAction(null);
     }
   }, []);
 
@@ -222,6 +241,8 @@ export function RequisitionPage() {
         onAdvancedFilter={() => setIsAdvancedFilterOpen(true)}
         onExport={handleExport}
         onRowSelect={handleRowSelect}
+        onApprove={handleRowApprove}
+        onReject={handleRowReject}
       />
 
       <RequisitionAdvancedFilter
@@ -236,6 +257,7 @@ export function RequisitionPage() {
         onOpenChange={handleDrawerOpenChange}
         requisition={drawerRequisition}
         isSubmitting={isSubmitting}
+        initialAction={drawerInitialAction}
         onApprove={handleApprove}
         onReject={handleReject}
       />

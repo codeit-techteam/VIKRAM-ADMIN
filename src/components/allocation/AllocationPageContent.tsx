@@ -17,6 +17,7 @@ export function AllocationPageContent() {
         actions={
           <Button
             className="h-10 gap-2 px-4"
+            nativeButton={false}
             render={
               <Link href={`${ROUTES.CENTRAL_WAREHOUSE}/allocate/workflow`} />
             }

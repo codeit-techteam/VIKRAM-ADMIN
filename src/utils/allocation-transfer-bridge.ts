@@ -6,7 +6,7 @@ import {
   TRANSFER_HUB_OPTIONS,
   TRANSFER_WAREHOUSE_OPTIONS,
 } from "@/mock/transfers";
-import { useAllocationRegistryStore } from "@/store/allocation-registry-store";
+import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 
 export const ALLOCATION_TRANSFER_CONTEXT_KEY = "bq-allocation-transfer-context";
 
@@ -42,7 +42,6 @@ export function persistAllocationForTransfer(
     ALLOCATION_TRANSFER_CONTEXT_KEY,
     JSON.stringify(result),
   );
-  useAllocationRegistryStore.getState().addAllocation(result);
 }
 
 export function setActiveAllocationForTransfer(
@@ -64,8 +63,7 @@ export function resolveAllocationForTransfer(
   if (!allocationId) return null;
 
   return (
-    useAllocationRegistryStore.getState().getAllocationById(allocationId) ??
-    null
+    useWarehouseErpStore.getState().getAllocationById(allocationId) ?? null
   );
 }
 

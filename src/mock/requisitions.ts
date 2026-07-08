@@ -1,5 +1,5 @@
 import { ROUTES } from "@/constants/routes";
-import { getAvailableStock, INVENTORY_ITEMS } from "@/mock/inventory";
+import { getAvailableStock, getSharedInventoryItem } from "@/mock/inventory";
 import type { PaginationMeta } from "@/types/api";
 import type {
   RequisitionAdvancedFilters,
@@ -175,9 +175,10 @@ function buildRequisition(
 
   const priority = priorities[index % priorities.length];
   const status = statuses[index % statuses.length];
+  // APPROVED rows land on index % 3 === 1, so never use index % 3 === 0 here.
   const allocationStatus =
     status === "APPROVED"
-      ? index % 3 === 0
+      ? index % 2 === 1
         ? "PENDING"
         : "ALLOCATED"
       : "NOT_APPLICABLE";
@@ -255,9 +256,7 @@ function buildAttachments(
 export function getRequisitionDetail(
   item: RequisitionListItem,
 ): RequisitionDetail {
-  const inventory = INVENTORY_ITEMS.find(
-    (entry) => entry.id === item.materialId,
-  );
+  const inventory = getSharedInventoryItem(item.materialId);
   const index = Number.parseInt(item.id.replace("req-", ""), 10) || 0;
 
   return {
@@ -476,7 +475,7 @@ export function getMaterialAvailableStock(materialId: string): {
   available: number;
   unit: string;
 } | null {
-  const item = INVENTORY_ITEMS.find((inventory) => inventory.id === materialId);
+  const item = getSharedInventoryItem(materialId);
 
   if (!item) {
     return null;

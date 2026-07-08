@@ -63,9 +63,7 @@ export function HubReceivingPage() {
   const hubQueue = useMemo(
     () =>
       transfers
-        .filter(
-          (t) => t.status === "REACHED_HUB" || t.status === "HUB_RECEIVED",
-        )
+        .filter((t) => t.status === "REACHED_HUB")
         .sort(
           (a, b) =>
             new Date(b.reachedHubAt ?? b.createdAt).getTime() -

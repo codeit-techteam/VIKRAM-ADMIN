@@ -11,13 +11,11 @@ import {
 import { RequisitionTable } from "@/components/requisitions/RequisitionTable";
 import { useAuth } from "@/hooks/use-auth";
 import {
-  approveRequisition,
   EMPTY_REQUISITION_ADVANCED_FILTERS,
   fetchRequisitions,
-  REQUISITION_LIST,
   REQUISITION_PAGE_SIZE,
-  rejectRequisition,
 } from "@/mock/requisitions";
+import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 import type {
   RequisitionAdvancedFilters,
   RequisitionFilterChip,
@@ -27,8 +25,13 @@ import { notify } from "@/utils/notify";
 
 export function RequisitionPage() {
   const { user } = useAuth();
-  const [requisitions, setRequisitions] =
-    useState<RequisitionListItem[]>(REQUISITION_LIST);
+  const requisitions = useWarehouseErpStore((state) => state.requisitions);
+  const approveRequisition = useWarehouseErpStore(
+    (state) => state.approveRequisition,
+  );
+  const rejectRequisition = useWarehouseErpStore(
+    (state) => state.rejectRequisition,
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeChip, setActiveChip] = useState<RequisitionFilterChip>("all");
@@ -132,13 +135,11 @@ export function RequisitionPage() {
         await new Promise((resolve) => window.setTimeout(resolve, 400));
 
         const adminName = user?.name ?? "Super Admin";
-        const result = approveRequisition(
-          requisitions,
-          selectedRequisition.id,
-          { adminName, remarks: remarks || undefined },
-        );
+        approveRequisition(selectedRequisition.id, {
+          adminName,
+          remarks: remarks || undefined,
+        });
 
-        setRequisitions(result.items);
         setIsDetailDrawerOpen(false);
         setSelectedRequisition(null);
         notify.success("Requisition Approved Successfully.");
@@ -151,7 +152,7 @@ export function RequisitionPage() {
         setIsSubmitting(false);
       }
     },
-    [requisitions, selectedRequisition, user?.name],
+    [selectedRequisition, user?.name, approveRequisition],
   );
 
   const handleReject = useCallback(
@@ -165,12 +166,11 @@ export function RequisitionPage() {
         await new Promise((resolve) => window.setTimeout(resolve, 400));
 
         const adminName = user?.name ?? "Super Admin";
-        const result = rejectRequisition(requisitions, selectedRequisition.id, {
+        rejectRequisition(selectedRequisition.id, {
           adminName,
           remarks,
         });
 
-        setRequisitions(result.items);
         setIsDetailDrawerOpen(false);
         setSelectedRequisition(null);
         notify.success("Requisition Rejected Successfully.");
@@ -183,7 +183,7 @@ export function RequisitionPage() {
         setIsSubmitting(false);
       }
     },
-    [requisitions, selectedRequisition, user?.name],
+    [selectedRequisition, user?.name, rejectRequisition],
   );
 
   const handleExport = useCallback(() => {

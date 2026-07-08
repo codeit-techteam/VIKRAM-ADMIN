@@ -45,9 +45,10 @@ type DispatchFilterStatus = TransferStatus | "all";
 
 const DISPATCH_STATUS_OPTIONS = [
   { value: "all", label: "All Status" },
-  { value: "PENDING_DISPATCH", label: "Pending Dispatch" },
+  { value: "TRANSFER_CREATED", label: "Pending Dispatch" },
   { value: "LOADING", label: "Loading" },
   { value: "READY_FOR_DISPATCH", label: "Ready For Dispatch" },
+  { value: "IN_TRANSIT", label: "In Transit" },
 ] as const;
 
 function DispatchStatCard({
@@ -394,6 +395,7 @@ export function DispatchControl() {
                             variant="ghost"
                             size="icon-sm"
                             className="size-8 text-[#64748B]"
+                            nativeButton={false}
                             render={
                               <Link
                                 href={`${ROUTES.CENTRAL_WAREHOUSE}/transfers/${transfer.transferId}`}

@@ -9,13 +9,17 @@ import {
   computeInventoryStats,
   formatInventoryItemsCount,
   INVENTORY_CATEGORY_FILTERS,
-  INVENTORY_ITEMS,
   INVENTORY_PAGE_SIZE,
   INVENTORY_TOTAL_ITEMS,
 } from "@/mock/inventory";
-import type { InventoryCategoryFilter } from "@/types/inventory.types";
+import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
+import type {
+  InventoryCategoryFilter,
+  InventoryItem,
+} from "@/types/inventory.types";
 
 export function InventoryPage() {
+  const inventoryItems = useWarehouseErpStore((state) => state.inventory);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeCategory, setActiveCategory] =
@@ -23,12 +27,14 @@ export function InventoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
-    // TODO: Replace simulated loading with inventory API fetch
     const timer = window.setTimeout(() => setIsLoading(false), 600);
     return () => window.clearTimeout(timer);
   }, []);
 
-  const stats = useMemo(() => computeInventoryStats(INVENTORY_ITEMS), []);
+  const stats = useMemo(
+    () => computeInventoryStats(inventoryItems),
+    [inventoryItems],
+  );
 
   const statCards = useMemo(
     () => [
@@ -63,13 +69,13 @@ export function InventoryPage() {
 
   const filteredItems = useMemo(() => {
     if (activeCategory === "all") {
-      return INVENTORY_ITEMS;
+      return inventoryItems;
     }
 
-    return INVENTORY_ITEMS.filter(
+    return inventoryItems.filter(
       (item) => item.categorySlug === activeCategory,
     );
-  }, [activeCategory]);
+  }, [activeCategory, inventoryItems]);
 
   const paginatedItems = useMemo(() => {
     const start = (currentPage - 1) * INVENTORY_PAGE_SIZE;
@@ -86,17 +92,14 @@ export function InventoryPage() {
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    // TODO: Replace with inventory refetch API
     window.setTimeout(() => setIsRefreshing(false), 800);
   };
 
-  const handleViewItem = (item: (typeof INVENTORY_ITEMS)[number]) => {
-    // TODO: Navigate to inventory item detail view
+  const handleViewItem = (item: InventoryItem) => {
     void item;
   };
 
-  const handleEditItem = (item: (typeof INVENTORY_ITEMS)[number]) => {
-    // TODO: Open inventory item edit flow
+  const handleEditItem = (item: InventoryItem) => {
     void item;
   };
 
@@ -123,9 +126,7 @@ export function InventoryPage() {
               categories={INVENTORY_CATEGORY_FILTERS}
               activeCategory={activeCategory}
               onCategoryChange={handleCategoryChange}
-              onAdvancedFilter={() => {
-                // TODO: Open advanced filter panel
-              }}
+              onAdvancedFilter={() => {}}
               onRefresh={handleRefresh}
               isRefreshing={isRefreshing}
             />

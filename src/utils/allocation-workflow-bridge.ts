@@ -1,4 +1,4 @@
-import { ALLOCATION_LIST } from "@/mock/allocations";
+import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 import { getWorkflowRequisitionSeed } from "@/mock/allocation-workflow";
 import { ROUTES } from "@/constants/routes";
 import type {
@@ -38,9 +38,34 @@ export function materialAllocationToRequisition(
 export function resolveWorkflowRequisitionFromAllocationId(
   allocationId: string,
 ): RequisitionListItem | null {
-  const item = ALLOCATION_LIST.find((entry) => entry.id === allocationId);
-  if (!item || item.status === "ALLOCATED") return null;
-  return materialAllocationToRequisition(item);
+  const state = useWarehouseErpStore.getState();
+  const allocation =
+    state.getAllocationRecordById(allocationId) ??
+    state.allocations.find((entry) => entry.id === allocationId);
+
+  if (allocation?.status === "COMPLETED") {
+    return null;
+  }
+
+  if (allocation) {
+    const requisition = state.requisitions.find(
+      (item) => item.id === allocation.requisitionId,
+    );
+    if (!requisition) return null;
+
+    return {
+      ...requisition,
+      status: "APPROVED",
+      allocationStatus: "PENDING",
+      requestedQty: requisition.requestedQty,
+    };
+  }
+
+  const materialItem = state
+    .getMaterialAllocations()
+    .find((entry) => entry.id === allocationId);
+  if (!materialItem || materialItem.status === "ALLOCATED") return null;
+  return materialAllocationToRequisition(materialItem);
 }
 
 export function mergeRequisitionIntoWorkflowList(

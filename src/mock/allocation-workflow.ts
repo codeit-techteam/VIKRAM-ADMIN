@@ -18,6 +18,7 @@ import {
   REQUISITION_LIST,
 } from "@/mock/requisitions";
 import { ROUTES } from "@/constants/routes";
+import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 
 export const WORKFLOW_REQUISITION_PAGE_SIZE = 5;
 
@@ -277,7 +278,12 @@ function mergePinnedRequisitions(
 }
 
 export function getWorkflowRequisitionSeed(): RequisitionListItem[] {
-  const approvedPending = REQUISITION_LIST.filter(
+  const erpRequisitions = useWarehouseErpStore.getState().requisitions;
+  const approvedPending = erpRequisitions.filter(
+    (item) => item.status === "APPROVED" && item.allocationStatus === "PENDING",
+  );
+
+  const fallbackApproved = REQUISITION_LIST.filter(
     (item) => item.status === "APPROVED" && item.allocationStatus === "PENDING",
   );
 
@@ -285,7 +291,11 @@ export function getWorkflowRequisitionSeed(): RequisitionListItem[] {
     buildWorkflowRequisition(index),
   );
 
-  return mergePinnedRequisitions([...approvedPending, ...generated]);
+  return mergePinnedRequisitions([
+    ...approvedPending,
+    ...fallbackApproved,
+    ...generated,
+  ]);
 }
 
 export function formatWorkflowDate(isoDate: string): string {
@@ -307,9 +317,7 @@ function getWarehouseStockForMaterial(
   const centralAvailable = getAvailableStock(item);
 
   if (warehouseId === "wh-central-sector-62") {
-    return warehouseId === "wh-central-sector-62"
-      ? Math.max(centralAvailable, 3200)
-      : centralAvailable;
+    return centralAvailable;
   }
 
   if (warehouseId === "wh-auxiliary-okhla") {

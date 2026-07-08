@@ -33,7 +33,11 @@ export default function Error({
           <RefreshCw />
           Try again
         </Button>
-        <Button variant="outline" render={<Link href={ROUTES.DASHBOARD} />}>
+        <Button
+          variant="outline"
+          nativeButton={false}
+          render={<Link href={ROUTES.DASHBOARD} />}
+        >
           Back to Dashboard
         </Button>
       </div>

@@ -125,25 +125,13 @@ function buildTransfer(
   let hubReceivedAt: string | undefined;
   let completedAt: string | undefined;
 
-  if (
-    dispatched ||
-    status === "DISPATCH_STARTED" ||
-    status === "IN_TRANSIT" ||
-    status === "HUB_RECEIVED" ||
-    status === "DELIVERED" ||
-    status === "COMPLETED"
-  ) {
+  if (dispatched || status === "IN_TRANSIT" || status === "DELIVERED") {
     const dispatch = new Date(createdAt);
     dispatch.setHours(dispatch.getHours() + 2);
     dispatchAt = dispatch.toISOString();
   }
 
-  if (
-    delivered ||
-    status === "DELIVERED" ||
-    status === "HUB_RECEIVED" ||
-    status === "COMPLETED"
-  ) {
+  if (delivered || status === "DELIVERED") {
     const delivered = new Date();
     if (daysAgo > 0) {
       delivered.setDate(delivered.getDate() - daysAgo);
@@ -152,7 +140,7 @@ function buildTransfer(
     deliveredAt = delivered.toISOString();
   }
 
-  if (completed || status === "COMPLETED") {
+  if (completed || status === "DELIVERED") {
     hubReceivedAt = deliveredAt ?? new Date().toISOString();
     completedAt = hubReceivedAt;
   }
@@ -207,7 +195,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     requisitionId: "REQ-9401",
   }),
   buildTransfer(43, {
-    status: "PENDING_DISPATCH",
+    status: "TRANSFER_CREATED",
     daysAgo: 0,
     etaOffsetHours: 8,
     warehouseIdx: 0,
@@ -267,7 +255,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     dispatched: true,
   }),
   buildTransfer(2, {
-    status: "COMPLETED",
+    status: "DELIVERED",
     daysAgo: 0,
     etaOffsetHours: 4,
     warehouseIdx: 2,
@@ -289,7 +277,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     delivered: true,
   }),
   buildTransfer(4, {
-    status: "CREATED",
+    status: "TRANSFER_CREATED",
     daysAgo: 0,
     etaOffsetHours: 12,
     warehouseIdx: 3,
@@ -298,7 +286,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     hasDriver: false,
   }),
   buildTransfer(5, {
-    status: "VEHICLE_ASSIGNED",
+    status: "TRANSFER_CREATED",
     daysAgo: 0,
     etaOffsetHours: 10,
     warehouseIdx: 1,
@@ -307,7 +295,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     hasDriver: false,
   }),
   buildTransfer(6, {
-    status: "DRIVER_ASSIGNED",
+    status: "TRANSFER_CREATED",
     daysAgo: 0,
     etaOffsetHours: 9,
     warehouseIdx: 2,
@@ -325,7 +313,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     hasDriver: true,
   }),
   buildTransfer(8, {
-    status: "DISPATCH_STARTED",
+    status: "IN_TRANSIT",
     daysAgo: 0,
     etaOffsetHours: 7,
     warehouseIdx: 3,
@@ -345,7 +333,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     dispatched: true,
   }),
   buildTransfer(10, {
-    status: "HUB_RECEIVED",
+    status: "DELIVERED",
     daysAgo: 1,
     etaOffsetHours: 2,
     warehouseIdx: 1,
@@ -366,7 +354,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     delivered: true,
   }),
   buildTransfer(12, {
-    status: "CREATED",
+    status: "TRANSFER_CREATED",
     daysAgo: 1,
     etaOffsetHours: 14,
     warehouseIdx: 2,
@@ -375,7 +363,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     hasDriver: false,
   }),
   buildTransfer(13, {
-    status: "VEHICLE_ASSIGNED",
+    status: "TRANSFER_CREATED",
     daysAgo: 1,
     etaOffsetHours: 11,
     warehouseIdx: 3,
@@ -405,7 +393,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     delivered: true,
   }),
   buildTransfer(16, {
-    status: "DRIVER_ASSIGNED",
+    status: "TRANSFER_CREATED",
     daysAgo: 0,
     etaOffsetHours: 10,
     warehouseIdx: 2,
@@ -433,7 +421,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     hasDriver: true,
   }),
   buildTransfer(19, {
-    status: "DISPATCH_STARTED",
+    status: "IN_TRANSIT",
     daysAgo: 0,
     etaOffsetHours: 5,
     warehouseIdx: 1,
@@ -453,7 +441,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     dispatched: true,
   }),
   buildTransfer(21, {
-    status: "HUB_RECEIVED",
+    status: "DELIVERED",
     daysAgo: 2,
     etaOffsetHours: 1,
     warehouseIdx: 3,
@@ -474,7 +462,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     delivered: true,
   }),
   buildTransfer(23, {
-    status: "CREATED",
+    status: "TRANSFER_CREATED",
     daysAgo: 2,
     etaOffsetHours: 16,
     warehouseIdx: 1,
@@ -483,7 +471,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     hasDriver: false,
   }),
   buildTransfer(24, {
-    status: "VEHICLE_ASSIGNED",
+    status: "TRANSFER_CREATED",
     daysAgo: 0,
     etaOffsetHours: 9,
     warehouseIdx: 2,
@@ -513,7 +501,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     delivered: true,
   }),
   buildTransfer(27, {
-    status: "DRIVER_ASSIGNED",
+    status: "TRANSFER_CREATED",
     daysAgo: 1,
     etaOffsetHours: 12,
     warehouseIdx: 1,
@@ -541,7 +529,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     hasDriver: true,
   }),
   buildTransfer(30, {
-    status: "DISPATCH_STARTED",
+    status: "IN_TRANSIT",
     daysAgo: 0,
     etaOffsetHours: 6,
     warehouseIdx: 0,
@@ -572,7 +560,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     delivered: true,
   }),
   buildTransfer(33, {
-    status: "CREATED",
+    status: "TRANSFER_CREATED",
     daysAgo: 0,
     etaOffsetHours: 15,
     warehouseIdx: 3,
@@ -581,7 +569,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     hasDriver: false,
   }),
   buildTransfer(34, {
-    status: "VEHICLE_ASSIGNED",
+    status: "TRANSFER_CREATED",
     daysAgo: 2,
     etaOffsetHours: 13,
     warehouseIdx: 0,
@@ -600,7 +588,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     dispatched: true,
   }),
   buildTransfer(36, {
-    status: "HUB_RECEIVED",
+    status: "DELIVERED",
     daysAgo: 0,
     etaOffsetHours: 3,
     warehouseIdx: 2,
@@ -621,7 +609,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     delivered: true,
   }),
   buildTransfer(38, {
-    status: "DRIVER_ASSIGNED",
+    status: "TRANSFER_CREATED",
     daysAgo: 0,
     etaOffsetHours: 11,
     warehouseIdx: 0,
@@ -649,7 +637,7 @@ export const TRANSFER_LIST: TransferListItem[] = [
     hasDriver: true,
   }),
   buildTransfer(41, {
-    status: "DISPATCH_STARTED",
+    status: "IN_TRANSIT",
     daysAgo: 0,
     etaOffsetHours: 4,
     warehouseIdx: 3,
@@ -678,17 +666,7 @@ export function isTransferDelayed(
   now = new Date(),
 ): boolean {
   if (transfer.isDelayed) return true;
-  if (
-    transfer.status === "COMPLETED" ||
-    transfer.status === "REACHED_HUB" ||
-    transfer.status === "HUB_RECEIVED"
-  ) {
-    return false;
-  }
-  if (
-    transfer.status !== "IN_TRANSIT" &&
-    transfer.status !== "DISPATCH_STARTED"
-  ) {
+  if (transfer.status === "DELIVERED" || transfer.status === "CANCELLED") {
     return false;
   }
   return new Date(transfer.eta) < now;
@@ -698,8 +676,10 @@ export function isDeliveredToday(
   transfer: TransferListItem,
   reference = new Date(),
 ): boolean {
-  if (transfer.status !== "COMPLETED" || !transfer.completedAt) return false;
-  const completed = new Date(transfer.completedAt);
+  if (transfer.status !== "DELIVERED") return false;
+  const deliveredAt = transfer.deliveredAt ?? transfer.hubReceivedAt;
+  if (!deliveredAt) return false;
+  const completed = new Date(deliveredAt);
   return (
     completed.getFullYear() === reference.getFullYear() &&
     completed.getMonth() === reference.getMonth() &&
@@ -712,20 +692,13 @@ export function computeTransferStats(
   reference = new Date(),
 ): TransferStats {
   return {
-    pendingDispatch: transfers.filter((t) => t.status === "PENDING_DISPATCH")
+    pendingDispatch: transfers.filter((t) => t.status === "READY_FOR_DISPATCH")
       .length,
     loading: transfers.filter((t) => t.status === "LOADING").length,
     readyForDispatch: transfers.filter((t) => t.status === "READY_FOR_DISPATCH")
       .length,
-    inTransit: transfers.filter(
-      (t) => t.status === "IN_TRANSIT" || t.status === "DISPATCH_STARTED",
-    ).length,
-    reachedHub: transfers.filter(
-      (t) =>
-        t.status === "REACHED_HUB" ||
-        t.status === "HUB_RECEIVED" ||
-        t.status === "DELIVERED",
-    ).length,
+    inTransit: transfers.filter((t) => t.status === "IN_TRANSIT").length,
+    reachedHub: transfers.filter((t) => t.status === "REACHED_HUB").length,
     deliveredToday: transfers.filter((t) => isDeliveredToday(t, reference))
       .length,
     dispatchedToday: transfers.filter((t) => isDispatchedToday(t, reference))
@@ -739,12 +712,15 @@ export function computeDispatchStats(
   transfers: TransferListItem[],
   reference = new Date(),
 ): DispatchStats {
-  const stats = computeTransferStats(transfers, reference);
   return {
-    pendingDispatch: stats.pendingDispatch,
-    loading: stats.loading,
-    readyForDispatch: stats.readyForDispatch,
-    dispatchedToday: stats.dispatchedToday,
+    pendingDispatch: transfers.filter((t) => t.status === "TRANSFER_CREATED")
+      .length,
+    loading: transfers.filter((t) => t.status === "LOADING").length,
+    readyForDispatch: transfers.filter((t) => t.status === "READY_FOR_DISPATCH")
+      .length,
+    dispatchedToday: transfers.filter(
+      (t) => t.status === "IN_TRANSIT" && isDispatchedToday(t, reference),
+    ).length,
   };
 }
 
@@ -878,7 +854,7 @@ export function getTransferEtaLabel(
   transfer: TransferListItem,
   now = new Date(),
 ): { label: string; tone: "success" | "warning" | "muted" } {
-  if (transfer.status === "COMPLETED" || transfer.status === "DELIVERED") {
+  if (transfer.status === "DELIVERED" || transfer.status === "CANCELLED") {
     return { label: "Finalized", tone: "muted" };
   }
 

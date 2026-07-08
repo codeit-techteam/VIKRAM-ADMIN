@@ -157,7 +157,7 @@ export function confirmTransferWorkflow(
     assignedDriver: driver
       ? { name: driver.name, employeeId: driver.employeeId }
       : undefined,
-    status: "CREATED",
+    status: "TRANSFER_CREATED",
     transferType: form.transferType,
     priority: form.transferType,
     material: context.material,
@@ -194,7 +194,7 @@ export function confirmTransferWorkflow(
     material: context.material,
     quantity: context.quantity,
     unit: context.unit,
-    status: "CREATED",
+    status: "TRANSFER_CREATED",
     createdAt,
   };
 

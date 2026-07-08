@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import {
@@ -33,6 +34,9 @@ import type {
   TransferTimelineEventType,
 } from "@/types/warehouse.types";
 import {
+  canCompleteLoading,
+  canDispatchNow,
+  canStartLoading,
   getPriorityLabel,
   getPriorityStyles,
   WORKFLOW_TIMELINE_STEPS,
@@ -123,19 +127,21 @@ interface TransferDetailPageProps {
 }
 
 export function TransferDetailPage({ transfer }: TransferDetailPageProps) {
+  const router = useRouter();
   const updateEta = useTransferListStore((state) => state.updateEta);
   const addRemarks = useTransferListStore((state) => state.addRemarks);
   const reportDelay = useTransferListStore((state) => state.reportDelay);
   const markReachedHub = useTransferListStore((state) => state.markReachedHub);
+  const startLoading = useTransferListStore((state) => state.startLoading);
+  const receiveAtHub = useTransferListStore((state) => state.receiveAtHub);
 
   const [etaDialogOpen, setEtaDialogOpen] = useState(false);
   const [delayDialogOpen, setDelayDialogOpen] = useState(false);
   const [remarksDialogOpen, setRemarksDialogOpen] = useState(false);
 
-  const isInTransit =
-    transfer.status === "IN_TRANSIT" || transfer.status === "DISPATCH_STARTED";
+  const isInTransit = transfer.status === "IN_TRANSIT";
   const isViewOnly =
-    transfer.status === "COMPLETED" || transfer.status === "REACHED_HUB";
+    transfer.status === "DELIVERED" || transfer.status === "CANCELLED";
 
   const material =
     transfer.material ?? transfer.materials[0]?.split(" x")[0] ?? "—";
@@ -202,6 +208,39 @@ export function TransferDetailPage({ transfer }: TransferDetailPageProps) {
       notify.error(
         "Action failed",
         error instanceof Error ? error.message : "Unable to mark reached hub.",
+      );
+    }
+  };
+
+  const handleStartLoading = () => {
+    try {
+      startLoading(transfer.transferId);
+      notify.success(
+        "Loading started",
+        `${transfer.transferId} is now loading.`,
+      );
+      router.push(
+        `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${transfer.transferId}/loading`,
+      );
+    } catch (error) {
+      notify.error(
+        "Action failed",
+        error instanceof Error ? error.message : "Unable to start loading.",
+      );
+    }
+  };
+
+  const handleConfirmDelivery = () => {
+    try {
+      receiveAtHub(transfer.transferId);
+      notify.success(
+        "Delivery confirmed",
+        `Inventory updated at ${transfer.destinationHub}.`,
+      );
+    } catch (error) {
+      notify.error(
+        "Action failed",
+        error instanceof Error ? error.message : "Unable to confirm delivery.",
       );
     }
   };
@@ -355,6 +394,55 @@ export function TransferDetailPage({ transfer }: TransferDetailPageProps) {
             ) : null}
           </div>
 
+          {transfer.status === "TRANSFER_CREATED" &&
+          canStartLoading(transfer) ? (
+            <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+              <h2 className="text-sm font-bold text-[#1A1A1A]">
+                Dispatch Actions
+              </h2>
+              <Button className="mt-4 w-full" onClick={handleStartLoading}>
+                Start Loading
+              </Button>
+            </div>
+          ) : null}
+
+          {transfer.status === "LOADING" && canCompleteLoading(transfer) ? (
+            <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+              <h2 className="text-sm font-bold text-[#1A1A1A]">
+                Dispatch Actions
+              </h2>
+              <Button
+                className="mt-4 w-full"
+                render={
+                  <Link
+                    href={`${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${transfer.transferId}/loading`}
+                  />
+                }
+              >
+                Complete Loading
+              </Button>
+            </div>
+          ) : null}
+
+          {transfer.status === "READY_FOR_DISPATCH" &&
+          canDispatchNow(transfer) ? (
+            <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+              <h2 className="text-sm font-bold text-[#1A1A1A]">
+                Dispatch Actions
+              </h2>
+              <Button
+                className="mt-4 w-full"
+                render={
+                  <Link
+                    href={`${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${transfer.transferId}/confirm`}
+                  />
+                }
+              >
+                Dispatch Now
+              </Button>
+            </div>
+          ) : null}
+
           {isInTransit ? (
             <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-bold text-[#1A1A1A]">
@@ -398,11 +486,14 @@ export function TransferDetailPage({ transfer }: TransferDetailPageProps) {
                 Waiting For Hub Receipt
               </p>
               <p className="mt-1 text-xs text-[#64748B]">
-                This transfer is visible in Hub Receiving for material
-                verification.
+                Confirm delivery to update hub inventory and close this
+                transfer.
               </p>
+              <Button className="mt-3 w-full" onClick={handleConfirmDelivery}>
+                Confirm Delivery
+              </Button>
               <Button
-                className="mt-3 w-full"
+                className="mt-2 w-full"
                 variant="outline"
                 render={
                   <Link href={`${ROUTES.CENTRAL_WAREHOUSE}/hub-receiving`} />
@@ -413,11 +504,11 @@ export function TransferDetailPage({ transfer }: TransferDetailPageProps) {
             </div>
           ) : null}
 
-          {isViewOnly && transfer.status === "COMPLETED" ? (
+          {isViewOnly ? (
             <div className="rounded-xl border border-green-100 bg-green-50/50 p-5">
               <p className="text-sm font-semibold text-green-800">View Only</p>
               <p className="mt-1 text-xs text-[#64748B]">
-                This transfer has been completed and closed.
+                This transfer has been delivered and closed.
               </p>
             </div>
           ) : null}

@@ -32,8 +32,8 @@ export const INVENTORY_ITEMS: InventoryItem[] = [
     sku: "SKU-CEM-0053-ULT",
     category: "Cementing Materials",
     categorySlug: "cement",
-    currentStock: 1200,
-    committedStock: 950,
+    currentStock: 3500,
+    committedStock: 200,
     minimumStock: 500,
     unit: "bags",
     purchasePrice: 385,
@@ -257,3 +257,20 @@ export function computeInventoryStats(
 
 // TODO: Replace with inventory stats API
 export const INVENTORY_STATS = computeInventoryStats(INVENTORY_ITEMS);
+
+type InventorySource = () => InventoryItem[];
+let inventorySource: InventorySource | null = null;
+
+export function setInventorySource(source: InventorySource): void {
+  inventorySource = source;
+}
+
+export function getSharedInventoryItems(): InventoryItem[] {
+  return inventorySource ? inventorySource() : INVENTORY_ITEMS;
+}
+
+export function getSharedInventoryItem(
+  materialId: string,
+): InventoryItem | undefined {
+  return getSharedInventoryItems().find((item) => item.id === materialId);
+}

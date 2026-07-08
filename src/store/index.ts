@@ -4,3 +4,4 @@ export { useSidebarStore } from "@/store/sidebar-store";
 export { useNotificationStore } from "@/store/notification-store";
 export { useGlobalModalStore, createModalStore } from "@/store/modal-store";
 export { useAllocationWorkflowStore } from "@/store/allocation-workflow-store";
+export { useWarehouseErpStore } from "@/store/warehouse-erp-store";

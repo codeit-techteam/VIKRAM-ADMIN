@@ -21,7 +21,7 @@ import {
   fetchTransfers,
   TRANSFER_PAGE_SIZE,
 } from "@/mock/transfers";
-import { useAllocationRegistryStore } from "@/store/allocation-registry-store";
+import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 import { useTransferListStore } from "@/store/transfer-list-store";
 import type {
   FleetDriver,
@@ -39,16 +39,13 @@ export function TransferPage() {
   const deleteTransfer = useTransferListStore((state) => state.deleteTransfer);
   const assignVehicle = useTransferListStore((state) => state.assignVehicle);
   const assignDriver = useTransferListStore((state) => state.assignDriver);
-  const markReadyForDispatch = useTransferListStore(
-    (state) => state.markReadyForDispatch,
-  );
   const startLoading = useTransferListStore((state) => state.startLoading);
   const confirmDispatch = useTransferListStore(
     (state) => state.confirmDispatch,
   );
   const markReachedHub = useTransferListStore((state) => state.markReachedHub);
   const receiveAtHub = useTransferListStore((state) => state.receiveAtHub);
-  const getAllocationById = useAllocationRegistryStore(
+  const getAllocationById = useWarehouseErpStore(
     (state) => state.getAllocationById,
   );
 
@@ -175,13 +172,6 @@ export function TransferPage() {
             setAssignMode("driver");
             setAssignDialogOpen(true);
             break;
-          case "ready-for-dispatch":
-            markReadyForDispatch(item.transferId);
-            notify.success(
-              "Ready for dispatch",
-              `${item.transferId} is now pending dispatch.`,
-            );
-            break;
           case "start-loading":
             startLoading(item.transferId);
             notify.success(
@@ -258,7 +248,6 @@ export function TransferPage() {
       handleContinueTransfer,
       handleView,
       markReachedHub,
-      markReadyForDispatch,
       receiveAtHub,
       router,
       startLoading,

@@ -10,7 +10,6 @@ export type TransferRowAction =
   | "delete"
   | "assign-vehicle"
   | "assign-driver"
-  | "ready-for-dispatch"
   | "start-loading"
   | "complete-loading"
   | "dispatch-now"
@@ -41,26 +40,40 @@ const TIMELINE_LABELS: Record<TransferTimelineEventType, string> = {
   COMPLETED: "Completed",
 };
 
+/** Maps legacy persisted statuses to the canonical ERP transfer status enum. */
+const LEGACY_STATUS_MAP: Record<string, TransferStatus> = {
+  CREATED: "TRANSFER_CREATED",
+  VEHICLE_ASSIGNED: "TRANSFER_CREATED",
+  DRIVER_ASSIGNED: "TRANSFER_CREATED",
+  PENDING_DISPATCH: "TRANSFER_CREATED",
+  DISPATCH_STARTED: "IN_TRANSIT",
+  HUB_RECEIVED: "DELIVERED",
+  COMPLETED: "DELIVERED",
+};
+
+export function normalizeTransferStatus(status: string): TransferStatus {
+  if (status in LEGACY_STATUS_MAP) {
+    return LEGACY_STATUS_MAP[status];
+  }
+  return status as TransferStatus;
+}
+
 export const DISPATCH_QUEUE_STATUSES: TransferStatus[] = [
-  "PENDING_DISPATCH",
+  "TRANSFER_CREATED",
   "LOADING",
   "READY_FOR_DISPATCH",
+  "IN_TRANSIT",
 ];
 
 export const STATUS_ORDER: TransferStatus[] = [
   "DRAFT",
-  "CREATED",
-  "VEHICLE_ASSIGNED",
-  "DRIVER_ASSIGNED",
-  "PENDING_DISPATCH",
+  "TRANSFER_CREATED",
   "LOADING",
   "READY_FOR_DISPATCH",
-  "DISPATCH_STARTED",
   "IN_TRANSIT",
   "REACHED_HUB",
   "DELIVERED",
-  "HUB_RECEIVED",
-  "COMPLETED",
+  "CANCELLED",
 ];
 
 export const WORKFLOW_TIMELINE_STEPS: TransferTimelineEventType[] = [
@@ -72,8 +85,7 @@ export const WORKFLOW_TIMELINE_STEPS: TransferTimelineEventType[] = [
   "DISPATCH_STARTED",
   "IN_TRANSIT",
   "REACHED_HUB",
-  "HUB_RECEIVED",
-  "COMPLETED",
+  "DELIVERED",
 ];
 
 export function createTimelineEvent(
@@ -93,7 +105,8 @@ export function createTimelineEvent(
 }
 
 export function getStatusIndex(status: TransferStatus): number {
-  const index = STATUS_ORDER.indexOf(status);
+  const normalized = normalizeTransferStatus(status);
+  const index = STATUS_ORDER.indexOf(normalized);
   return index === -1 ? 0 : index;
 }
 
@@ -107,19 +120,19 @@ export function hasDriverAssigned(transfer: TransferListItem): boolean {
 
 export function canStartLoading(transfer: TransferListItem): boolean {
   return (
-    transfer.status === "PENDING_DISPATCH" &&
+    normalizeTransferStatus(transfer.status) === "TRANSFER_CREATED" &&
     hasVehicleAssigned(transfer) &&
     hasDriverAssigned(transfer)
   );
 }
 
 export function canCompleteLoading(transfer: TransferListItem): boolean {
-  return transfer.status === "LOADING";
+  return normalizeTransferStatus(transfer.status) === "LOADING";
 }
 
 export function canDispatchNow(transfer: TransferListItem): boolean {
   return (
-    transfer.status === "READY_FOR_DISPATCH" &&
+    normalizeTransferStatus(transfer.status) === "READY_FOR_DISPATCH" &&
     hasVehicleAssigned(transfer) &&
     hasDriverAssigned(transfer)
   );
@@ -131,25 +144,25 @@ export function canStartDispatch(transfer: TransferListItem): boolean {
 }
 
 export function isInDispatchQueue(transfer: TransferListItem): boolean {
-  return DISPATCH_QUEUE_STATUSES.includes(transfer.status);
+  return DISPATCH_QUEUE_STATUSES.includes(
+    normalizeTransferStatus(transfer.status),
+  );
 }
 
 export function isHubReceivingEligible(transfer: TransferListItem): boolean {
-  return (
-    transfer.status === "REACHED_HUB" || transfer.status === "HUB_RECEIVED"
-  );
+  return normalizeTransferStatus(transfer.status) === "REACHED_HUB";
 }
 
 export function getTransferRowActions(
   transfer: TransferListItem,
 ): TransferRowAction[] {
-  switch (transfer.status) {
+  const status = normalizeTransferStatus(transfer.status);
+
+  switch (status) {
     case "DRAFT":
       return ["continue", "delete"];
 
-    case "CREATED":
-    case "VEHICLE_ASSIGNED":
-    case "DRIVER_ASSIGNED": {
+    case "TRANSFER_CREATED": {
       const actions: TransferRowAction[] = [];
       if (!hasVehicleAssigned(transfer)) {
         actions.push("assign-vehicle");
@@ -157,33 +170,28 @@ export function getTransferRowActions(
       if (!hasDriverAssigned(transfer)) {
         actions.push("assign-driver");
       }
-      if (hasVehicleAssigned(transfer) && hasDriverAssigned(transfer)) {
-        actions.push("ready-for-dispatch");
+      if (canStartLoading(transfer)) {
+        actions.push("start-loading");
       }
       return actions;
     }
 
-    case "READY_FOR_DISPATCH":
-      return ["dispatch-now"];
-
-    case "PENDING_DISPATCH":
-      return canStartLoading(transfer) ? ["start-loading"] : [];
-
     case "LOADING":
       return ["complete-loading"];
 
-    case "DISPATCH_STARTED":
+    case "READY_FOR_DISPATCH":
+      return canDispatchNow(transfer) ? ["dispatch-now"] : [];
+
     case "IN_TRANSIT":
       return ["track", "update-eta", "report-delay", "mark-reached-hub"];
 
     case "REACHED_HUB":
-    case "HUB_RECEIVED":
-      return ["view-details"];
-
-    case "DELIVERED":
       return ["receive-at-hub"];
 
-    case "COMPLETED":
+    case "DELIVERED":
+      return ["view-details"];
+
+    case "CANCELLED":
       return ["view-details"];
 
     default:
@@ -194,8 +202,10 @@ export function getTransferRowActions(
 export function getDispatchRowAction(
   transfer: TransferListItem,
 ): TransferRowAction | null {
-  switch (transfer.status) {
-    case "PENDING_DISPATCH":
+  const status = normalizeTransferStatus(transfer.status);
+
+  switch (status) {
+    case "TRANSFER_CREATED":
       return canStartLoading(transfer) ? "start-loading" : null;
     case "LOADING":
       return "complete-loading";
@@ -216,8 +226,6 @@ export function getTransferActionLabel(action: TransferRowAction): string {
       return "Assign Vehicle";
     case "assign-driver":
       return "Assign Driver";
-    case "ready-for-dispatch":
-      return "Ready For Dispatch";
     case "start-loading":
       return "Start Loading";
     case "complete-loading":
@@ -237,9 +245,9 @@ export function getTransferActionLabel(action: TransferRowAction): string {
     case "mark-reached-hub":
       return "Mark Reached Hub";
     case "mark-delivered":
-      return "Mark Delivered";
+      return "Confirm Delivery";
     case "receive-at-hub":
-      return "Receive At Hub";
+      return "Confirm Delivery";
     case "view-details":
       return "View Details";
   }
@@ -272,11 +280,12 @@ export function getPriorityStyles(transfer: TransferListItem): string {
 }
 
 export function isTerminalStatus(status: TransferStatus): boolean {
-  return status === "COMPLETED";
+  const normalized = normalizeTransferStatus(status);
+  return normalized === "DELIVERED" || normalized === "CANCELLED";
 }
 
 export function isTransferClosed(transfer: TransferListItem): boolean {
-  return transfer.status === "COMPLETED";
+  return isTerminalStatus(transfer.status);
 }
 
 export function isLoadingChecklistComplete(

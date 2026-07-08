@@ -7,20 +7,31 @@ import { InventoryActivityTable } from "@/components/warehouse/InventoryActivity
 import { LowStockAlertCard } from "@/components/warehouse/LowStockAlertCard";
 import { QuickActions } from "@/components/warehouse/QuickActions";
 import { WarehouseStatsCard } from "@/components/warehouse/WarehouseStatsCard";
-import { computeTransferStats } from "@/mock/transfers";
-import {
-  alerts,
-  quickActions,
-  requisitions,
-  stats as baseStats,
-} from "@/mock/warehouse-dashboard";
-import { useInventoryActivityStore } from "@/store/inventory-activity-store";
-import { useTransferListStore } from "@/store/transfer-list-store";
+import { getAvailableStock } from "@/mock/inventory";
+import { alerts, quickActions } from "@/mock/warehouse-dashboard";
+import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 
 export function WarehouseDashboard() {
   const [isLoading, setIsLoading] = useState(true);
-  const transfers = useTransferListStore((state) => state.transfers);
-  const activities = useInventoryActivityStore((state) => state.activities);
+  const requisitions = useWarehouseErpStore((state) => state.requisitions);
+  const transfers = useWarehouseErpStore((state) => state.transfers);
+  const inventory = useWarehouseErpStore((state) => state.inventory);
+  const activityLogs = useWarehouseErpStore((state) => state.activityLogs);
+
+  const stats = useMemo(
+    () => useWarehouseErpStore.getState().getDashboardStats(),
+    [requisitions, transfers, inventory],
+  );
+
+  const activities = useMemo(
+    () => useWarehouseErpStore.getState().getInventoryActivities(),
+    [activityLogs],
+  );
+
+  const criticalRequisitions = useMemo(
+    () => useWarehouseErpStore.getState().getCriticalRequisitions(),
+    [requisitions],
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => setIsLoading(false), 600);
@@ -28,24 +39,12 @@ export function WarehouseDashboard() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  const stats = useMemo(() => {
-    const transferStats = computeTransferStats(transfers);
-
-    return baseStats.map((stat) =>
-      stat.id === "todays-dispatch"
-        ? {
-            ...stat,
-            label: "Dispatched Today",
-            value: String(transferStats.dispatchedToday).padStart(2, "0"),
-            subtitle: "Confirmed dispatches today",
-          }
-        : stat,
-    );
-  }, [transfers]);
-
-  const lowStockCount = stats.find(
-    (item) => item.id === "low-stock-items",
-  )?.value;
+  const lowStockCount = useMemo(
+    () =>
+      inventory.filter((item) => getAvailableStock(item) <= item.minimumStock)
+        .length,
+    [inventory],
+  );
 
   return (
     <div className="space-y-5">
@@ -57,7 +56,7 @@ export function WarehouseDashboard() {
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]">
         <CriticalRequisitionTable
-          requisitions={requisitions}
+          requisitions={criticalRequisitions}
           isLoading={isLoading}
         />
         <QuickActions actions={quickActions} isLoading={isLoading} />
@@ -67,11 +66,7 @@ export function WarehouseDashboard() {
         <InventoryActivityTable activities={activities} isLoading={isLoading} />
         <LowStockAlertCard
           alerts={alerts}
-          totalCount={
-            typeof lowStockCount === "string"
-              ? Number.parseInt(lowStockCount, 10)
-              : undefined
-          }
+          totalCount={lowStockCount}
           isLoading={isLoading}
         />
       </div>

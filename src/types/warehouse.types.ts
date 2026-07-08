@@ -14,7 +14,13 @@ export interface WarehouseStat {
 
 export type RequisitionPriority = "critical" | "high" | "medium" | "low";
 
-export type RequisitionStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type RequisitionStatus =
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "ALLOCATED"
+  | "TRANSFERRED"
+  | "COMPLETED";
 
 export type RequisitionAllocationStatus =
   "PENDING" | "ALLOCATED" | "NOT_APPLICABLE";
@@ -45,12 +51,17 @@ export interface RequisitionListItem {
   materialId: string;
   material: string;
   materialSpec?: string;
+  sku?: string;
   requestedQty: number;
+  approvedQty?: number;
   unit: string;
   priority: RequisitionPriority;
   status: RequisitionStatus;
   allocationStatus: RequisitionAllocationStatus;
+  allocationId?: string;
+  transferId?: string;
   createdAt: string;
+  approvedAt?: string;
   href: string;
   customerName?: string;
   adminRemarks?: string;
@@ -298,18 +309,13 @@ export interface AllocationWorkflowResult {
 
 export type TransferStatus =
   | "DRAFT"
-  | "CREATED"
-  | "VEHICLE_ASSIGNED"
-  | "DRIVER_ASSIGNED"
-  | "READY_FOR_DISPATCH"
-  | "PENDING_DISPATCH"
+  | "TRANSFER_CREATED"
   | "LOADING"
-  | "DISPATCH_STARTED"
+  | "READY_FOR_DISPATCH"
   | "IN_TRANSIT"
-  | "DELIVERED"
   | "REACHED_HUB"
-  | "HUB_RECEIVED"
-  | "COMPLETED";
+  | "DELIVERED"
+  | "CANCELLED";
 
 export type TransferTimelineEventType =
   | "TRANSFER_CREATED"
@@ -441,7 +447,7 @@ export interface TransferWorkflowResult {
   material: string;
   quantity: number;
   unit: string;
-  status: "CREATED";
+  status: "TRANSFER_CREATED";
   createdAt: string;
 }
 

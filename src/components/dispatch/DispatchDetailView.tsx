@@ -50,7 +50,7 @@ export function DispatchDetailView({ transfer }: DispatchDetailViewProps) {
   };
 
   const showStartLoading =
-    transfer.status === "PENDING_DISPATCH" && canStartLoading(transfer);
+    transfer.status === "TRANSFER_CREATED" && canStartLoading(transfer);
   const showContinueLoading = transfer.status === "LOADING";
   const showDispatchNow = transfer.status === "READY_FOR_DISPATCH";
 

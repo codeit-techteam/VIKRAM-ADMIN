@@ -1,6 +1,7 @@
-import { create } from "zustand";
+import { useMemo } from "react";
 
-import { activities as SEED_ACTIVITIES } from "@/mock/warehouse-dashboard";
+import { erpLogToInventoryActivity } from "@/store/warehouse-erp-helpers";
+import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 import type { InventoryActivity } from "@/types/warehouse.types";
 
 interface LogDispatchParams {
@@ -19,73 +20,35 @@ interface LogHubReceiptParams {
   by?: string;
 }
 
-interface InventoryActivityState {
+interface InventoryActivityCompat {
   activities: InventoryActivity[];
   logDispatchOut: (params: LogDispatchParams) => void;
   logHubReceipt: (params: LogHubReceiptParams) => void;
   resetActivities: () => void;
 }
 
-function formatActivityTime(date = new Date()): string {
-  return date.toLocaleTimeString("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+const noop = () => undefined;
+
+export function useInventoryActivityStore<T>(
+  selector: (state: InventoryActivityCompat) => T,
+): T {
+  const activityLogs = useWarehouseErpStore((state) => state.activityLogs);
+  const resetDatabase = useWarehouseErpStore((state) => state.resetDatabase);
+
+  const activities = useMemo(
+    () => activityLogs.slice(0, 20).map(erpLogToInventoryActivity),
+    [activityLogs],
+  );
+
+  const compat = useMemo<InventoryActivityCompat>(
+    () => ({
+      activities,
+      logDispatchOut: noop,
+      logHubReceipt: noop,
+      resetActivities: resetDatabase,
+    }),
+    [activities, resetDatabase],
+  );
+
+  return selector(compat);
 }
-
-export const useInventoryActivityStore = create<InventoryActivityState>(
-  (set) => ({
-    activities: SEED_ACTIVITIES,
-
-    logDispatchOut: ({
-      transferId,
-      material,
-      quantity,
-      warehouse,
-      by = "Dispatch System",
-    }) => {
-      const entry: InventoryActivity = {
-        id: `act-dispatch-${Date.now()}`,
-        time: formatActivityTime(),
-        activity: `Dispatch Out — ${transferId}`,
-        material,
-        quantity: `-${quantity}`,
-        quantityChange: "negative",
-        by,
-        status: "verified",
-      };
-      set((state) => ({
-        activities: [entry, ...state.activities],
-      }));
-      void warehouse;
-    },
-
-    logHubReceipt: ({
-      transferId,
-      material,
-      quantity,
-      hub,
-      by = "Hub Manager",
-    }) => {
-      const entry: InventoryActivity = {
-        id: `act-receipt-${Date.now()}`,
-        time: formatActivityTime(),
-        activity: `Hub Receipt — ${transferId}`,
-        material,
-        quantity: `+${quantity}`,
-        quantityChange: "positive",
-        by,
-        status: "completed",
-      };
-      set((state) => ({
-        activities: [entry, ...state.activities],
-      }));
-      void hub;
-    },
-
-    resetActivities: () => {
-      set({ activities: SEED_ACTIVITIES });
-    },
-  }),
-);

@@ -12,7 +12,7 @@ import type {
 
 import {
   getAvailableStock,
-  INVENTORY_ITEMS,
+  getSharedInventoryItem,
   type InventoryItem,
 } from "@/mock/inventory";
 import { formatRequisitionQuantity } from "@/mock/requisitions";
@@ -35,6 +35,11 @@ function applyGeneratedStockOverride(
   index: number,
   available: number,
 ): number {
+  const numericSuffix = allocationId.replace(/^alloc-/, "");
+  if (!/^\d+$/.test(numericSuffix)) {
+    return available;
+  }
+
   if (index % 13 === 0) {
     return 0;
   }
@@ -46,9 +51,6 @@ const ALLOCATION_UNIT_OVERRIDES: Record<string, string> = {
   "alloc-9428": "Bundles",
   "alloc-9427": "Bags",
 };
-
-// Baseline for demo dashboard KPI; decreases as same-day allocations are made.
-const ALLOCATION_TODAY_BASELINE = 856;
 
 const DESTINATION_HUBS = [
   { id: "hub-bangalore-south", label: "Bangalore South Hub" },
@@ -216,7 +218,7 @@ export const ALLOCATION_LIST: MaterialAllocationItem[] = [
 export function getInventoryItem(
   materialId: string,
 ): InventoryItem | undefined {
-  return INVENTORY_ITEMS.find((item) => item.id === materialId);
+  return getSharedInventoryItem(materialId);
 }
 
 export function getWarehouseAvailableStock(
@@ -252,7 +254,7 @@ export function getMaterialAvailableForAllocation(
     : undefined;
 
   const index = allocationId
-    ? Number.parseInt(allocationId.replace("alloc-", ""), 10) || 0
+    ? Number.parseInt(allocationId.replace(/^alloc-/, ""), 10) || 0
     : 0;
 
   const baseAvailable =
@@ -338,7 +340,7 @@ export function computeAllocationStats(
     criticalAllocation: pendingItems.filter(
       (item) => item.priority === "critical",
     ).length,
-    allocatedToday: allocatedToday + ALLOCATION_TODAY_BASELINE,
+    allocatedToday,
     outOfStock: pendingItems.filter((item) => {
       const stock = getMaterialAvailableForAllocation(
         item.materialId,

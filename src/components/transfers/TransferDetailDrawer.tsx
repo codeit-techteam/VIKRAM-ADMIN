@@ -33,6 +33,7 @@ import type { TransferListItem, TransferStatus } from "@/types/warehouse.types";
 import {
   getPriorityLabel,
   getPriorityStyles,
+  getStatusIndex,
   hasDriverAssigned,
   hasVehicleAssigned,
 } from "@/utils/transfer-actions";
@@ -47,33 +48,13 @@ interface TransferDetailDrawerProps {
 
 const WORKFLOW_STEPS: Array<{ status: TransferStatus; label: string }> = [
   { status: "DRAFT", label: "Transfer Draft" },
-  { status: "CREATED", label: "Transfer Created" },
-  { status: "VEHICLE_ASSIGNED", label: "Vehicle Assigned" },
-  { status: "DRIVER_ASSIGNED", label: "Driver Assigned" },
-  { status: "PENDING_DISPATCH", label: "Pending Dispatch" },
+  { status: "TRANSFER_CREATED", label: "Transfer Created" },
+  { status: "LOADING", label: "Loading" },
+  { status: "READY_FOR_DISPATCH", label: "Ready For Dispatch" },
   { status: "IN_TRANSIT", label: "In Transit" },
+  { status: "REACHED_HUB", label: "Reached Hub" },
   { status: "DELIVERED", label: "Delivered" },
-  { status: "COMPLETED", label: "Completed" },
 ];
-
-const STATUS_ORDER: TransferStatus[] = [
-  "DRAFT",
-  "CREATED",
-  "VEHICLE_ASSIGNED",
-  "DRIVER_ASSIGNED",
-  "READY_FOR_DISPATCH",
-  "PENDING_DISPATCH",
-  "DISPATCH_STARTED",
-  "IN_TRANSIT",
-  "DELIVERED",
-  "HUB_RECEIVED",
-  "COMPLETED",
-];
-
-function getStatusIndex(status: TransferStatus): number {
-  const index = STATUS_ORDER.indexOf(status);
-  return index === -1 ? 0 : index;
-}
 
 function DetailSection({
   title,
@@ -255,12 +236,9 @@ function WorkflowTimeline({ transfer }: { transfer: TransferListItem }) {
         const isCompleted = stepIndex < currentIndex;
         const isCurrent =
           transfer.status === step.status ||
-          (step.status === "PENDING_DISPATCH" &&
-            (transfer.status === "READY_FOR_DISPATCH" ||
-              transfer.status === "DISPATCH_STARTED")) ||
-          (step.status === "IN_TRANSIT" &&
-            (transfer.status === "DISPATCH_STARTED" ||
-              transfer.status === "HUB_RECEIVED"));
+          (step.status === "LOADING" && transfer.status === "LOADING") ||
+          (step.status === "READY_FOR_DISPATCH" &&
+            transfer.status === "READY_FOR_DISPATCH");
 
         const timelineEvent = transfer.timeline.find((event) =>
           event.label

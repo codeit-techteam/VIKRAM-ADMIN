@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { formatTransferDateTime } from "@/mock/transfers";
 import { useTransferListStore } from "@/store/transfer-list-store";
+import { DISPATCH_QUEUE_STATUSES } from "@/utils/transfer-actions";
 
 interface DispatchQueueProps {
   isLoading?: boolean;
@@ -24,7 +25,9 @@ export function DispatchQueue({ isLoading = false }: DispatchQueueProps) {
 
   const pendingTransfers = useMemo(
     () =>
-      transfers.filter((transfer) => transfer.status === "PENDING_DISPATCH"),
+      transfers.filter((transfer) =>
+        DISPATCH_QUEUE_STATUSES.includes(transfer.status),
+      ),
     [transfers],
   );
 

@@ -8,17 +8,23 @@ import {
   buildAllocationSummaryCards,
 } from "@/components/allocation/AllocationSummaryCard";
 import { MaterialAllocationTable } from "@/components/allocation/MaterialAllocationTable";
-import {
-  ALLOCATION_LIST,
-  ALLOCATION_PAGE_SIZE,
-  fetchAllocations,
-} from "@/mock/allocations";
+import { ALLOCATION_PAGE_SIZE, fetchAllocations } from "@/mock/allocations";
+import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 import type { MaterialAllocationItem } from "@/types/warehouse.types";
 import { ROUTES } from "@/constants/routes";
 
 export function AllocationPage() {
   const router = useRouter();
-  const [allocations] = useState<MaterialAllocationItem[]>(ALLOCATION_LIST);
+  const allocationRecords = useWarehouseErpStore((state) => state.allocations);
+  const requisitions = useWarehouseErpStore((state) => state.requisitions);
+  const getMaterialAllocations = useWarehouseErpStore(
+    (state) => state.getMaterialAllocations,
+  );
+
+  const allocations = useMemo(
+    () => getMaterialAllocations(),
+    [allocationRecords, requisitions, getMaterialAllocations],
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
 

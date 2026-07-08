@@ -38,7 +38,7 @@ const STATUS_LABELS: Record<HubStockStatus, string> = {
   critical: "Critical",
   reserved: "Reserved",
   "out-of-stock": "Out Of Stock",
-  overstock: "Overstock",
+  overstock: "Over Stock",
 };
 
 function formatUpdated(iso?: string): string {

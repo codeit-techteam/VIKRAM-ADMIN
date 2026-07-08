@@ -171,6 +171,13 @@ export interface WarehouseErpState {
   getSubHubSummaries: () => SubHubSummary[];
   getSubHubTableRows: () => SubHubTableRow[];
   addSubHub: (draft: HubDraft) => CreateHubResult;
+  adjustHubInventory: (params: {
+    hubId: string;
+    materialId: string;
+    newQuantity: number;
+    reason?: string;
+    adminName?: string;
+  }) => void;
   resetDatabase: () => void;
 }
 
@@ -1349,6 +1356,43 @@ export const useWarehouseErpStore = create<WarehouseErpState>((set, get) => ({
     });
 
     return result;
+  },
+
+  adjustHubInventory: ({
+    hubId,
+    materialId,
+    newQuantity,
+    reason,
+    adminName,
+  }) => {
+    const state = get();
+    const entry = state.hubInventory.find(
+      (item) => item.hubId === hubId && item.materialId === materialId,
+    );
+    if (!entry) return;
+
+    const quantity = Math.max(0, Math.round(newQuantity));
+    const delta = quantity - entry.quantity;
+    const now = new Date().toISOString();
+
+    set({
+      hubInventory: state.hubInventory.map((item) =>
+        item.hubId === hubId && item.materialId === materialId
+          ? { ...item, quantity, lastUpdated: now }
+          : item,
+      ),
+      subHubs: state.subHubs.map((hub) =>
+        hub.id === hubId ? { ...hub, lastInventorySync: now } : hub,
+      ),
+      activityLogs: logActivityEntry(state.activityLogs, {
+        user: adminName ?? "Hub Manager",
+        module: "Hub Inventory",
+        action: "Inventory Adjusted",
+        remarks: `${entry.materialName} at ${entry.hubName}: ${delta >= 0 ? "+" : ""}${delta} ${entry.unit}${reason ? ` — ${reason}` : ""}`,
+        entityId: `${hubId}:${materialId}`,
+        entityType: "hub-inventory",
+      }),
+    });
   },
 
   resetDatabase: () => {

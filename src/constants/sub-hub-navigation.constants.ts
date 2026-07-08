@@ -8,7 +8,7 @@ export const SUB_HUB_NETWORK_NAV_CHILDREN: NavChildItem[] = [
   },
   {
     label: "Hub Inventory",
-    href: `${ROUTES.CENTRAL_WAREHOUSE}/inventory`,
+    href: ROUTES.HUB_INVENTORY,
   },
   {
     label: "Hub Requisitions",

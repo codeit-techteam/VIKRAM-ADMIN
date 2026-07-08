@@ -6,6 +6,7 @@ export const ROUTES = {
   CENTRAL_WAREHOUSE: "/central-warehouse",
   SUB_HUB_NETWORK: "/sub-hub-network",
   SUB_HUB_ADD: "/sub-hub-network/add",
+  HUB_INVENTORY: "/sub-hub-network/inventory",
   USER_MANAGEMENT: "/user-management",
   LOGISTICS: "/logistics",
   FINANCE_PAYMENTS: "/finance-payments",

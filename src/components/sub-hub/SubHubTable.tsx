@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/table";
 import { ROUTES } from "@/constants/routes";
 import type { SubHubTableRow } from "@/types/erp.types";
+import { getHubInventoryHref } from "@/utils/hub-profile-metrics";
 import {
   getHubDetailPath,
   getHubHealthScoreBarColor,
@@ -69,7 +70,7 @@ const COLUMN_WIDTHS = [
 function hubActionLinks(hubId: string) {
   return {
     view: getHubDetailPath(hubId),
-    inventory: `${ROUTES.CENTRAL_WAREHOUSE}/inventory?hub=${hubId}`,
+    inventory: getHubInventoryHref(hubId),
     requisitions: `${ROUTES.CENTRAL_WAREHOUSE}/requisitions?hub=${hubId}`,
     transfers: `${ROUTES.CENTRAL_WAREHOUSE}/transfers?hub=${hubId}`,
     details: `${getHubDetailPath(hubId)}?tab=analytics`,

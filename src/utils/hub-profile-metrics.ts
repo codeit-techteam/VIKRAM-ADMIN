@@ -250,21 +250,39 @@ export function resolveOutgoingQty(
   return Math.max(fromOrders, fromDispatches);
 }
 
+export function resolveMaxStock(
+  entry: Pick<
+    HubInventoryEntry,
+    "maxStock" | "minimumRequired" | "reorderLevel"
+  >,
+): number {
+  if (typeof entry.maxStock === "number" && entry.maxStock > 0) {
+    return entry.maxStock;
+  }
+
+  const reorder = entry.reorderLevel ?? entry.minimumRequired ?? 1;
+
+  return Math.max(reorder * 2, Math.round(reorder * 2.5));
+}
+
+/**
+ * Status priority (mutually exclusive badge):
+ * Out of Stock → Critical → Low Stock → Over Stock → Reserved → Healthy
+ */
 export function computeHubStockStatus(
   availableQty: number,
   reservedQty: number,
   reorderLevel: number,
   safetyStock: number,
+  maxStock?: number,
 ): HubStockStatus {
-  const freeQty = Math.max(0, availableQty - reservedQty);
-
   if (availableQty <= 0) return "out-of-stock";
-  if (reservedQty > 0 && freeQty <= 0) return "reserved";
-  if (availableQty < safetyStock || availableQty < reorderLevel * 0.5) {
-    return "critical";
+  if (availableQty <= safetyStock) return "critical";
+  if (availableQty <= reorderLevel) return "low-stock";
+  if (typeof maxStock === "number" && maxStock > 0 && availableQty > maxStock) {
+    return "overstock";
   }
-  if (availableQty < reorderLevel) return "low-stock";
-  if (availableQty > reorderLevel * 1.5) return "overstock";
+  if (reservedQty > 0) return "reserved";
   return "healthy";
 }
 
@@ -289,8 +307,10 @@ export function buildHubInventoryRows(
     const availableQty = entry.quantity;
     const reservedQty = resolveReservedQty(entry, requisitions, allocations);
     const freeQty = Math.max(0, availableQty - reservedQty);
+    const reorderLevel = entry.reorderLevel ?? entry.minimumRequired;
     const safetyStock =
-      entry.safetyStock ?? Math.max(1, Math.round(entry.minimumRequired * 0.6));
+      entry.safetyStock ?? Math.max(1, Math.round(reorderLevel * 0.6));
+    const maxStock = resolveMaxStock(entry);
     const incomingQty = resolveIncomingQty(entry, transfers);
     const outgoingQty = resolveOutgoingQty(
       entry,
@@ -301,8 +321,9 @@ export function buildHubInventoryRows(
     const status = computeHubStockStatus(
       availableQty,
       reservedQty,
-      entry.minimumRequired,
+      reorderLevel,
       safetyStock,
+      maxStock,
     );
 
     return {
@@ -315,7 +336,7 @@ export function buildHubInventoryRows(
       freeQty,
       incomingQty,
       outgoingQty,
-      reorderLevel: entry.minimumRequired,
+      reorderLevel,
       safetyStock,
       unit: entry.unit,
       unitPrice: entry.purchasePrice,
@@ -324,7 +345,7 @@ export function buildHubInventoryRows(
       lastUpdated: entry.lastUpdated ?? hub.lastInventorySync,
       recommendedQty: recommendedReorderQty(
         availableQty,
-        entry.minimumRequired,
+        reorderLevel,
         safetyStock,
       ),
     };
@@ -744,6 +765,7 @@ export function getRaiseTransferHref(hubId: string) {
   return `${ROUTES.CENTRAL_WAREHOUSE}/transfers/new?hub=${hubId}`;
 }
 
-export function getHubInventoryHref(hubId: string) {
-  return `${ROUTES.CENTRAL_WAREHOUSE}/inventory?hub=${hubId}`;
+export function getHubInventoryHref(hubId?: string) {
+  const base = ROUTES.HUB_INVENTORY;
+  return hubId ? `${base}?hub=${hubId}` : base;
 }

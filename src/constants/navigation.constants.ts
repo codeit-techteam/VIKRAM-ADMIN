@@ -1,12 +1,9 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Bell,
-  HelpCircle,
   LayoutDashboard,
-  LifeBuoy,
   LogOut,
   Network,
-  Settings,
   Smartphone,
   Truck,
   UserCog,
@@ -16,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { CENTRAL_WAREHOUSE_NAV_CHILDREN } from "@/constants/warehouse-navigation.constants";
+import { SUB_HUB_NETWORK_NAV_CHILDREN } from "@/constants/sub-hub-navigation.constants";
 
 export interface NavChildItem {
   label: string;
@@ -56,6 +54,7 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/sub-hub-network",
         icon: Network,
         hasSubmenu: true,
+        children: SUB_HUB_NETWORK_NAV_CHILDREN,
       },
       { label: "Logistics", href: "/logistics", icon: Truck },
       {
@@ -105,17 +104,9 @@ export const NAV_SECTIONS: NavSection[] = [
       },
     ],
   },
-  {
-    label: "SYSTEM",
-    items: [
-      { label: "System Settings", href: "/system-settings", icon: Settings },
-    ],
-  },
 ];
 
 export const BOTTOM_NAV_ITEMS: NavItem[] = [
-  { label: "Help Center", href: "/help-center", icon: HelpCircle },
-  { label: "Support", href: "/support", icon: LifeBuoy },
   { label: "Logout", href: "/login", icon: LogOut },
 ];
 

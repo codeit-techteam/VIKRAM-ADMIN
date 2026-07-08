@@ -14,7 +14,7 @@ export default function SubHubNetworkPage() {
     <div className="space-y-5">
       <PageHeader
         title="All Sub-Hubs"
-        subtitle="Monitor regional hub inventory, requisitions, and transfer health across the network."
+        subtitle="Operations control tower for warehouse-to-hub-to-customer supply chain visibility."
         actions={
           <Button className="h-10 gap-2 px-4">
             <Plus className="size-4" />

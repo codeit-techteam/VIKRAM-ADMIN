@@ -121,7 +121,11 @@ export interface SubHubSummary {
   stockValue: number;
   stockValueLabel: string;
   pendingOrders: number;
+  pendingRequisitions: number;
+  incomingTransfers: number;
+  outgoingTransfers: number;
   inventoryHealth: number;
+  healthScore: number;
   lastInventorySync: string;
   status: SubHubOperationalStatus;
 }
@@ -134,11 +138,41 @@ export interface SubHubTableRow {
   city: string;
   region: string;
   inventoryHealth: number;
+  healthScore: number;
   pendingOrders: number;
   pendingRequisitions: number;
+  incomingTransfers: number;
+  outgoingTransfers: number;
   transfersInTransit: number;
   status: SubHubOperationalStatus;
   isActive: boolean;
+}
+
+export type OperationsAlertSeverity = "default" | "warning" | "critical";
+
+export interface OperationsAlert {
+  id: string;
+  label: string;
+  count: number;
+  href: string;
+  severity: OperationsAlertSeverity;
+}
+
+export type HubActivityCategory =
+  | "transfer"
+  | "inventory"
+  | "order"
+  | "requisition"
+  | "dispatch"
+  | "allocation";
+
+export interface HubActivityEvent {
+  id: string;
+  timestamp: string;
+  title: string;
+  description?: string;
+  category: HubActivityCategory;
+  actor?: string;
 }
 
 export interface MockDatabase {

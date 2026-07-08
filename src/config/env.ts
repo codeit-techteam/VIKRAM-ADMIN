@@ -10,9 +10,9 @@ export const env = {
     "NEXT_PUBLIC_API_BASE_URL",
     "http://localhost:8000/api/v1",
   ),
-  authTokenKey: getEnv("NEXT_PUBLIC_AUTH_TOKEN_KEY", "bq_access_token"),
+  authTokenKey: getEnv("NEXT_PUBLIC_AUTH_TOKEN_KEY", "bw_access_token"),
   authRefreshTokenKey: getEnv(
     "NEXT_PUBLIC_AUTH_REFRESH_TOKEN_KEY",
-    "bq_refresh_token",
+    "bw_refresh_token",
   ),
 } as const;

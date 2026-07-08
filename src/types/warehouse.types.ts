@@ -303,9 +303,11 @@ export type TransferStatus =
   | "DRIVER_ASSIGNED"
   | "READY_FOR_DISPATCH"
   | "PENDING_DISPATCH"
+  | "LOADING"
   | "DISPATCH_STARTED"
   | "IN_TRANSIT"
   | "DELIVERED"
+  | "REACHED_HUB"
   | "HUB_RECEIVED"
   | "COMPLETED";
 
@@ -313,11 +315,16 @@ export type TransferTimelineEventType =
   | "TRANSFER_CREATED"
   | "VEHICLE_ASSIGNED"
   | "DRIVER_ASSIGNED"
+  | "LOADING_STARTED"
+  | "LOADING_COMPLETED"
   | "READY_FOR_DISPATCH"
   | "DISPATCH_STARTED"
+  | "IN_TRANSIT"
+  | "REACHED_HUB"
   | "REACHED_DESTINATION"
   | "DELIVERED"
   | "HUB_RECEIVED"
+  | "DELAY_RECORDED"
   | "COMPLETED";
 
 export interface TransferTimelineEvent {
@@ -326,6 +333,23 @@ export interface TransferTimelineEvent {
   label: string;
   timestamp: string;
   description?: string;
+  actor?: string;
+  remarks?: string;
+}
+
+export interface TransferDelayInfo {
+  newEta: string;
+  reason: string;
+  recordedAt: string;
+}
+
+export interface LoadingChecklist {
+  materialPicked: boolean;
+  quantityVerified: boolean;
+  vehicleReady: boolean;
+  driverPresent: boolean;
+  documentsAttached: boolean;
+  gatePassGenerated: boolean;
 }
 
 export interface TransferActivityLog {
@@ -339,7 +363,14 @@ export interface TransferActivityLog {
 export interface TransferDocument {
   id: string;
   name: string;
-  type: "gate-pass" | "dispatch-log" | "delivery-note" | "supporting";
+  type:
+    | "gate-pass"
+    | "dispatch-log"
+    | "delivery-note"
+    | "supporting"
+    | "invoice"
+    | "challan"
+    | "inventory-movement";
   url: string;
   createdAt: string;
 }
@@ -447,9 +478,15 @@ export interface TransferListItem {
   dispatchAt?: string;
   eta: string;
   deliveredAt?: string;
+  loadingStartedAt?: string;
+  loadingCompletedAt?: string;
+  reachedHubAt?: string;
   hubReceivedAt?: string;
   completedAt?: string;
   gatePassId?: string;
+  isDelayed?: boolean;
+  delayInfo?: TransferDelayInfo;
+  loadingChecklist?: LoadingChecklist;
   materials: string[];
   timeline: TransferTimelineEvent[];
   activityLogs: TransferActivityLog[];
@@ -467,9 +504,20 @@ export interface TransferFilters {
 
 export interface TransferStats {
   pendingDispatch: number;
+  loading: number;
+  readyForDispatch: number;
   inTransit: number;
+  reachedHub: number;
   deliveredToday: number;
+  dispatchedToday: number;
   delayedTransfers: number;
+}
+
+export interface DispatchStats {
+  pendingDispatch: number;
+  loading: number;
+  readyForDispatch: number;
+  dispatchedToday: number;
 }
 
 export interface TransferQueryParams {

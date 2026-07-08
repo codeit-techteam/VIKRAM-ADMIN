@@ -42,8 +42,11 @@ export function TransferPage() {
   const markReadyForDispatch = useTransferListStore(
     (state) => state.markReadyForDispatch,
   );
-  const startDispatch = useTransferListStore((state) => state.startDispatch);
-  const markDelivered = useTransferListStore((state) => state.markDelivered);
+  const startLoading = useTransferListStore((state) => state.startLoading);
+  const confirmDispatch = useTransferListStore(
+    (state) => state.confirmDispatch,
+  );
+  const markReachedHub = useTransferListStore((state) => state.markReachedHub);
   const receiveAtHub = useTransferListStore((state) => state.receiveAtHub);
   const getAllocationById = useAllocationRegistryStore(
     (state) => state.getAllocationById,
@@ -102,8 +105,8 @@ export function TransferPage() {
       },
       {
         id: "delivered-today",
-        label: "Delivered Today",
-        value: String(queryResult.stats.deliveredToday).padStart(2, "0"),
+        label: "Reached Hub",
+        value: String(queryResult.stats.reachedHub).padStart(2, "0"),
         variant: "default",
       },
       {
@@ -116,10 +119,12 @@ export function TransferPage() {
     [queryResult.stats],
   );
 
-  const handleView = useCallback((item: TransferListItem) => {
-    setSelectedTransfer(item);
-    setDrawerOpen(true);
-  }, []);
+  const handleView = useCallback(
+    (item: TransferListItem) => {
+      router.push(`${ROUTES.CENTRAL_WAREHOUSE}/transfers/${item.transferId}`);
+    },
+    [router],
+  );
 
   const handleCreateTransfer = useCallback(() => {
     startCreateTransfer({
@@ -177,25 +182,56 @@ export function TransferPage() {
               `${item.transferId} is now pending dispatch.`,
             );
             break;
-          case "start-dispatch":
-            startDispatch(item.transferId);
+          case "start-loading":
+            startLoading(item.transferId);
             notify.success(
-              "Dispatch started",
-              `${item.transferId} is now in transit. Gate pass issued.`,
+              "Loading started",
+              `${item.transferId} is now loading.`,
+            );
+            router.push(
+              `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${item.transferId}/loading`,
+            );
+            break;
+          case "complete-loading":
+            router.push(
+              `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${item.transferId}/loading`,
+            );
+            break;
+          case "dispatch-now":
+            router.push(
+              `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${item.transferId}/confirm`,
+            );
+            break;
+          case "start-dispatch":
+            confirmDispatch(item.transferId);
+            notify.success(
+              "Dispatch confirmed",
+              `${item.transferId} is now in transit.`,
+            );
+            router.push(
+              `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${item.transferId}/success`,
             );
             break;
           case "track":
             handleView(item);
-            notify.info(
-              "Tracking",
-              `Live tracking for ${item.transferId} — map view coming soon.`,
+            break;
+          case "update-eta":
+          case "add-remarks":
+          case "report-delay":
+            handleView(item);
+            break;
+          case "mark-reached-hub":
+            markReachedHub(item.transferId);
+            notify.success(
+              "Reached hub",
+              `${item.transferId} is awaiting hub receipt.`,
             );
             break;
           case "mark-delivered":
-            markDelivered(item.transferId);
+            markReachedHub(item.transferId);
             notify.success(
-              "Marked delivered",
-              `${item.transferId} delivered at ${item.destinationHub}.`,
+              "Reached hub",
+              `${item.transferId} arrived at ${item.destinationHub}.`,
             );
             break;
           case "receive-at-hub":
@@ -217,13 +253,15 @@ export function TransferPage() {
       }
     },
     [
+      confirmDispatch,
       deleteTransfer,
       handleContinueTransfer,
       handleView,
-      markDelivered,
+      markReachedHub,
       markReadyForDispatch,
       receiveAtHub,
-      startDispatch,
+      router,
+      startLoading,
     ],
   );
 

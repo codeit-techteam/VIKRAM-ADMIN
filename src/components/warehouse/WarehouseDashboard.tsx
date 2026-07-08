@@ -9,17 +9,18 @@ import { QuickActions } from "@/components/warehouse/QuickActions";
 import { WarehouseStatsCard } from "@/components/warehouse/WarehouseStatsCard";
 import { computeTransferStats } from "@/mock/transfers";
 import {
-  activities,
   alerts,
   quickActions,
   requisitions,
   stats as baseStats,
 } from "@/mock/warehouse-dashboard";
+import { useInventoryActivityStore } from "@/store/inventory-activity-store";
 import { useTransferListStore } from "@/store/transfer-list-store";
 
 export function WarehouseDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const transfers = useTransferListStore((state) => state.transfers);
+  const activities = useInventoryActivityStore((state) => state.activities);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setIsLoading(false), 600);
@@ -28,15 +29,15 @@ export function WarehouseDashboard() {
   }, []);
 
   const stats = useMemo(() => {
-    const pendingDispatch = computeTransferStats(transfers).pendingDispatch;
+    const transferStats = computeTransferStats(transfers);
 
     return baseStats.map((stat) =>
       stat.id === "todays-dispatch"
         ? {
             ...stat,
-            label: "Pending Dispatch",
-            value: String(pendingDispatch).padStart(2, "0"),
-            subtitle: "Awaiting dispatch confirmation",
+            label: "Dispatched Today",
+            value: String(transferStats.dispatchedToday).padStart(2, "0"),
+            subtitle: "Confirmed dispatches today",
           }
         : stat,
     );

@@ -11,9 +11,11 @@ type DisplayStatus =
   | "Driver Assigned"
   | "Ready For Dispatch"
   | "Pending Dispatch"
+  | "Loading"
   | "Dispatch Started"
   | "In Transit"
   | "Delivered"
+  | "Reached Hub"
   | "Hub Received"
   | "Completed"
   | "Delayed";
@@ -25,9 +27,11 @@ const statusStyles: Record<DisplayStatus, string> = {
   "Driver Assigned": "bg-indigo-50 text-indigo-700",
   "Ready For Dispatch": "bg-emerald-50 text-emerald-700",
   "Pending Dispatch": "bg-orange-50 text-orange-700",
+  Loading: "bg-blue-50 text-blue-700",
   "Dispatch Started": "bg-violet-50 text-violet-700",
   "In Transit": "bg-sky-50 text-sky-700",
   Delivered: "bg-amber-50 text-amber-700",
+  "Reached Hub": "bg-amber-50 text-amber-700",
   "Hub Received": "bg-teal-50 text-teal-700",
   Completed: "bg-green-50 text-green-700",
   Delayed: "bg-orange-50 text-orange-700",
@@ -54,10 +58,14 @@ function mapStatus(status: TransferStatus): DisplayStatus {
       return "Ready For Dispatch";
     case "PENDING_DISPATCH":
       return "Pending Dispatch";
+    case "LOADING":
+      return "Loading";
     case "DISPATCH_STARTED":
       return "Dispatch Started";
     case "IN_TRANSIT":
       return "In Transit";
+    case "REACHED_HUB":
+      return "Reached Hub";
     case "DELIVERED":
       return "Delivered";
     case "HUB_RECEIVED":

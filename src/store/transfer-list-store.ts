@@ -2,9 +2,11 @@ import { create } from "zustand";
 
 import { FLEET_DRIVERS, FLEET_VEHICLES } from "@/mock/transfer-fleet";
 import { TRANSFER_LIST } from "@/mock/transfers";
+import { useInventoryActivityStore } from "@/store/inventory-activity-store";
 import type {
   FleetDriver,
   FleetVehicle,
+  LoadingChecklist,
   TransferActivityLog,
   TransferDocument,
   TransferListItem,
@@ -12,10 +14,16 @@ import type {
   TransferTimelineEvent,
 } from "@/types/warehouse.types";
 import {
-  canStartDispatch,
+  canCompleteLoading,
+  canDispatchNow,
+  canStartLoading,
   createTimelineEvent,
+  DEFAULT_LOADING_CHECKLIST,
+  DISPATCH_QUEUE_STATUSES,
   hasDriverAssigned,
   hasVehicleAssigned,
+  isHubReceivingEligible,
+  isLoadingChecklistComplete,
 } from "@/utils/transfer-actions";
 
 interface TransferListState {
@@ -38,9 +46,27 @@ interface TransferListState {
   assignVehicle: (transferId: string, vehicle: FleetVehicle) => void;
   assignDriver: (transferId: string, driver: FleetDriver) => void;
   markReadyForDispatch: (transferId: string) => void;
+  startLoading: (transferId: string) => void;
+  updateLoadingChecklist: (
+    transferId: string,
+    checklist: Partial<LoadingChecklist>,
+  ) => void;
+  completeLoading: (transferId: string) => void;
+  confirmDispatch: (transferId: string) => void;
+  /** @deprecated Use confirmDispatch */
   startDispatch: (transferId: string) => void;
+  updateEta: (transferId: string, newEta: string, remarks?: string) => void;
+  addRemarks: (transferId: string, remarks: string) => void;
+  reportDelay: (transferId: string, newEta: string, reason: string) => void;
+  markReachedHub: (transferId: string) => void;
+  /** @deprecated Use markReachedHub */
   markDelivered: (transferId: string) => void;
-  receiveAtHub: (transferId: string) => void;
+  receiveAtHub: (
+    transferId: string,
+    verification?: { condition?: string; remarks?: string },
+  ) => void;
+  getDispatchQueueTransfers: () => TransferListItem[];
+  getHubReceivingTransfers: () => TransferListItem[];
   getPendingDispatchTransfers: () => TransferListItem[];
   resetTransfers: () => void;
 }
@@ -51,6 +77,10 @@ function generateGatePassId(): string {
 
 function generateDocumentId(prefix: string): string {
   return `${prefix}-${Date.now().toString().slice(-6)}`;
+}
+
+function getQuantityLabel(transfer: TransferListItem): string {
+  return `${transfer.quantity ?? 0} ${transfer.quantityUnit ?? "units"}`;
 }
 
 export const useTransferListStore = create<TransferListState>((set, get) => ({
@@ -124,6 +154,7 @@ export const useTransferListStore = create<TransferListState>((set, get) => ({
     const event = createTimelineEvent(
       "VEHICLE_ASSIGNED",
       `Vehicle ${vehicle.vehicleNumber} assigned`,
+      { actor: "Dispatch Manager" },
     );
 
     const nextStatus: TransferStatus = hasDriverAssigned(transfer)
@@ -160,9 +191,8 @@ export const useTransferListStore = create<TransferListState>((set, get) => ({
     const event = createTimelineEvent(
       "DRIVER_ASSIGNED",
       `${driver.name} (${driver.employeeId}) assigned`,
+      { actor: "Dispatch Manager" },
     );
-
-    const nextStatus: TransferStatus = "DRIVER_ASSIGNED";
 
     get().updateTransfer(transferId, {
       driverId: driver.id,
@@ -170,7 +200,7 @@ export const useTransferListStore = create<TransferListState>((set, get) => ({
         name: driver.name,
         employeeId: driver.employeeId,
       },
-      status: nextStatus,
+      status: "DRIVER_ASSIGNED",
       timeline: [...transfer.timeline, event],
     });
     get().appendActivityLog(transferId, {
@@ -197,7 +227,11 @@ export const useTransferListStore = create<TransferListState>((set, get) => ({
       throw new Error("Transfer is not eligible for dispatch readiness.");
     }
 
-    const readyEvent = createTimelineEvent("READY_FOR_DISPATCH");
+    const readyEvent = createTimelineEvent(
+      "READY_FOR_DISPATCH",
+      "Transfer queued for dispatch",
+      { actor: "Dispatch Manager" },
+    );
     get().updateTransfer(transferId, {
       status: "PENDING_DISPATCH",
       timeline: [...transfer.timeline, readyEvent],
@@ -205,24 +239,109 @@ export const useTransferListStore = create<TransferListState>((set, get) => ({
     get().appendActivityLog(transferId, {
       action: "Ready For Dispatch",
       actor: "Dispatch Manager",
-      details: "Transfer queued for dispatch",
+      details: "Transfer queued in pending dispatch",
     });
   },
 
-  startDispatch: (transferId) => {
+  startLoading: (transferId) => {
     const transfer = get().getTransferById(transferId);
     if (!transfer) return;
-    if (!canStartDispatch(transfer)) {
+    if (!canStartLoading(transfer)) {
       throw new Error(
-        "Dispatch requires vehicle, driver, and Pending Dispatch status.",
+        "Loading can only start for pending dispatch transfers with fleet assigned.",
+      );
+    }
+
+    const loadingStartedAt = new Date().toISOString();
+    const event = createTimelineEvent(
+      "LOADING_STARTED",
+      "Material loading initiated at warehouse bay",
+      { actor: "Warehouse Operator" },
+    );
+
+    get().updateTransfer(transferId, {
+      status: "LOADING",
+      loadingStartedAt,
+      loadingChecklist: { ...DEFAULT_LOADING_CHECKLIST },
+      timeline: [...transfer.timeline, event],
+    });
+    get().appendActivityLog(transferId, {
+      action: "Loading Started",
+      actor: "Warehouse Operator",
+      details: "Verification checklist opened",
+    });
+  },
+
+  updateLoadingChecklist: (transferId, checklist) => {
+    const transfer = get().getTransferById(transferId);
+    if (!transfer) return;
+    if (transfer.status !== "LOADING") {
+      throw new Error("Checklist can only be updated during loading.");
+    }
+
+    get().updateTransfer(transferId, {
+      loadingChecklist: {
+        ...DEFAULT_LOADING_CHECKLIST,
+        ...transfer.loadingChecklist,
+        ...checklist,
+      },
+    });
+  },
+
+  completeLoading: (transferId) => {
+    const transfer = get().getTransferById(transferId);
+    if (!transfer) return;
+    if (!canCompleteLoading(transfer)) {
+      throw new Error("Transfer is not in loading status.");
+    }
+
+    const checklist = {
+      ...DEFAULT_LOADING_CHECKLIST,
+      ...transfer.loadingChecklist,
+    };
+    if (!isLoadingChecklistComplete(checklist)) {
+      throw new Error("Complete all verification checklist items first.");
+    }
+
+    const loadingCompletedAt = new Date().toISOString();
+    const event = createTimelineEvent(
+      "LOADING_COMPLETED",
+      "All loading verifications passed",
+      { actor: "Warehouse Operator" },
+    );
+
+    get().updateTransfer(transferId, {
+      status: "READY_FOR_DISPATCH",
+      loadingCompletedAt,
+      timeline: [...transfer.timeline, event],
+    });
+    get().appendActivityLog(transferId, {
+      action: "Loading Completed",
+      actor: "Warehouse Operator",
+      details: "Transfer ready for dispatch confirmation",
+    });
+  },
+
+  confirmDispatch: (transferId) => {
+    const transfer = get().getTransferById(transferId);
+    if (!transfer) return;
+    if (!canDispatchNow(transfer)) {
+      throw new Error(
+        "Dispatch requires ready-for-dispatch status with vehicle and driver assigned.",
       );
     }
 
     const dispatchAt = new Date().toISOString();
     const gatePassId = generateGatePassId();
-    const dispatchEvent = createTimelineEvent(
+    const dispatchStartedEvent = createTimelineEvent(
       "DISPATCH_STARTED",
       `Gate pass ${gatePassId} issued`,
+      { actor: "Gate Operator" },
+    );
+    const inTransitEvent = createTimelineEvent(
+      "IN_TRANSIT",
+      `En route to ${transfer.destinationHub}`,
+      { actor: "Gate Operator" },
     );
 
     const gatePassDoc: TransferDocument = {
@@ -241,65 +360,186 @@ export const useTransferListStore = create<TransferListState>((set, get) => ({
       createdAt: dispatchAt,
     };
 
+    const inventoryDoc: TransferDocument = {
+      id: generateDocumentId("im"),
+      name: `Inventory Movement — ${transfer.transferId}`,
+      type: "inventory-movement",
+      url: "#",
+      createdAt: dispatchAt,
+    };
+
     get().updateTransfer(transferId, {
       status: "IN_TRANSIT",
       dispatchAt,
       gatePassId,
-      timeline: [...transfer.timeline, dispatchEvent],
-      documents: [...transfer.documents, gatePassDoc, dispatchLogDoc],
+      timeline: [...transfer.timeline, dispatchStartedEvent, inTransitEvent],
+      documents: [
+        ...transfer.documents,
+        gatePassDoc,
+        dispatchLogDoc,
+        inventoryDoc,
+      ],
     });
     get().appendActivityLog(transferId, {
-      action: "Dispatch Started",
+      action: "Dispatch Confirmed",
       actor: "Gate Operator",
-      details: `Gate pass ${gatePassId} created. Transfer in transit.`,
+      details: `Gate pass ${gatePassId}. Inventory deducted from ${transfer.sourceWarehouse}.`,
+    });
+
+    useInventoryActivityStore.getState().logDispatchOut({
+      transferId: transfer.transferId,
+      material: transfer.material ?? transfer.materials[0] ?? "Material",
+      quantity: getQuantityLabel(transfer),
+      warehouse: transfer.sourceWarehouse,
+      by: "Dispatch System",
     });
   },
 
-  markDelivered: (transferId) => {
+  startDispatch: (transferId) => {
+    get().confirmDispatch(transferId);
+  },
+
+  updateEta: (transferId, newEta, remarks) => {
     const transfer = get().getTransferById(transferId);
     if (!transfer) return;
     if (
       transfer.status !== "IN_TRANSIT" &&
       transfer.status !== "DISPATCH_STARTED"
     ) {
-      throw new Error("Only in-transit transfers can be marked delivered.");
+      throw new Error("ETA can only be updated for in-transit transfers.");
     }
 
-    const deliveredAt = new Date().toISOString();
-    const deliveredEvent = createTimelineEvent(
-      "DELIVERED",
-      `Delivered at ${transfer.destinationHub}`,
-    );
-    const reachedEvent = createTimelineEvent(
-      "REACHED_DESTINATION",
-      transfer.destinationHub,
-    );
-
     get().updateTransfer(transferId, {
-      status: "DELIVERED",
-      deliveredAt,
-      timeline: [...transfer.timeline, reachedEvent, deliveredEvent],
+      eta: newEta,
+      expectedArrival: newEta,
     });
+    get().appendTimeline(
+      transferId,
+      createTimelineEvent(
+        "DELAY_RECORDED",
+        `ETA updated to ${new Date(newEta).toLocaleString("en-IN")}`,
+        { actor: "Warehouse Manager", remarks },
+      ),
+    );
     get().appendActivityLog(transferId, {
-      action: "Marked Delivered",
-      actor: "Driver",
-      details: `Arrived at ${transfer.destinationHub}`,
+      action: "ETA Updated",
+      actor: "Warehouse Manager",
+      details:
+        remarks ?? `New ETA: ${new Date(newEta).toLocaleString("en-IN")}`,
     });
   },
 
-  receiveAtHub: (transferId) => {
+  addRemarks: (transferId, remarks) => {
     const transfer = get().getTransferById(transferId);
     if (!transfer) return;
-    if (transfer.status !== "DELIVERED" && transfer.status !== "HUB_RECEIVED") {
-      throw new Error("Only delivered transfers can be received at hub.");
+    if (
+      transfer.status !== "IN_TRANSIT" &&
+      transfer.status !== "DISPATCH_STARTED"
+    ) {
+      throw new Error("Remarks can only be added for in-transit transfers.");
+    }
+
+    get().appendTimeline(
+      transferId,
+      createTimelineEvent("DELAY_RECORDED", "Transit remark added", {
+        actor: "Warehouse Manager",
+        remarks,
+      }),
+    );
+    get().appendActivityLog(transferId, {
+      action: "Remark Added",
+      actor: "Warehouse Manager",
+      details: remarks,
+    });
+  },
+
+  reportDelay: (transferId, newEta, reason) => {
+    const transfer = get().getTransferById(transferId);
+    if (!transfer) return;
+    if (
+      transfer.status !== "IN_TRANSIT" &&
+      transfer.status !== "DISPATCH_STARTED"
+    ) {
+      throw new Error("Delays can only be reported for in-transit transfers.");
+    }
+
+    const recordedAt = new Date().toISOString();
+    const event = createTimelineEvent("DELAY_RECORDED", reason, {
+      actor: "Warehouse Manager",
+      remarks: reason,
+    });
+
+    get().updateTransfer(transferId, {
+      eta: newEta,
+      expectedArrival: newEta,
+      isDelayed: true,
+      delayInfo: { newEta, reason, recordedAt },
+      timeline: [...transfer.timeline, event],
+    });
+    get().appendActivityLog(transferId, {
+      action: "Delay Reported",
+      actor: "Warehouse Manager",
+      details: `${reason}. Revised ETA: ${new Date(newEta).toLocaleString("en-IN")}`,
+    });
+  },
+
+  markReachedHub: (transferId) => {
+    const transfer = get().getTransferById(transferId);
+    if (!transfer) return;
+    if (
+      transfer.status !== "IN_TRANSIT" &&
+      transfer.status !== "DISPATCH_STARTED"
+    ) {
+      throw new Error(
+        "Only in-transit transfers can be marked as reached hub.",
+      );
+    }
+
+    const reachedHubAt = new Date().toISOString();
+    const event = createTimelineEvent(
+      "REACHED_HUB",
+      `Arrived at ${transfer.destinationHub}`,
+      { actor: "Warehouse Manager" },
+    );
+
+    get().updateTransfer(transferId, {
+      status: "REACHED_HUB",
+      reachedHubAt,
+      deliveredAt: reachedHubAt,
+      timeline: [...transfer.timeline, event],
+    });
+    get().appendActivityLog(transferId, {
+      action: "Reached Hub",
+      actor: "Warehouse Manager",
+      details: `Vehicle arrived at ${transfer.destinationHub}. Awaiting hub receipt.`,
+    });
+  },
+
+  markDelivered: (transferId) => {
+    get().markReachedHub(transferId);
+  },
+
+  receiveAtHub: (transferId, verification) => {
+    const transfer = get().getTransferById(transferId);
+    if (!transfer) return;
+    if (!isHubReceivingEligible(transfer) && transfer.status !== "DELIVERED") {
+      throw new Error("Only transfers at hub can be received.");
     }
 
     const hubReceivedAt = new Date().toISOString();
     const hubEvent = createTimelineEvent(
       "HUB_RECEIVED",
-      `Received at ${transfer.destinationHub}`,
+      verification?.condition
+        ? `Condition: ${verification.condition}`
+        : `Received at ${transfer.destinationHub}`,
+      {
+        actor: "Hub Manager",
+        remarks: verification?.remarks,
+      },
     );
-    const completedEvent = createTimelineEvent("COMPLETED");
+    const completedEvent = createTimelineEvent("COMPLETED", undefined, {
+      actor: "Hub Manager",
+    });
 
     get().updateTransfer(transferId, {
       status: "COMPLETED",
@@ -310,8 +550,28 @@ export const useTransferListStore = create<TransferListState>((set, get) => ({
     get().appendActivityLog(transferId, {
       action: "Hub Receipt Confirmed",
       actor: "Hub Manager",
-      details: `${transfer.quantity ?? 0} ${transfer.quantityUnit ?? "units"} added to hub inventory. Transfer closed.`,
+      details: `${getQuantityLabel(transfer)} added to hub inventory. Transfer closed.`,
     });
+
+    useInventoryActivityStore.getState().logHubReceipt({
+      transferId: transfer.transferId,
+      material: transfer.material ?? transfer.materials[0] ?? "Material",
+      quantity: getQuantityLabel(transfer),
+      hub: transfer.destinationHub,
+      by: "Hub Manager",
+    });
+  },
+
+  getDispatchQueueTransfers: () => {
+    return get().transfers.filter((transfer) =>
+      DISPATCH_QUEUE_STATUSES.includes(transfer.status),
+    );
+  },
+
+  getHubReceivingTransfers: () => {
+    return get().transfers.filter((transfer) =>
+      isHubReceivingEligible(transfer),
+    );
   },
 
   getPendingDispatchTransfers: () => {

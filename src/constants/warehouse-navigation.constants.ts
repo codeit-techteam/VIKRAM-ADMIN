@@ -30,4 +30,8 @@ export const CENTRAL_WAREHOUSE_NAV_CHILDREN: NavChildItem[] = [
     label: "Dispatch Control",
     href: `${ROUTES.CENTRAL_WAREHOUSE}/dispatch`,
   },
+  {
+    label: "Hub Receiving",
+    href: `${ROUTES.CENTRAL_WAREHOUSE}/hub-receiving`,
+  },
 ];

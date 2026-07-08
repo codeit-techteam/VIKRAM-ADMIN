@@ -1,5 +1,6 @@
 import type { PaginationMeta } from "@/types/api";
 import type {
+  DispatchStats,
   TransferFilters,
   TransferListItem,
   TransferQueryParams,
@@ -214,6 +215,36 @@ export const TRANSFER_LIST: TransferListItem[] = [
     hasVehicle: true,
     hasDriver: true,
     transferType: "critical",
+  }),
+  buildTransfer(44, {
+    status: "LOADING",
+    daysAgo: 0,
+    etaOffsetHours: 7,
+    warehouseIdx: 1,
+    hubIdx: 2,
+    hasVehicle: true,
+    hasDriver: true,
+    transferType: "express",
+  }),
+  buildTransfer(45, {
+    status: "READY_FOR_DISPATCH",
+    daysAgo: 0,
+    etaOffsetHours: 6,
+    warehouseIdx: 2,
+    hubIdx: 0,
+    hasVehicle: true,
+    hasDriver: true,
+    transferType: "critical",
+  }),
+  buildTransfer(46, {
+    status: "REACHED_HUB",
+    daysAgo: 0,
+    etaOffsetHours: 1,
+    warehouseIdx: 0,
+    hubIdx: 3,
+    hasVehicle: true,
+    hasDriver: true,
+    dispatched: true,
   }),
   buildTransfer(0, {
     status: "IN_TRANSIT",
@@ -629,19 +660,35 @@ export const TRANSFER_LIST: TransferListItem[] = [
   }),
 ];
 
-const PENDING_DISPATCH_STATUSES: TransferStatus[] = [
-  "PENDING_DISPATCH",
-  "CREATED",
-  "VEHICLE_ASSIGNED",
-  "DRIVER_ASSIGNED",
-  "READY_FOR_DISPATCH",
-];
+export function isDispatchedToday(
+  transfer: TransferListItem,
+  reference = new Date(),
+): boolean {
+  if (!transfer.dispatchAt) return false;
+  const dispatched = new Date(transfer.dispatchAt);
+  return (
+    dispatched.getFullYear() === reference.getFullYear() &&
+    dispatched.getMonth() === reference.getMonth() &&
+    dispatched.getDate() === reference.getDate()
+  );
+}
 
 export function isTransferDelayed(
   transfer: TransferListItem,
   now = new Date(),
 ): boolean {
-  if (transfer.status === "COMPLETED" || transfer.status === "DELIVERED") {
+  if (transfer.isDelayed) return true;
+  if (
+    transfer.status === "COMPLETED" ||
+    transfer.status === "REACHED_HUB" ||
+    transfer.status === "HUB_RECEIVED"
+  ) {
+    return false;
+  }
+  if (
+    transfer.status !== "IN_TRANSIT" &&
+    transfer.status !== "DISPATCH_STARTED"
+  ) {
     return false;
   }
   return new Date(transfer.eta) < now;
@@ -665,14 +712,39 @@ export function computeTransferStats(
   reference = new Date(),
 ): TransferStats {
   return {
-    pendingDispatch: transfers.filter((t) =>
-      PENDING_DISPATCH_STATUSES.includes(t.status),
+    pendingDispatch: transfers.filter((t) => t.status === "PENDING_DISPATCH")
+      .length,
+    loading: transfers.filter((t) => t.status === "LOADING").length,
+    readyForDispatch: transfers.filter((t) => t.status === "READY_FOR_DISPATCH")
+      .length,
+    inTransit: transfers.filter(
+      (t) => t.status === "IN_TRANSIT" || t.status === "DISPATCH_STARTED",
     ).length,
-    inTransit: transfers.filter((t) => t.status === "IN_TRANSIT").length,
+    reachedHub: transfers.filter(
+      (t) =>
+        t.status === "REACHED_HUB" ||
+        t.status === "HUB_RECEIVED" ||
+        t.status === "DELIVERED",
+    ).length,
     deliveredToday: transfers.filter((t) => isDeliveredToday(t, reference))
+      .length,
+    dispatchedToday: transfers.filter((t) => isDispatchedToday(t, reference))
       .length,
     delayedTransfers: transfers.filter((t) => isTransferDelayed(t, reference))
       .length,
+  };
+}
+
+export function computeDispatchStats(
+  transfers: TransferListItem[],
+  reference = new Date(),
+): DispatchStats {
+  const stats = computeTransferStats(transfers, reference);
+  return {
+    pendingDispatch: stats.pendingDispatch,
+    loading: stats.loading,
+    readyForDispatch: stats.readyForDispatch,
+    dispatchedToday: stats.dispatchedToday,
   };
 }
 

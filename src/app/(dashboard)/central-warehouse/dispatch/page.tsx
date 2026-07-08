@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { DispatchQueue } from "@/components/dispatch/DispatchQueue";
+import { DispatchControl } from "@/components/dispatch/DispatchControl";
 import { PageHeader } from "@/components/shared/PageHeader";
 
 export const metadata: Metadata = {
@@ -12,10 +12,10 @@ export default function DispatchControlPage() {
     <div className="space-y-5">
       <PageHeader
         title="Dispatch Control"
-        subtitle="Monitor and manage outbound dispatches from the central warehouse."
+        subtitle="Manage and orchestrate outbound material dispatches for Mumbai Hub."
       />
 
-      <DispatchQueue />
+      <DispatchControl />
     </div>
   );
 }

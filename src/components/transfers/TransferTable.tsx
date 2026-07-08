@@ -7,13 +7,14 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import {
-  Calendar,
+  ArrowRight,
   Download,
   Eye,
   MoreVertical,
   Plus,
   Search,
   SlidersHorizontal,
+  Truck,
 } from "lucide-react";
 import { useMemo } from "react";
 
@@ -44,7 +45,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  formatTransferDateTime,
   formatTransferTime,
   getTransferEtaLabel,
   TRANSFER_HUB_OPTIONS,
@@ -94,6 +94,10 @@ const STATUS_OPTIONS = [
   { value: "COMPLETED", label: "Completed" },
   { value: "delayed", label: "Delayed" },
 ] as const;
+
+function truncateText(text: string, max = 28): string {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
 
 function getPaginationItems(
   currentPage: number,
@@ -221,14 +225,17 @@ export function TransferTable({
   const columns = useMemo(
     () => [
       columnHelper.accessor("transferId", {
-        header: "Transfer ID",
+        header: "Transfer",
+        size: 160,
         cell: (info) => {
           const transfer = info.row.original;
+          const material =
+            transfer.material ?? transfer.materials[0]?.split(" x")[0];
           return (
-            <div>
+            <div className="min-w-0">
               <button
                 type="button"
-                className="hover:text-primary text-primary font-semibold transition-colors"
+                className="hover:text-primary text-primary text-sm font-semibold transition-colors"
                 onClick={(event) => {
                   event.stopPropagation();
                   onView(transfer);
@@ -236,102 +243,113 @@ export function TransferTable({
               >
                 {info.getValue()}
               </button>
-              <p className="mt-0.5 text-xs text-[#64748B]">
-                Created: {formatTransferDateTime(transfer.createdAt)}
+              <p className="mt-0.5 truncate text-xs text-[#64748B]">
+                {transfer.allocationId ?? "—"}
+                {material ? ` · ${truncateText(material, 22)}` : ""}
               </p>
             </div>
           );
         },
       }),
-      columnHelper.accessor("allocationId", {
-        header: "Allocation ID",
-        cell: (info) => (
-          <span className="text-sm font-medium text-[#64748B]">
-            {info.getValue() ?? "—"}
-          </span>
-        ),
-      }),
-      columnHelper.accessor("sourceWarehouse", {
-        header: "Source Warehouse",
-        cell: (info) => (
-          <span className="text-sm font-medium text-[#1A1A1A]">
-            {info.getValue()}
-          </span>
-        ),
-      }),
-      columnHelper.accessor("destinationHub", {
-        header: "Destination Hub",
-        cell: (info) => (
-          <span className="text-sm text-[#64748B]">{info.getValue()}</span>
-        ),
-      }),
-      columnHelper.accessor("vehicleNumber", {
-        header: "Vehicle",
-        cell: (info) => (
-          <span className="text-sm text-[#64748B]">
-            {info.getValue() ?? "—"}
-          </span>
-        ),
+      columnHelper.display({
+        id: "route",
+        header: "Route",
+        size: 220,
+        cell: ({ row }) => {
+          const transfer = row.original;
+          return (
+            <div className="min-w-0 space-y-1">
+              <p
+                className="truncate text-sm font-medium text-[#1A1A1A]"
+                title={transfer.sourceWarehouse}
+              >
+                {truncateText(transfer.sourceWarehouse, 32)}
+              </p>
+              <p className="flex items-center gap-1 text-xs text-[#64748B]">
+                <ArrowRight className="size-3 shrink-0 text-orange-400" />
+                <span className="truncate" title={transfer.destinationHub}>
+                  {truncateText(transfer.destinationHub, 32)}
+                </span>
+              </p>
+            </div>
+          );
+        },
       }),
       columnHelper.display({
-        id: "assignedDriver",
-        header: "Driver",
+        id: "fleet",
+        header: "Fleet",
+        size: 180,
         cell: ({ row }) => {
-          const driver = row.original.assignedDriver;
-          if (!driver) {
-            return <span className="text-sm text-[#64748B]">—</span>;
+          const transfer = row.original;
+          const driver = transfer.assignedDriver;
+
+          if (!transfer.vehicleNumber && !driver) {
+            return (
+              <span className="text-xs font-medium text-[#64748B]">
+                Not assigned
+              </span>
+            );
           }
 
-          const initials = driver.name
-            .split(" ")
-            .map((part) => part[0])
-            .join("")
-            .slice(0, 2)
-            .toUpperCase();
-
           return (
-            <div className="flex items-center gap-2.5">
-              <span className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold">
-                {initials}
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-[#1A1A1A]">
-                  {driver.name}
+            <div className="min-w-0 space-y-1">
+              <p className="flex items-center gap-1.5 truncate text-sm text-[#1A1A1A]">
+                <Truck className="size-3.5 shrink-0 text-[#64748B]" />
+                <span className="truncate">
+                  {transfer.vehicleNumber ?? "—"}
+                </span>
+              </p>
+              {driver ? (
+                <p className="truncate text-xs text-[#64748B]">
+                  {driver.name.split(" ")[0]} {driver.name.split(" ").at(-1)}
                 </p>
-                <p className="text-xs text-[#64748B]">{driver.employeeId}</p>
-              </div>
+              ) : (
+                <p className="text-xs text-[#64748B]">No driver</p>
+              )}
             </div>
           );
         },
       }),
       columnHelper.display({
         id: "status",
-        header: "Dispatch Status",
-        cell: ({ row }) => <TransferStatusBadge transfer={row.original} />,
-      }),
-      columnHelper.accessor("dispatchAt", {
-        header: "Dispatch Date",
-        cell: (info) => {
-          const value = info.getValue();
+        header: "Status",
+        size: 150,
+        cell: ({ row }) => {
+          const transfer = row.original;
+          const priority = getPriorityLabel(transfer);
+          const showPriority = priority !== "Standard";
+
           return (
-            <span className="text-sm text-[#64748B]">
-              {value ? formatTransferDateTime(value) : "—"}
-            </span>
+            <div className="flex flex-col items-start gap-1.5">
+              <TransferStatusBadge transfer={transfer} />
+              {showPriority ? (
+                <span
+                  className={cn(
+                    "inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase",
+                    getPriorityStyles(transfer),
+                  )}
+                >
+                  {priority}
+                </span>
+              ) : null}
+            </div>
           );
         },
       }),
       columnHelper.accessor("eta", {
         header: "ETA",
+        size: 120,
         cell: ({ row }) => {
-          const etaLabel = getTransferEtaLabel(row.original);
+          const transfer = row.original;
+          const etaLabel = getTransferEtaLabel(transfer);
           return (
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-medium text-[#1A1A1A]">
-                {formatTransferTime(row.original.eta)}
+                {formatTransferTime(transfer.eta)}
               </p>
               <p
                 className={cn(
-                  "mt-0.5 text-xs font-medium",
+                  "mt-0.5 truncate text-xs font-medium",
                   etaLabel.tone === "success" && "text-green-600",
                   etaLabel.tone === "warning" && "text-orange-600",
                   etaLabel.tone === "muted" && "text-[#64748B]",
@@ -344,22 +362,9 @@ export function TransferTable({
         },
       }),
       columnHelper.display({
-        id: "priority",
-        header: "Priority",
-        cell: ({ row }) => (
-          <span
-            className={cn(
-              "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
-              getPriorityStyles(row.original),
-            )}
-          >
-            {getPriorityLabel(row.original)}
-          </span>
-        ),
-      }),
-      columnHelper.display({
         id: "actions",
         header: () => <span className="sr-only">Actions</span>,
+        size: 88,
         cell: ({ row }) => (
           <TransferRowActions
             item={row.original}
@@ -387,12 +392,12 @@ export function TransferTable({
             type="search"
             value={filters.search}
             onChange={(event) => updateFilter("search", event.target.value)}
-            placeholder="Search by Transfer ID, Allocation ID, Vehicle, Driver, or Hub..."
+            placeholder="Search Transfer ID, Allocation, Vehicle, Driver, Hub..."
             className="h-10 border-gray-200 bg-[#F8F9FB] pl-9 text-sm placeholder:text-gray-400"
           />
         </div>
 
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <Select
               value={filters.status}
@@ -401,7 +406,7 @@ export function TransferTable({
                   updateFilter("status", value as TransferFilters["status"]);
               }}
             >
-              <SelectTrigger className="h-9 w-[160px] border-gray-200 bg-white text-sm">
+              <SelectTrigger className="h-9 w-[150px] border-gray-200 bg-white text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -419,8 +424,8 @@ export function TransferTable({
                 if (value) updateFilter("sourceWarehouseId", value);
               }}
             >
-              <SelectTrigger className="h-9 w-[200px] border-gray-200 bg-white text-sm">
-                <SelectValue placeholder="Source Warehouse" />
+              <SelectTrigger className="h-9 w-[170px] border-gray-200 bg-white text-sm">
+                <SelectValue placeholder="Warehouse" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Warehouses</SelectItem>
@@ -438,8 +443,8 @@ export function TransferTable({
                 if (value) updateFilter("destinationHubId", value);
               }}
             >
-              <SelectTrigger className="h-9 w-[190px] border-gray-200 bg-white text-sm">
-                <SelectValue placeholder="Destination Hub" />
+              <SelectTrigger className="h-9 w-[150px] border-gray-200 bg-white text-sm">
+                <SelectValue placeholder="Hub" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Hubs</SelectItem>
@@ -450,34 +455,6 @@ export function TransferTable({
                 ))}
               </SelectContent>
             </Select>
-
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Calendar className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-gray-400" />
-                <Input
-                  type="date"
-                  value={filters.dateFrom}
-                  onChange={(event) =>
-                    updateFilter("dateFrom", event.target.value)
-                  }
-                  className="h-9 w-[140px] border-gray-200 bg-white pl-8 text-sm"
-                  aria-label="Date from"
-                />
-              </div>
-              <span className="text-xs text-[#64748B]">to</span>
-              <div className="relative">
-                <Calendar className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-gray-400" />
-                <Input
-                  type="date"
-                  value={filters.dateTo}
-                  onChange={(event) =>
-                    updateFilter("dateTo", event.target.value)
-                  }
-                  className="h-9 w-[140px] border-gray-200 bg-white pl-8 text-sm"
-                  aria-label="Date to"
-                />
-              </div>
-            </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
@@ -516,11 +493,11 @@ export function TransferTable({
 
       {isLoading ? (
         <div className="p-5">
-          <DataTableSkeleton columns={10} rows={8} />
+          <DataTableSkeleton columns={6} rows={8} />
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <Table>
+        <div>
+          <Table className="w-full table-fixed">
             <TableHeader className="sticky top-0 z-10 bg-white">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow
@@ -530,7 +507,11 @@ export function TransferTable({
                   {headerGroup.headers.map((header) => (
                     <TableHead
                       key={header.id}
-                      className="bg-white text-[11px] font-semibold tracking-wider text-gray-400 uppercase"
+                      className={cn(
+                        "bg-white text-[11px] font-semibold tracking-wider text-gray-400 uppercase",
+                        header.id === "actions" &&
+                          "sticky right-0 z-20 w-[88px] bg-white shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)]",
+                      )}
                     >
                       {header.isPlaceholder
                         ? null
@@ -557,11 +538,18 @@ export function TransferTable({
                 table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}
-                    className="cursor-pointer border-gray-100 transition-colors hover:bg-gray-50/80"
+                    className="group cursor-pointer border-gray-100 transition-colors hover:bg-gray-50/80"
                     onClick={() => onView(row.original)}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="py-4">
+                      <TableCell
+                        key={cell.id}
+                        className={cn(
+                          "py-3.5",
+                          cell.column.id === "actions" &&
+                            "sticky right-0 z-10 w-[88px] bg-white shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)] group-hover:bg-gray-50/80",
+                        )}
+                      >
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
@@ -573,6 +561,10 @@ export function TransferTable({
               )}
             </TableBody>
           </Table>
+          <p className="border-t border-gray-50 px-5 py-2 text-xs text-[#64748B] lg:hidden">
+            Tap a row or use the eye icon for allocation, dispatch date, and
+            full details.
+          </p>
         </div>
       )}
 

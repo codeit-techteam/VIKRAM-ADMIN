@@ -14,6 +14,7 @@ import {
 
 import { CENTRAL_WAREHOUSE_NAV_CHILDREN } from "@/constants/warehouse-navigation.constants";
 import { SUB_HUB_NETWORK_NAV_CHILDREN } from "@/constants/sub-hub-navigation.constants";
+import { USER_MANAGEMENT_NAV_CHILDREN } from "@/constants/user-management-navigation.constants";
 
 export interface NavChildItem {
   label: string;
@@ -67,7 +68,13 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "MANAGEMENT",
     items: [
-      { label: "User Management", href: "/user-management", icon: Users },
+      {
+        label: "User Management",
+        href: "/user-management",
+        icon: Users,
+        hasSubmenu: true,
+        children: USER_MANAGEMENT_NAV_CHILDREN,
+      },
       {
         label: "Customer Executive",
         href: "/customer-executive",

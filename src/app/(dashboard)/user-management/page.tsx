@@ -1,17 +1,7 @@
-import { DevModuleScreen } from "@/components/shared/DevModuleScreen";
+import { redirect } from "next/navigation";
+
+import { ROUTES } from "@/constants/routes";
 
 export default function UserManagementPage() {
-  return (
-    <DevModuleScreen
-      title="User Management"
-      subtitle="Create and manage admin users, roles, and access permissions."
-      features={[
-        "User Directory",
-        "Role Assignment",
-        "Permission Matrix",
-        "Activity Logs",
-        "Invite Users",
-      ]}
-    />
-  );
+  redirect(ROUTES.USER_MANAGEMENT_CUSTOMERS);
 }

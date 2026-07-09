@@ -8,6 +8,7 @@ export const ROUTES = {
   SUB_HUB_ADD: "/sub-hub-network/add",
   HUB_INVENTORY: "/sub-hub-network/inventory",
   USER_MANAGEMENT: "/user-management",
+  USER_MANAGEMENT_CUSTOMERS: "/user-management/customers",
   LOGISTICS: "/logistics",
   FINANCE_PAYMENTS: "/finance-payments",
   CUSTOMER_EXECUTIVE: "/customer-executive",

@@ -12,6 +12,7 @@ export const ROUTES = {
   LOGISTICS: "/logistics",
   FINANCE_PAYMENTS: "/finance-payments",
   CUSTOMER_EXECUTIVE: "/customer-executive",
+  SUB_HUB_MANAGERS: "/user-management/sub-hub-managers",
   NOTIFICATION_CENTER: "/notification-center",
   ANALYTICS_REPORTS: "/analytics-reports",
   SYSTEM_SETTINGS: "/system-settings",

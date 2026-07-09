@@ -24,3 +24,13 @@ export {
 } from "@/features/user-management/components/customer-executive";
 export { OrderSourceBadge } from "@/features/user-management/components/OrderSourceBadge";
 export { OrderAssistanceSection } from "@/features/user-management/components/OrderAssistanceSection";
+export {
+  ManagerStatusBadge,
+  ManagerCard,
+  ManagerFiltersBar,
+  ManagerTable,
+  TransferHubModal,
+  CreateManagerDrawer,
+  ManagersPageContent,
+  ManagerProfileContent,
+} from "@/features/user-management/components/sub-hub-manager";

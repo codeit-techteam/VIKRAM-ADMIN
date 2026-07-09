@@ -14,6 +14,9 @@ import type {
   SubHubManager,
   TransferHubPayload,
 } from "@/features/user-management/types/sub-hub-manager.types";
+import type { ManagerOnboardingSchema } from "@/features/user-management/schema/manager-onboarding.schema";
+import type { CreateManagerResult } from "@/features/user-management/types/manager-onboarding.types";
+import { getHubById, HUB_ASSIGNMENT_DATA } from "@/mock/manager-onboarding";
 import { MANAGER_HUBS } from "@/mock/sub-hub-manager-service";
 
 interface SubHubManagerStoreState {
@@ -25,6 +28,9 @@ interface SubHubManagerStoreState {
 
   transferHub: (payload: TransferHubPayload) => void;
   createManager: (payload: CreateManagerPayload) => SubHubManager;
+  createManagerFromDraft: (
+    draft: ManagerOnboardingSchema,
+  ) => CreateManagerResult;
   deactivateManager: (managerId: string) => void;
   reactivateManager: (managerId: string) => void;
 }
@@ -119,6 +125,56 @@ export const useSubHubManagerStore = create<SubHubManagerStoreState>(
 
       set({ managers: [...allManagers, newManager] });
       return newManager;
+    },
+
+    createManagerFromDraft: (draft) => {
+      const hubData = getHubById(draft.hub);
+      const regionData = HUB_ASSIGNMENT_DATA.regions.find(
+        (r) => r.id === draft.region,
+      );
+      const cityData = HUB_ASSIGNMENT_DATA.cities.find(
+        (c) => c.id === draft.city,
+      );
+      const warehouseData = HUB_ASSIGNMENT_DATA.warehouses.find(
+        (w) => w.id === draft.warehouse,
+      );
+      const allManagers = get().managers;
+      const newId = `mgr-new-${Date.now()}`;
+
+      const newManager: SubHubManager = {
+        id: newId,
+        employeeId: draft.employeeId,
+        name: draft.fullName,
+        photo: draft.profilePhoto ?? undefined,
+        phone: `+91 ${draft.phone}`,
+        email: draft.email,
+        hubId: draft.hub,
+        hubName: hubData?.name ?? draft.hubName,
+        hubCode: hubData?.code ?? draft.hubCode,
+        warehouse: warehouseData?.name ?? "",
+        region: regionData?.name ?? "",
+        city: cityData?.name ?? "",
+        status: "ACTIVE",
+        pendingRequisitions: hubData?.pendingRequisitions ?? 0,
+        pendingDispatches: hubData?.pendingDispatches ?? 0,
+        todayOrders: 0,
+        lowStockItems: 0,
+        availableDrivers: 0,
+        totalDrivers: 0,
+        joiningDate: draft.joiningDate || new Date().toISOString(),
+      };
+
+      set({ managers: [...allManagers, newManager] });
+
+      return {
+        id: newId,
+        employeeId: draft.employeeId,
+        name: draft.fullName,
+        hubName: newManager.hubName,
+        hubCode: newManager.hubCode,
+        username: draft.username,
+        credentialsSent: draft.sendWelcomeEmail || draft.sendSms,
+      };
     },
 
     deactivateManager: (managerId) => {

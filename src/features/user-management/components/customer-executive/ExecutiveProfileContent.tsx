@@ -146,7 +146,10 @@ export function ExecutiveProfileContent({
         <Breadcrumbs
           items={[
             { label: "User Management", href: ROUTES.USER_MANAGEMENT },
-            { label: "Customer Executives", href: ROUTES.CUSTOMER_EXECUTIVE },
+            {
+              label: "Customer Executives",
+              href: ROUTES.USER_MANAGEMENT_CUSTOMER_EXECUTIVES,
+            },
             { label: "Executive Profile" },
           ]}
         />

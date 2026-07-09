@@ -7,8 +7,8 @@ export const USER_MANAGEMENT_NAV_CHILDREN: NavChildItem[] = [
     href: `${ROUTES.USER_MANAGEMENT}/customers`,
   },
   {
-    label: "Customer Executive",
-    href: ROUTES.CUSTOMER_EXECUTIVE,
+    label: "Customer Executives",
+    href: ROUTES.USER_MANAGEMENT_CUSTOMER_EXECUTIVES,
   },
   {
     label: "Sub Hub Managers",
@@ -25,7 +25,7 @@ export const USER_MANAGEMENT_TABS = [
   {
     id: "customer-executives",
     label: "Customer Executives",
-    href: ROUTES.CUSTOMER_EXECUTIVE,
+    href: ROUTES.USER_MANAGEMENT_CUSTOMER_EXECUTIVES,
   },
   {
     id: "sub-hub-managers",

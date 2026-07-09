@@ -58,7 +58,10 @@ export function ExecutiveCreateSuccessScreen({
         <Button
           className="h-11 gap-2 px-6"
           onClick={() =>
-            window.open(`${ROUTES.CUSTOMER_EXECUTIVE}/${result.id}`, "_self")
+            window.open(
+              `${ROUTES.USER_MANAGEMENT_CUSTOMER_EXECUTIVES}/${result.id}`,
+              "_self",
+            )
           }
         >
           <UserPlus className="size-4" />
@@ -67,7 +70,11 @@ export function ExecutiveCreateSuccessScreen({
         <Button
           variant="outline"
           className="h-11 gap-2 px-6"
-          render={<Link href={`${ROUTES.CUSTOMER_EXECUTIVE}/${result.id}`} />}
+          render={
+            <Link
+              href={`${ROUTES.USER_MANAGEMENT_CUSTOMER_EXECUTIVES}/${result.id}`}
+            />
+          }
         >
           <User className="size-4" />
           View Executive
@@ -83,7 +90,7 @@ export function ExecutiveCreateSuccessScreen({
         <Button
           variant="ghost"
           className="h-11 gap-2 px-6"
-          render={<Link href={ROUTES.CUSTOMER_EXECUTIVE} />}
+          render={<Link href={ROUTES.USER_MANAGEMENT_CUSTOMER_EXECUTIVES} />}
         >
           <LayoutList className="size-4" />
           Back to List

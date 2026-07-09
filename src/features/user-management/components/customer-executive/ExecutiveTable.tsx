@@ -164,7 +164,7 @@ export function ExecutiveTable({
           return (
             <div className="flex items-center gap-1">
               <Link
-                href={`${ROUTES.CUSTOMER_EXECUTIVE}/${executive.id}`}
+                href={`${ROUTES.USER_MANAGEMENT_CUSTOMER_EXECUTIVES}/${executive.id}`}
                 className={buttonVariants({
                   variant: "ghost",
                   size: "icon-sm",
@@ -209,7 +209,7 @@ export function ExecutiveTable({
                   <DropdownMenuItem
                     onClick={() =>
                       router.push(
-                        `${ROUTES.CUSTOMER_EXECUTIVE}/${executive.id}`,
+                        `${ROUTES.USER_MANAGEMENT_CUSTOMER_EXECUTIVES}/${executive.id}`,
                       )
                     }
                   >

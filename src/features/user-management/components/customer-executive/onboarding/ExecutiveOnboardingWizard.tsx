@@ -272,7 +272,7 @@ export function ExecutiveOnboardingWizard() {
               { label: "User Management", href: ROUTES.USER_MANAGEMENT },
               {
                 label: "Customer Executives",
-                href: ROUTES.CUSTOMER_EXECUTIVE,
+                href: ROUTES.USER_MANAGEMENT_CUSTOMER_EXECUTIVES,
               },
               { label: "New Executive" },
             ]}
@@ -295,7 +295,9 @@ export function ExecutiveOnboardingWizard() {
               variant="outline"
               size="lg"
               className="h-10 shrink-0 gap-2 px-4"
-              render={<Link href={ROUTES.CUSTOMER_EXECUTIVE} />}
+              render={
+                <Link href={ROUTES.USER_MANAGEMENT_CUSTOMER_EXECUTIVES} />
+              }
             >
               <ArrowLeft className="size-4" />
               Back to Executives

@@ -12,6 +12,7 @@ import {
   Warehouse,
 } from "lucide-react";
 
+import { CUSTOMER_EXECUTIVE_NAV_CHILDREN } from "@/constants/customer-executive-navigation.constants";
 import { LOGISTICS_NAV_CHILDREN } from "@/constants/logistics-navigation.constants";
 import { CENTRAL_WAREHOUSE_NAV_CHILDREN } from "@/constants/warehouse-navigation.constants";
 import { SUB_HUB_NETWORK_NAV_CHILDREN } from "@/constants/sub-hub-navigation.constants";
@@ -87,6 +88,7 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/customer-executive",
         icon: UserCog,
         hasSubmenu: true,
+        children: CUSTOMER_EXECUTIVE_NAV_CHILDREN,
       },
       {
         label: "Notification Center",

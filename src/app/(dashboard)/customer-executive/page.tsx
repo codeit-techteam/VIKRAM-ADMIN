@@ -1,11 +1,11 @@
-import { ExecutivesPageContent } from "@/features/user-management/components/customer-executive/ExecutivesPageContent";
+import { CeDashboardPage } from "@/features/customer-executive";
 
 export const metadata = {
-  title: "Customer Executive Management | BuildQuick India",
+  title: "Customer Executive Dashboard | BuildQuick India",
   description:
-    "Manage customer support executives, assignments, and assisted order operations.",
+    "Service dashboard for customer support executives — orders, payments, tracking, and complaints.",
 };
 
-export default function CustomerExecutivePage() {
-  return <ExecutivesPageContent />;
+export default function CustomerExecutiveDashboardPage() {
+  return <CeDashboardPage />;
 }

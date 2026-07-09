@@ -6,3 +6,4 @@ export { useGlobalModalStore, createModalStore } from "@/store/modal-store";
 export { useAllocationWorkflowStore } from "@/store/allocation-workflow-store";
 export { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 export { useCustomerStore } from "@/store/customer-store";
+export { useCustomerExecutiveStore } from "@/store/customer-executive-store";

@@ -14,10 +14,6 @@ export const USER_MANAGEMENT_NAV_CHILDREN: NavChildItem[] = [
     label: "Sub Hub Managers",
     href: `${ROUTES.USER_MANAGEMENT}/sub-hub-managers`,
   },
-  {
-    label: "Drivers",
-    href: `${ROUTES.USER_MANAGEMENT}/drivers`,
-  },
 ];
 
 export const USER_MANAGEMENT_TABS = [

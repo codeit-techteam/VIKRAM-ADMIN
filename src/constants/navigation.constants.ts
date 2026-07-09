@@ -12,6 +12,7 @@ import {
   Warehouse,
 } from "lucide-react";
 
+import { LOGISTICS_NAV_CHILDREN } from "@/constants/logistics-navigation.constants";
 import { CENTRAL_WAREHOUSE_NAV_CHILDREN } from "@/constants/warehouse-navigation.constants";
 import { SUB_HUB_NETWORK_NAV_CHILDREN } from "@/constants/sub-hub-navigation.constants";
 import { USER_MANAGEMENT_NAV_CHILDREN } from "@/constants/user-management-navigation.constants";
@@ -57,7 +58,13 @@ export const NAV_SECTIONS: NavSection[] = [
         hasSubmenu: true,
         children: SUB_HUB_NETWORK_NAV_CHILDREN,
       },
-      { label: "Logistics", href: "/logistics", icon: Truck },
+      {
+        label: "Logistics",
+        href: "/logistics",
+        icon: Truck,
+        hasSubmenu: true,
+        children: LOGISTICS_NAV_CHILDREN,
+      },
       {
         label: "Finance & Payments",
         href: "/finance-payments",

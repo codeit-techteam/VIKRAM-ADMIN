@@ -1,6 +1,8 @@
 "use client";
 
-import { MapPin, Package, Truck, User } from "lucide-react";
+import { MapPin, Package, ShoppingBag, Truck, User } from "lucide-react";
+
+import { OrderSourceBadge } from "@/features/user-management/components/OrderSourceBadge";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import type { CustomerOrderDetail } from "@/features/user-management/types/customer.types";
 import { formatDate, formatDateTime } from "@/utils/format-date";
+import { ORDER_SOURCE_LABELS } from "@/features/user-management/types/customer.types";
 import { cn } from "@/lib/utils";
 
 interface CustomerOrderDrawerProps {
@@ -151,6 +154,34 @@ export function CustomerOrderDrawer({
               <DetailField label="Order Date" value={formatDate(order.date)} />
               <DetailField label="Amount" value={formatAmount(order.amount)} />
               <DetailField label="Status" value={statusStyle.label} />
+            </div>
+          </Section>
+
+          <Section title="Order Source" icon={ShoppingBag}>
+            <div className="grid gap-4 rounded-lg border border-gray-100 p-4 sm:grid-cols-2">
+              <div>
+                <p className="text-xs text-gray-400">Created Via</p>
+                <div className="mt-1">
+                  <OrderSourceBadge source={order.orderSource} />
+                </div>
+              </div>
+              {order.orderSource === "CUSTOMER_EXECUTIVE" ? (
+                <>
+                  <DetailField
+                    label="Created By"
+                    value={order.createdByExecutive ?? "—"}
+                  />
+                  <DetailField
+                    label="Created Time"
+                    value={formatDateTime(order.date).split(", ").pop() ?? "—"}
+                  />
+                </>
+              ) : (
+                <DetailField
+                  label="Channel"
+                  value={ORDER_SOURCE_LABELS[order.orderSource]}
+                />
+              )}
             </div>
           </Section>
 

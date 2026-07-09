@@ -1,1 +1,4 @@
-// Feature module: Customer Executive
+export {
+  ExecutivesPageContent,
+  ExecutiveProfileContent,
+} from "@/features/user-management/components/customer-executive";

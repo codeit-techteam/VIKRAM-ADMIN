@@ -741,7 +741,56 @@ export const CUSTOMER_ADDRESSES_SEED: CustomerDeliveryAddress[] =
     return addresses;
   });
 
-export const CUSTOMER_ORDERS_SEED: CustomerOrder[] = [
+type OrderSeedInput = Omit<CustomerOrder, "orderSource"> &
+  Partial<
+    Pick<CustomerOrder, "orderSource" | "createdByExecutive" | "executiveId">
+  >;
+
+const EXECUTIVE_ASSISTED_ORDER_IDS = new Set([
+  "ord-003",
+  "ord-007",
+  "ord-015",
+  "ord-021",
+  "ord-022",
+  "ord-028",
+  "ord-034",
+]);
+
+function enrichOrderSource(order: OrderSeedInput): CustomerOrder {
+  if (order.orderSource) {
+    return order as CustomerOrder;
+  }
+
+  const executive =
+    CUSTOMER_EXECUTIVES.find((entry) => entry.hubId === order.hubId) ??
+    CUSTOMER_EXECUTIVES[0];
+  const hash = order.id
+    .split("")
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+
+  if (EXECUTIVE_ASSISTED_ORDER_IDS.has(order.id)) {
+    return {
+      ...order,
+      orderSource: "CUSTOMER_EXECUTIVE",
+      executiveId: executive.id,
+      createdByExecutive: executive.name,
+    };
+  }
+
+  if (hash % 13 === 0) {
+    return {
+      ...order,
+      orderSource: "SUPER_ADMIN",
+    };
+  }
+
+  return {
+    ...order,
+    orderSource: "CUSTOMER_APP",
+  };
+}
+
+const RAW_CUSTOMER_ORDERS: OrderSeedInput[] = [
   {
     id: "ord-001",
     orderId: "ORD-24001",
@@ -1067,3 +1116,6 @@ export const CUSTOMER_ORDERS_SEED: CustomerOrder[] = [
     amount: 89000,
   },
 ];
+
+export const CUSTOMER_ORDERS_SEED: CustomerOrder[] =
+  RAW_CUSTOMER_ORDERS.map(enrichOrderSource);

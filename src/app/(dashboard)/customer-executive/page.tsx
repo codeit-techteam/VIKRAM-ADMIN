@@ -1,17 +1,11 @@
-import { DevModuleScreen } from "@/components/shared/DevModuleScreen";
+import { ExecutivesPageContent } from "@/features/user-management/components/customer-executive/ExecutivesPageContent";
+
+export const metadata = {
+  title: "Customer Executive Management | BuildQuick India",
+  description:
+    "Manage customer support executives, assignments, and assisted order operations.",
+};
 
 export default function CustomerExecutivePage() {
-  return (
-    <DevModuleScreen
-      title="Customer Executive"
-      subtitle="Handle customer inquiries, order escalations, and support workflows."
-      features={[
-        "Ticket Queue",
-        "Order Escalations",
-        "Customer CRM",
-        "Call Logs",
-        "SLA Dashboard",
-      ]}
-    />
-  );
+  return <ExecutivesPageContent />;
 }

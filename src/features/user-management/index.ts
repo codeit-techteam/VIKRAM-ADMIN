@@ -16,3 +16,11 @@ export {
   SupportExecutiveSection,
   RemoveExecutiveConfirmationModal,
 } from "@/features/user-management/components/support-executive";
+export {
+  ExecutivesPageContent,
+  ExecutiveProfileContent,
+  ExecutiveTable,
+  ExecutiveStatusBadge,
+} from "@/features/user-management/components/customer-executive";
+export { OrderSourceBadge } from "@/features/user-management/components/OrderSourceBadge";
+export { OrderAssistanceSection } from "@/features/user-management/components/OrderAssistanceSection";

@@ -15,6 +15,11 @@ import {
   getOrderDetail,
 } from "@/mock/customer-service";
 import {
+  buildAllExecutives,
+  getExecutiveProfile,
+  queryExecutives,
+} from "@/mock/customer-executive-service";
+import {
   SUPPORT_EXECUTIVE_ASSIGNMENT_HISTORY_SEED,
   buildSupportExecutives,
   filterSupportExecutives,
@@ -29,6 +34,9 @@ import type {
   SupportExecutive,
   SupportExecutiveAssignmentHistoryEntry,
   SupportExecutiveFilters,
+  ExecutiveProfileDetail,
+  ExecutiveQueryParams,
+  ExecutiveQueryResult,
 } from "@/features/user-management/types/support-executive.types";
 import type {
   CustomerBlockReason,
@@ -81,6 +89,8 @@ interface CustomerStoreState {
   updateCustomerStatus: (customerIds: string[], status: CustomerStatus) => void;
   assignHubToCustomers: (customerIds: string[], hubId: string) => void;
   exportSelectedCustomers: (customerIds: string[]) => CustomerDetail[];
+  queryExecutives: (params: ExecutiveQueryParams) => ExecutiveQueryResult;
+  getExecutiveProfile: (executiveId: string) => ExecutiveProfileDetail | null;
 }
 
 export const useCustomerStore = create<CustomerStoreState>((set, get) => ({
@@ -453,6 +463,7 @@ export const useCustomerStore = create<CustomerStoreState>((set, get) => ({
           hubId: hub.id,
           status: "PENDING",
           amount: 1,
+          orderSource: "CUSTOMER_APP",
         });
 
         return {
@@ -488,6 +499,32 @@ export const useCustomerStore = create<CustomerStoreState>((set, get) => ({
         ),
       )
       .filter((customer): customer is CustomerDetail => customer !== null);
+  },
+
+  queryExecutives: (params) => {
+    const { customers, orders, supportExecutiveAssignmentHistory } = get();
+    const executives = buildAllExecutives(
+      orders,
+      supportExecutiveAssignmentHistory,
+      customers,
+    );
+    return queryExecutives(executives, orders, params);
+  },
+
+  getExecutiveProfile: (executiveId) => {
+    const { customers, orders, supportExecutiveAssignmentHistory } = get();
+    const executives = buildAllExecutives(
+      orders,
+      supportExecutiveAssignmentHistory,
+      customers,
+    );
+    return getExecutiveProfile(
+      executiveId,
+      executives,
+      orders,
+      customers,
+      supportExecutiveAssignmentHistory,
+    );
   },
 }));
 

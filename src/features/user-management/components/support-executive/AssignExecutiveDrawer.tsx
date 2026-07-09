@@ -150,7 +150,7 @@ export function AssignExecutiveDrawer({
     setIsSubmitting(false);
     onOpenChange(false);
     onAssigned?.();
-    notify.success("Support Executive Assigned Successfully.");
+    notify.success("Executive Assigned Successfully");
   };
 
   if (!customer) {

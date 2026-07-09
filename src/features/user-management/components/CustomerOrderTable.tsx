@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { OrderSourceBadge } from "@/features/user-management/components/OrderSourceBadge";
 import type { CustomerOrder } from "@/features/user-management/types/customer.types";
 import { CUSTOMER_HUBS } from "@/mock/customers";
 import { formatDate } from "@/utils/format-date";
@@ -122,6 +123,10 @@ export function CustomerOrderTable({
             {formatAmount(getValue())}
           </span>
         ),
+      }),
+      columnHelper.accessor("orderSource", {
+        header: "ORDER SOURCE",
+        cell: ({ getValue }) => <OrderSourceBadge source={getValue()} />,
       }),
       columnHelper.accessor("status", {
         header: "STATUS",

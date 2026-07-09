@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { CustomerStatusBadge } from "@/features/user-management/components/CustomerStatusBadge";
+import { OrderAssistanceSection } from "@/features/user-management/components/OrderAssistanceSection";
 import { SupportExecutiveSection } from "@/features/user-management/components/support-executive/SupportExecutiveSection";
 import {
   CUSTOMER_KYC_STATUS_LABELS,
@@ -187,6 +188,10 @@ export function CustomerProfileCard({
 
         <div className="mt-6 border-t border-gray-100 pt-6">
           <SupportExecutiveSection customer={customer} />
+        </div>
+
+        <div className="mt-6 border-t border-gray-100 pt-6">
+          <OrderAssistanceSection customer={customer} />
         </div>
       </div>
     </aside>

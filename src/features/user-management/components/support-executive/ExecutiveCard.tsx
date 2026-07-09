@@ -43,6 +43,8 @@ function getStatusStyles(status: ExecutiveAvailabilityStatus): string {
       return "border-amber-200 bg-amber-50 text-amber-700";
     case "OFFLINE":
       return "border-gray-200 bg-gray-50 text-gray-600";
+    case "LEAVE":
+      return "border-red-200 bg-red-50 text-red-600";
   }
 }
 

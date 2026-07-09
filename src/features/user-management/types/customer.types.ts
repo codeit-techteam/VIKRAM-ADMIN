@@ -18,6 +18,8 @@ export type CustomerOrderStatus =
   | "DELIVERED"
   | "CANCELLED";
 
+export type OrderSource = "CUSTOMER_APP" | "CUSTOMER_EXECUTIVE" | "SUPER_ADMIN";
+
 export type CustomerKycStatus = "PENDING" | "VERIFIED" | "REJECTED";
 
 export type CustomerBlockReason =
@@ -128,11 +130,21 @@ export interface CustomerOrder {
   id: string;
   orderId: string;
   customerId: string;
+  customerName?: string;
   date: string;
   hubId: string;
   status: CustomerOrderStatus;
   amount: number;
+  orderSource: OrderSource;
+  createdByExecutive?: string;
+  executiveId?: string;
 }
+
+export const ORDER_SOURCE_LABELS: Record<OrderSource, string> = {
+  CUSTOMER_APP: "Customer App",
+  CUSTOMER_EXECUTIVE: "Customer Executive",
+  SUPER_ADMIN: "Super Admin",
+};
 
 export interface CustomerAssignedOperations {
   hubId?: string;

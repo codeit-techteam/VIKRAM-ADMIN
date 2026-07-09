@@ -14,7 +14,6 @@ import type { ManagerOnboardingSchema } from "@/features/user-management/schema/
 import { getProgressPercent } from "@/mock/manager-onboarding";
 import { useManagerDraftStore } from "@/store/manager-draft-store";
 import { ManagerWizardPreview } from "../ManagerWizardPreview";
-import { cn } from "@/lib/utils";
 
 const fieldLabel =
   "text-[11px] font-semibold tracking-wider text-gray-400 uppercase";

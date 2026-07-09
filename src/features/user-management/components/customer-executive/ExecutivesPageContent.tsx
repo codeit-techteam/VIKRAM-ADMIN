@@ -10,6 +10,7 @@ import {
   Users,
   Warehouse,
 } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
@@ -142,12 +143,7 @@ export function ExecutivesPageContent() {
             <Button
               type="button"
               className="gap-2"
-              onClick={() =>
-                notify.success(
-                  "New Executive",
-                  "Executive onboarding form opened.",
-                )
-              }
+              render={<Link href={ROUTES.CUSTOMER_EXECUTIVE_ADD} />}
             >
               <Plus className="size-4" />
               New Executive

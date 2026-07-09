@@ -28,8 +28,11 @@ import {
   getSupportExecutiveById,
   syncCustomersWithAssignmentHistory,
 } from "@/mock/support-executive-service";
+import type { ExecutiveOnboardingSchema } from "@/features/user-management/schema/executive-onboarding.schema";
+import type { CreateExecutiveResult } from "@/features/user-management/types/executive-onboarding.types";
 import type {
   AssignSupportExecutivePayload,
+  CustomerExecutiveRecord,
   RemoveSupportExecutivePayload,
   SupportExecutive,
   SupportExecutiveAssignmentHistoryEntry,
@@ -38,6 +41,11 @@ import type {
   ExecutiveQueryParams,
   ExecutiveQueryResult,
 } from "@/features/user-management/types/support-executive.types";
+import {
+  getCityById,
+  getReportingHubById,
+  getStateById,
+} from "@/mock/executive-onboarding";
 import type {
   CustomerBlockReason,
   CustomerDeliveryAddress,
@@ -56,6 +64,7 @@ interface CustomerStoreState {
   customers: CustomerRecord[];
   orders: CustomerOrder[];
   addresses: CustomerDeliveryAddress[];
+  onboardedExecutives: CustomerExecutiveRecord[];
   supportExecutiveAssignmentHistory: SupportExecutiveAssignmentHistoryEntry[];
   queryCustomers: (params: CustomerQueryParams) => CustomerQueryResult;
   getCustomer: (customerId: string) => CustomerDetail | null;
@@ -91,6 +100,9 @@ interface CustomerStoreState {
   exportSelectedCustomers: (customerIds: string[]) => CustomerDetail[];
   queryExecutives: (params: ExecutiveQueryParams) => ExecutiveQueryResult;
   getExecutiveProfile: (executiveId: string) => ExecutiveProfileDetail | null;
+  createExecutiveFromDraft: (
+    draft: ExecutiveOnboardingSchema,
+  ) => CreateExecutiveResult;
 }
 
 export const useCustomerStore = create<CustomerStoreState>((set, get) => ({
@@ -100,6 +112,7 @@ export const useCustomerStore = create<CustomerStoreState>((set, get) => ({
   ),
   orders: [...CUSTOMER_ORDERS_SEED],
   addresses: [...CUSTOMER_ADDRESSES_SEED],
+  onboardedExecutives: [],
   supportExecutiveAssignmentHistory: [
     ...SUPPORT_EXECUTIVE_ASSIGNMENT_HISTORY_SEED,
   ],
@@ -502,22 +515,38 @@ export const useCustomerStore = create<CustomerStoreState>((set, get) => ({
   },
 
   queryExecutives: (params) => {
-    const { customers, orders, supportExecutiveAssignmentHistory } = get();
-    const executives = buildAllExecutives(
+    const {
+      customers,
       orders,
       supportExecutiveAssignmentHistory,
-      customers,
-    );
+      onboardedExecutives,
+    } = get();
+    const executives = [
+      ...buildAllExecutives(
+        orders,
+        supportExecutiveAssignmentHistory,
+        customers,
+      ),
+      ...onboardedExecutives,
+    ];
     return queryExecutives(executives, orders, params);
   },
 
   getExecutiveProfile: (executiveId) => {
-    const { customers, orders, supportExecutiveAssignmentHistory } = get();
-    const executives = buildAllExecutives(
+    const {
+      customers,
       orders,
       supportExecutiveAssignmentHistory,
-      customers,
-    );
+      onboardedExecutives,
+    } = get();
+    const executives = [
+      ...buildAllExecutives(
+        orders,
+        supportExecutiveAssignmentHistory,
+        customers,
+      ),
+      ...onboardedExecutives,
+    ];
     return getExecutiveProfile(
       executiveId,
       executives,
@@ -525,6 +554,47 @@ export const useCustomerStore = create<CustomerStoreState>((set, get) => ({
       customers,
       supportExecutiveAssignmentHistory,
     );
+  },
+
+  createExecutiveFromDraft: (draft) => {
+    const reportingHub = getReportingHubById(draft.reportingHub);
+    const stateData = getStateById(draft.state);
+    const cityData = getCityById(draft.city);
+    const primaryHubName =
+      draft.assignedHubNames[0] ?? reportingHub?.name ?? "Unassigned";
+    const newId = `exec-new-${Date.now()}`;
+
+    const newExecutive: CustomerExecutiveRecord = {
+      id: newId,
+      employeeId: draft.employeeId,
+      name: draft.fullName,
+      photo: draft.profilePhoto ?? undefined,
+      phone: `+91 ${draft.phone}`,
+      email: draft.email,
+      hubId: draft.assignedHubs[0] ?? draft.reportingHub,
+      hub: primaryHubName,
+      region: reportingHub?.region ?? stateData?.name ?? "Unassigned",
+      assignedCustomers: 0,
+      todayOrders: 0,
+      totalOrders: 0,
+      todayCalls: 0,
+      status: draft.accountActive ? "AVAILABLE" : "OFFLINE",
+      joiningDate: draft.joiningDate || new Date().toISOString(),
+    };
+
+    set((state) => ({
+      onboardedExecutives: [...state.onboardedExecutives, newExecutive],
+    }));
+
+    return {
+      id: newId,
+      employeeId: draft.employeeId,
+      name: draft.fullName,
+      hubName: primaryHubName,
+      region: `${stateData?.name ?? ""} (${cityData?.name ?? ""})`.trim(),
+      username: draft.username,
+      credentialsSent: draft.sendWelcomeEmail || draft.sendSms,
+    };
   },
 }));
 

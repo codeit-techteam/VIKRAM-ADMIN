@@ -132,7 +132,7 @@ export function ManagerOnboardingWizard() {
         setIsSavingDraft(false);
       }
     },
-    [getValues, currentStep, setDraft, markSaved, reset, draft],
+    [getValues, currentStep, setDraft, markSaved, reset],
   );
 
   useEffect(() => {

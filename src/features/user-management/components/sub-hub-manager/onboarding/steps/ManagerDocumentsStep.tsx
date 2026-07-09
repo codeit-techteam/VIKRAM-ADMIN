@@ -5,7 +5,6 @@ import { useCallback } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 
 import { FormSectionCard } from "@/components/shared/FormSectionCard";
-import { FormSectionCard } from "@/components/shared/FormSectionCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ManagerOnboardingSchema } from "@/features/user-management/schema/manager-onboarding.schema";
@@ -18,7 +17,7 @@ import { StepHeader } from "./ManagerBasicInfoStep";
 import { cn } from "@/lib/utils";
 
 export function ManagerDocumentsStep() {
-  const { control } = useFormContext<ManagerOnboardingSchema>();
+  const { control, setValue } = useFormContext<ManagerOnboardingSchema>();
   const updateDocuments = useManagerDraftStore((s) => s.updateDocuments);
 
   const documents = useWatch({ control, name: "documents" });
@@ -44,13 +43,9 @@ export function ManagerDocumentsStep() {
         const current = documents ?? {};
         const next = { ...current, [key]: doc };
         updateDocuments({ [key]: doc });
-        methods.setValue(
-          "documents",
-          next as ManagerOnboardingSchema["documents"],
-          {
-            shouldDirty: true,
-          },
-        );
+        setValue("documents", next as ManagerOnboardingSchema["documents"], {
+          shouldDirty: true,
+        });
         notify.success(
           "Document Uploaded",
           `${file.name} uploaded successfully.`,
@@ -58,20 +53,16 @@ export function ManagerDocumentsStep() {
       };
       reader.readAsDataURL(file);
     },
-    [updateDocuments, documents, methods],
+    [updateDocuments, documents, setValue],
   );
 
   const handleDelete = (key: keyof ManagerOnboardingSchema["documents"]) => {
     const current = documents ?? {};
     const next = { ...current, [key]: null };
     updateDocuments({ [key]: null });
-    methods.setValue(
-      "documents",
-      next as ManagerOnboardingSchema["documents"],
-      {
-        shouldDirty: true,
-      },
-    );
+    setValue("documents", next as ManagerOnboardingSchema["documents"], {
+      shouldDirty: true,
+    });
     notify.success("Document Removed", "Document has been deleted.");
   };
 

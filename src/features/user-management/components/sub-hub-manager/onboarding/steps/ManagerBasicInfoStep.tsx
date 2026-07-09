@@ -13,7 +13,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import type { ManagerOnboardingSchema } from "@/features/user-management/schema/manager-onboarding.schema";
 import { getProgressPercent } from "@/mock/manager-onboarding";
 import { useManagerDraftStore } from "@/store/manager-draft-store";
-import { ManagerWizardPreview } from "./ManagerWizardPreview";
+import { ManagerWizardPreview } from "../ManagerWizardPreview";
 import { cn } from "@/lib/utils";
 
 const fieldLabel =

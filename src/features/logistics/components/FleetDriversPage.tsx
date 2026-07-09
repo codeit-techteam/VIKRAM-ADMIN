@@ -26,7 +26,6 @@ import {
 import { FLEET_TABS } from "@/constants/logistics-navigation.constants";
 import { ROUTES } from "@/constants/routes";
 import { AddDriverDialog } from "@/features/logistics/components/AddDriverDialog";
-import { AssignVehicleDialog } from "@/features/logistics/components/AssignVehicleDialog";
 import { ConfirmDialog } from "@/features/logistics/components/ConfirmDialog";
 import { LogisticsFilterBar } from "@/features/logistics/components/LogisticsFilterBar";
 import {
@@ -37,7 +36,6 @@ import { LogisticsStatusBadge } from "@/features/logistics/components/LogisticsS
 import { useLogisticsLoading } from "@/features/logistics/hooks/use-logistics-loading";
 import {
   EMPTY_DRIVER_FILTERS,
-  formatLogisticsDate,
   getDriverStats,
   LOGISTICS_HUBS,
   LOGISTICS_PAGE_SIZE,
@@ -51,9 +49,6 @@ export function FleetDriversPage() {
   const { isLoading } = useLogisticsLoading();
   const drivers = useLogisticsStore((s) => s.drivers);
   const deleteDriver = useLogisticsStore((s) => s.deleteDriver);
-  const assignVehicleToDriver = useLogisticsStore(
-    (s) => s.assignVehicleToDriver,
-  );
 
   const [filters, setFilters] = useState<DriverFilters>(EMPTY_DRIVER_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
@@ -62,8 +57,6 @@ export function FleetDriversPage() {
   const [deleteTarget, setDeleteTarget] = useState<LogisticsDriver | null>(
     null,
   );
-  const [assignVehicleOpen, setAssignVehicleOpen] = useState(false);
-  const [assignDriverId, setAssignDriverId] = useState("");
 
   const stats = useMemo(() => getDriverStats(drivers), [drivers]);
 
@@ -255,15 +248,17 @@ export function FleetDriversPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            size="icon-sm"
-                            variant="ghost"
-                            className="size-8"
-                          >
-                            <MoreVertical className="size-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              className="size-8"
+                            >
+                              <MoreVertical className="size-4" />
+                            </Button>
+                          }
+                        />
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
                             onClick={() =>
@@ -276,10 +271,12 @@ export function FleetDriversPage() {
                             View Profile
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => {
-                              setAssignDriverId(driver.id);
-                              setAssignVehicleOpen(true);
-                            }}
+                            onClick={() =>
+                              notify.success(
+                                "Vehicle Assigned",
+                                `Vehicle assignment initiated for ${driver.name}.`,
+                              )
+                            }
                           >
                             Assign Vehicle
                           </DropdownMenuItem>

@@ -34,7 +34,6 @@ import {
   computeDashboardStats,
   formatLogisticsDateTime,
   getIssueLabel,
-  getPriorityLabel,
   LOGISTICS_PAGE_SIZE,
 } from "@/mock/logistics";
 import { useLogisticsStore } from "@/store/logistics-store";

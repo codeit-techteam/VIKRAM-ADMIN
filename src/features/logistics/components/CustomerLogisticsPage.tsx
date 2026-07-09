@@ -263,15 +263,17 @@ export function CustomerLogisticsPage() {
                           <Eye className="size-4" />
                         </Button>
                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              size="icon-sm"
-                              variant="ghost"
-                              className="size-8"
-                            >
-                              <MoreVertical className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
+                          <DropdownMenuTrigger
+                            render={
+                              <Button
+                                size="icon-sm"
+                                variant="ghost"
+                                className="size-8"
+                              >
+                                <MoreVertical className="size-4" />
+                              </Button>
+                            }
+                          />
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
                               onClick={() => handleAction("view", item)}

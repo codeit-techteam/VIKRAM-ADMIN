@@ -1,3 +1,8 @@
+import type {
+  SupportExecutiveAssignment,
+  SupportExecutiveAssignmentHistoryEntry,
+} from "@/features/user-management/types/support-executive.types";
+
 export type CustomerType =
   "INDIVIDUAL" | "CONTRACTOR" | "BUILDER" | "INTERIOR_DESIGNER";
 
@@ -17,6 +22,11 @@ export type CustomerKycStatus = "PENDING" | "VERIFIED" | "REJECTED";
 
 export type CustomerBlockReason =
   "VIOLATION" | "DUPLICATE" | "FRAUD" | "MANUAL";
+
+export type {
+  SupportExecutiveAssignment,
+  SupportExecutiveAssignmentHistoryEntry,
+};
 
 export interface CustomerExecutive {
   id: string;
@@ -111,6 +121,7 @@ export interface CustomerRecord {
   imageUrl?: string;
   blockReason?: CustomerBlockReason;
   blockedAt?: string;
+  supportExecutiveAssignment?: SupportExecutiveAssignment;
 }
 
 export interface CustomerOrder {

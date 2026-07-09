@@ -6,7 +6,7 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Eye, MoreHorizontal } from "lucide-react";
+import { Ban, Eye, Pencil, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
 
@@ -36,6 +36,9 @@ interface CustomerTableProps {
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
   isLoading?: boolean;
+  onEdit?: (customer: CustomerListItem) => void;
+  onBlock?: (customer: CustomerListItem) => void;
+  onAssignExecutive?: (customer: CustomerListItem) => void;
 }
 
 const columnHelper = createColumnHelper<CustomerListItem>();
@@ -67,6 +70,9 @@ export function CustomerTable({
   selectedIds,
   onSelectionChange,
   isLoading = false,
+  onEdit,
+  onBlock,
+  onAssignExecutive,
 }: CustomerTableProps) {
   const columns = useMemo(
     () => [
@@ -205,31 +211,60 @@ export function CustomerTable({
       columnHelper.display({
         id: "actions",
         header: "ACTIONS",
-        cell: ({ row }) => (
-          <div className="flex items-center gap-1">
-            <Link
-              href={`${ROUTES.USER_MANAGEMENT_CUSTOMERS}/${row.original.id}`}
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "icon-sm" }),
-                "hover:text-primary size-8 text-[#64748B]",
-              )}
-              aria-label={`View ${row.original.name}`}
-            >
-              <Eye className="size-4" />
-            </Link>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="size-8 text-[#64748B]"
-              aria-label={`More actions for ${row.original.name}`}
-            >
-              <MoreHorizontal className="size-4" />
-            </Button>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const customer = row.original;
+          const hasExecutive = Boolean(customer.supportExecutiveAssignment);
+
+          return (
+            <div className="flex items-center gap-1">
+              <Link
+                href={`${ROUTES.USER_MANAGEMENT_CUSTOMERS}/${customer.id}`}
+                className={cn(
+                  buttonVariants({ variant: "ghost", size: "icon-sm" }),
+                  "hover:text-primary size-8 text-[#64748B]",
+                )}
+                aria-label={`View ${customer.name}`}
+              >
+                <Eye className="size-4" />
+              </Link>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="hover:text-primary size-8 text-[#64748B]"
+                aria-label={`Edit ${customer.name}`}
+                onClick={() => onEdit?.(customer)}
+              >
+                <Pencil className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="size-8 text-[#64748B] hover:text-red-600"
+                aria-label={`Block ${customer.name}`}
+                onClick={() => onBlock?.(customer)}
+              >
+                <Ban className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="hover:text-primary size-8 gap-0 text-[#64748B]"
+                aria-label={
+                  hasExecutive
+                    ? `Change executive for ${customer.name}`
+                    : `Assign executive to ${customer.name}`
+                }
+                title={hasExecutive ? "Change Executive" : "Assign Executive"}
+                onClick={() => onAssignExecutive?.(customer)}
+              >
+                <UserPlus className="size-4" />
+              </Button>
+            </div>
+          );
+        },
       }),
     ],
-    [selectedIds, onSelectionChange],
+    [selectedIds, onSelectionChange, onEdit, onBlock, onAssignExecutive],
   );
 
   const table = useReactTable({

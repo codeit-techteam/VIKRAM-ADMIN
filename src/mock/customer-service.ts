@@ -316,7 +316,8 @@ export function enrichCustomer(
   return {
     ...customer,
     assignedHub: assignedOperations.hubName,
-    assignedExecutive: assignedOperations.executiveName,
+    assignedExecutive:
+      customer.supportExecutiveAssignment?.executiveName ?? "Not Assigned",
     activeOrders: orderSummary.activeOrders,
     lastOrderDate: orderSummary.lastOrderDate,
     assignedOperations,
@@ -397,7 +398,8 @@ function matchesFilters(
 
   if (
     filters.assignedExecutive !== "all" &&
-    customer.assignedOperations.executiveId !== filters.assignedExecutive
+    customer.supportExecutiveAssignment?.executiveId !==
+      filters.assignedExecutive
   ) {
     return false;
   }
@@ -539,12 +541,21 @@ export function buildCustomerActivityTimeline(
   }
 
   if (customer.activity.executiveAssignedAt) {
+    const executiveName =
+      customer.supportExecutiveAssignment?.executiveName ??
+      customer.assignedOperations.executiveName;
+    const hubName =
+      customer.supportExecutiveAssignment?.hubName ??
+      customer.assignedOperations.hubName;
+
     events.push({
       type: "EXECUTIVE_ASSIGNED",
-      label: "Executive Assigned",
-      date: customer.activity.executiveAssignedAt,
-      description: `Assigned to ${customer.assignedExecutive} at ${customer.assignedHub}.`,
-      user: "System",
+      label: "Support Executive Assigned",
+      date:
+        customer.supportExecutiveAssignment?.assignedDate ??
+        customer.activity.executiveAssignedAt,
+      description: `Assigned to ${executiveName} at ${hubName}.`,
+      user: customer.supportExecutiveAssignment?.assignedBy ?? "Admin",
     });
   }
 

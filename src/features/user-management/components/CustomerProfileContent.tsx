@@ -85,6 +85,9 @@ export function CustomerProfileContent({
   const customers = useCustomerStore((state) => state.customers);
   const orders = useCustomerStore((state) => state.orders);
   const addresses = useCustomerStore((state) => state.addresses);
+  const supportExecutiveAssignmentHistory = useCustomerStore(
+    (state) => state.supportExecutiveAssignmentHistory,
+  );
   const updateCustomer = useCustomerStore((state) => state.updateCustomer);
   const blockCustomer = useCustomerStore((state) => state.blockCustomer);
   const unblockCustomer = useCustomerStore((state) => state.unblockCustomer);
@@ -127,7 +130,14 @@ export function CustomerProfileContent({
 
   const customer = useMemo(
     () => getCustomer(customerId),
-    [getCustomer, customerId, customers, orders, addresses],
+    [
+      getCustomer,
+      customerId,
+      customers,
+      orders,
+      addresses,
+      supportExecutiveAssignmentHistory,
+    ],
   );
 
   const timeline = useMemo(

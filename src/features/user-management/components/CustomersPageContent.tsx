@@ -13,8 +13,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AssignHubDialog } from "@/features/user-management/components/AssignHubDialog";
 import { CustomerBulkActionsBar } from "@/features/user-management/components/CustomerBulkActionsBar";
+import { CustomerConfirmationModal } from "@/features/user-management/components/CustomerConfirmationModal";
 import { CustomerFiltersBar } from "@/features/user-management/components/CustomerFiltersBar";
 import { CustomerTable } from "@/features/user-management/components/CustomerTable";
+import { EditCustomerDrawer } from "@/features/user-management/components/EditCustomerDrawer";
+import { AssignExecutiveDrawer } from "@/features/user-management/components/support-executive/AssignExecutiveDrawer";
 import { UserManagementTabs } from "@/features/user-management/components/UserManagementTabs";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Pagination } from "@/components/shared/Pagination";
@@ -23,7 +26,9 @@ import { Button } from "@/components/ui/button";
 import {
   CUSTOMER_PAGE_SIZE,
   EMPTY_CUSTOMER_FILTERS,
+  type CustomerEditPayload,
   type CustomerFilters,
+  type CustomerListItem,
 } from "@/features/user-management/types/customer.types";
 import { getFilterOptions } from "@/mock/customer-service";
 import { useCustomerStore } from "@/store/customer-store";
@@ -31,6 +36,14 @@ import { notify } from "@/utils/notify";
 
 export function CustomersPageContent() {
   const queryCustomers = useCustomerStore((state) => state.queryCustomers);
+  const customers = useCustomerStore((state) => state.customers);
+  const orders = useCustomerStore((state) => state.orders);
+  const supportExecutiveAssignmentHistory = useCustomerStore(
+    (state) => state.supportExecutiveAssignmentHistory,
+  );
+  const getCustomer = useCustomerStore((state) => state.getCustomer);
+  const updateCustomer = useCustomerStore((state) => state.updateCustomer);
+  const blockCustomer = useCustomerStore((state) => state.blockCustomer);
   const updateCustomerStatus = useCustomerStore(
     (state) => state.updateCustomerStatus,
   );
@@ -51,6 +64,11 @@ export function CustomersPageContent() {
   );
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isAssignHubOpen, setIsAssignHubOpen] = useState(false);
+  const [assignExecutiveCustomer, setAssignExecutiveCustomer] =
+    useState<CustomerListItem | null>(null);
+  const [editCustomerId, setEditCustomerId] = useState<string | null>(null);
+  const [blockCustomerTarget, setBlockCustomerTarget] =
+    useState<CustomerListItem | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setIsLoading(false), 500);
@@ -64,7 +82,14 @@ export function CustomersPageContent() {
         limit: CUSTOMER_PAGE_SIZE,
         filters: appliedFilters,
       }),
-    [queryCustomers, currentPage, appliedFilters],
+    [
+      queryCustomers,
+      currentPage,
+      appliedFilters,
+      customers,
+      orders,
+      supportExecutiveAssignmentHistory,
+    ],
   );
 
   const filterOptions = useMemo(
@@ -136,6 +161,36 @@ export function CustomersPageContent() {
       "Download will begin when export service is connected.",
     );
   }, [exportSelectedCustomers, selectedIds]);
+
+  const editCustomer = useMemo(
+    () => (editCustomerId ? getCustomer(editCustomerId) : null),
+    [editCustomerId, getCustomer, customers, orders],
+  );
+
+  const handleSaveCustomer = (payload: CustomerEditPayload) => {
+    if (!editCustomerId) return;
+
+    updateCustomer(editCustomerId, payload);
+    setEditCustomerId(null);
+    notify.success("Customer updated", "Profile changes saved successfully.");
+  };
+
+  const handleBlockCustomer = () => {
+    if (!blockCustomerTarget) return;
+
+    if (blockCustomerTarget.status === "BLOCKED") {
+      updateCustomerStatus([blockCustomerTarget.id], "ACTIVE");
+      notify.success("Customer unblocked", "Customer can place orders again.");
+    } else {
+      blockCustomer(blockCustomerTarget.id, "MANUAL");
+      notify.success(
+        "Customer blocked",
+        "Customer cannot place new orders. Existing completed orders remain visible.",
+      );
+    }
+
+    setBlockCustomerTarget(null);
+  };
 
   const showingFrom =
     queryResult.meta.total === 0
@@ -251,6 +306,9 @@ export function CustomersPageContent() {
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
           isLoading={isLoading}
+          onEdit={(customer) => setEditCustomerId(customer.id)}
+          onBlock={(customer) => setBlockCustomerTarget(customer)}
+          onAssignExecutive={(customer) => setAssignExecutiveCustomer(customer)}
         />
 
         {!isLoading && queryResult.meta.total > 0 ? (
@@ -272,6 +330,49 @@ export function CustomersPageContent() {
         hubOptions={filterOptions.hubs}
         selectedCount={selectedIds.length}
         onConfirm={handleAssignHub}
+      />
+
+      <AssignExecutiveDrawer
+        open={Boolean(assignExecutiveCustomer)}
+        onOpenChange={(open) => {
+          if (!open) setAssignExecutiveCustomer(null);
+        }}
+        customer={assignExecutiveCustomer}
+      />
+
+      <EditCustomerDrawer
+        open={Boolean(editCustomerId)}
+        onOpenChange={(open) => {
+          if (!open) setEditCustomerId(null);
+        }}
+        customer={editCustomer}
+        onSave={handleSaveCustomer}
+      />
+
+      <CustomerConfirmationModal
+        open={Boolean(blockCustomerTarget)}
+        onOpenChange={(open) => {
+          if (!open) setBlockCustomerTarget(null);
+        }}
+        title={
+          blockCustomerTarget?.status === "BLOCKED"
+            ? "Unblock Customer?"
+            : "Block Customer?"
+        }
+        description={
+          blockCustomerTarget?.status === "BLOCKED"
+            ? "This customer will be able to place new orders again."
+            : "Blocked customers cannot place new orders. Existing completed orders remain visible."
+        }
+        confirmLabel={
+          blockCustomerTarget?.status === "BLOCKED"
+            ? "Unblock Customer"
+            : "Block Customer"
+        }
+        confirmVariant={
+          blockCustomerTarget?.status === "BLOCKED" ? "default" : "destructive"
+        }
+        onConfirm={handleBlockCustomer}
       />
     </div>
   );

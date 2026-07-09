@@ -14,6 +14,22 @@ import {
   getNearestHub,
   getOrderDetail,
 } from "@/mock/customer-service";
+import {
+  SUPPORT_EXECUTIVE_ASSIGNMENT_HISTORY_SEED,
+  buildSupportExecutives,
+  filterSupportExecutives,
+  getCustomerAssignmentHistory,
+  getExecutiveDashboardSummary,
+  getSupportExecutiveById,
+  syncCustomersWithAssignmentHistory,
+} from "@/mock/support-executive-service";
+import type {
+  AssignSupportExecutivePayload,
+  RemoveSupportExecutivePayload,
+  SupportExecutive,
+  SupportExecutiveAssignmentHistoryEntry,
+  SupportExecutiveFilters,
+} from "@/features/user-management/types/support-executive.types";
 import type {
   CustomerBlockReason,
   CustomerDeliveryAddress,
@@ -32,9 +48,25 @@ interface CustomerStoreState {
   customers: CustomerRecord[];
   orders: CustomerOrder[];
   addresses: CustomerDeliveryAddress[];
+  supportExecutiveAssignmentHistory: SupportExecutiveAssignmentHistoryEntry[];
   queryCustomers: (params: CustomerQueryParams) => CustomerQueryResult;
   getCustomer: (customerId: string) => CustomerDetail | null;
   getOrder: (orderId: string) => CustomerOrderDetail | null;
+  getSupportExecutives: (
+    filters?: SupportExecutiveFilters,
+  ) => SupportExecutive[];
+  getAssignmentHistory: (
+    customerId: string,
+  ) => SupportExecutiveAssignmentHistoryEntry[];
+  getExecutiveDashboard: () => ReturnType<typeof getExecutiveDashboardSummary>;
+  assignSupportExecutive: (
+    customerId: string,
+    payload: AssignSupportExecutivePayload,
+  ) => void;
+  removeSupportExecutive: (
+    customerId: string,
+    payload: RemoveSupportExecutivePayload,
+  ) => void;
   updateCustomer: (customerId: string, payload: CustomerEditPayload) => void;
   blockCustomer: (customerId: string, reason: CustomerBlockReason) => void;
   unblockCustomer: (customerId: string) => void;
@@ -52,9 +84,15 @@ interface CustomerStoreState {
 }
 
 export const useCustomerStore = create<CustomerStoreState>((set, get) => ({
-  customers: [...CUSTOMER_SEED],
+  customers: syncCustomersWithAssignmentHistory(
+    [...CUSTOMER_SEED],
+    [...SUPPORT_EXECUTIVE_ASSIGNMENT_HISTORY_SEED],
+  ),
   orders: [...CUSTOMER_ORDERS_SEED],
   addresses: [...CUSTOMER_ADDRESSES_SEED],
+  supportExecutiveAssignmentHistory: [
+    ...SUPPORT_EXECUTIVE_ASSIGNMENT_HISTORY_SEED,
+  ],
 
   queryCustomers: (params) => {
     const { customers, orders } = get();
@@ -89,6 +127,149 @@ export const useCustomerStore = create<CustomerStoreState>((set, get) => ({
       CUSTOMER_HUBS,
       CUSTOMER_EXECUTIVES,
     );
+  },
+
+  getSupportExecutives: (filters) => {
+    const { supportExecutiveAssignmentHistory } = get();
+    const executives = buildSupportExecutives(
+      supportExecutiveAssignmentHistory,
+    );
+
+    if (!filters) {
+      return executives;
+    }
+
+    return filterSupportExecutives(executives, filters);
+  },
+
+  getAssignmentHistory: (customerId) => {
+    const { supportExecutiveAssignmentHistory } = get();
+    return getCustomerAssignmentHistory(
+      customerId,
+      supportExecutiveAssignmentHistory,
+    );
+  },
+
+  getExecutiveDashboard: () => {
+    const { supportExecutiveAssignmentHistory } = get();
+    return getExecutiveDashboardSummary(supportExecutiveAssignmentHistory);
+  },
+
+  assignSupportExecutive: (customerId, payload) => {
+    const executive = getSupportExecutiveById(
+      payload.executiveId,
+      get().supportExecutiveAssignmentHistory,
+    );
+
+    if (!executive) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const assignedBy = payload.assignedBy ?? "Admin User";
+
+    set((state) => {
+      const previousCurrent = state.supportExecutiveAssignmentHistory.find(
+        (entry) =>
+          entry.customerId === customerId && entry.status === "CURRENT",
+      );
+
+      const updatedHistory = state.supportExecutiveAssignmentHistory.map(
+        (entry) => {
+          if (entry.customerId === customerId && entry.status === "CURRENT") {
+            return {
+              ...entry,
+              status: "PREVIOUS" as const,
+              removedDate: now,
+              removedReason: previousCurrent
+                ? "Executive changed."
+                : entry.removedReason,
+            };
+          }
+
+          return entry;
+        },
+      );
+
+      const newHistoryEntry: SupportExecutiveAssignmentHistoryEntry = {
+        id: `sea-hist-${customerId}-${Date.now()}`,
+        customerId,
+        executiveId: executive.id,
+        executiveName: executive.name,
+        employeeId: executive.employeeId,
+        hubId: executive.hubId,
+        hubName: executive.hubName,
+        assignedBy,
+        reason: payload.reason,
+        priority: payload.priority,
+        notes: payload.notes,
+        assignedDate: now,
+        status: "CURRENT",
+      };
+
+      const customers = state.customers.map((customer) => {
+        if (customer.id !== customerId) {
+          return customer;
+        }
+
+        return {
+          ...customer,
+          supportExecutiveAssignment: {
+            executiveId: executive.id,
+            executiveName: executive.name,
+            employeeId: executive.employeeId,
+            hubId: executive.hubId,
+            hubName: executive.hubName,
+            phone: executive.phone,
+            email: executive.email,
+            reason: payload.reason,
+            priority: payload.priority,
+            notes: payload.notes,
+            assignedDate: now,
+            assignedBy,
+          },
+          activity: {
+            ...customer.activity,
+            executiveAssignedAt: now,
+          },
+        };
+      });
+
+      return {
+        customers,
+        supportExecutiveAssignmentHistory: [...updatedHistory, newHistoryEntry],
+      };
+    });
+  },
+
+  removeSupportExecutive: (customerId, payload) => {
+    const now = new Date().toISOString();
+    const removedBy = payload.removedBy ?? "Admin User";
+
+    set((state) => ({
+      customers: state.customers.map((customer) =>
+        customer.id === customerId
+          ? {
+              ...customer,
+              supportExecutiveAssignment: undefined,
+            }
+          : customer,
+      ),
+      supportExecutiveAssignmentHistory:
+        state.supportExecutiveAssignmentHistory.map((entry) =>
+          entry.customerId === customerId && entry.status === "CURRENT"
+            ? {
+                ...entry,
+                status: "PREVIOUS" as const,
+                removedDate: now,
+                removedReason: payload.reason,
+                notes: entry.notes
+                  ? `${entry.notes}\n\nRemoved by ${removedBy}.`
+                  : `Removed by ${removedBy}.`,
+              }
+            : entry,
+        ),
+    }));
   },
 
   updateCustomer: (customerId, payload) => {

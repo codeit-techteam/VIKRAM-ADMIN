@@ -8,3 +8,11 @@ export { CustomerSummaryCard } from "@/features/user-management/components/Custo
 export { CustomerOrderDrawer } from "@/features/user-management/components/CustomerOrderDrawer";
 export { EditCustomerDrawer } from "@/features/user-management/components/EditCustomerDrawer";
 export { CustomerConfirmationModal } from "@/features/user-management/components/CustomerConfirmationModal";
+export {
+  AssignExecutiveDrawer,
+  AssignmentHistory,
+  ExecutiveCard,
+  ExecutiveSummary,
+  SupportExecutiveSection,
+  RemoveExecutiveConfirmationModal,
+} from "@/features/user-management/components/support-executive";

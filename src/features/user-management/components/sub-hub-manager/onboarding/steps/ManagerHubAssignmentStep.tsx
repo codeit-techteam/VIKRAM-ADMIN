@@ -1,7 +1,7 @@
 "use client";
 
 import { MapPin, Package, Truck, Users } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -40,6 +40,7 @@ export function ManagerHubAssignmentStep() {
   const warehouses = city ? getWarehousesByCity(city) : [];
   const hubs = warehouse ? getHubsByWarehouse(warehouse) : [];
   const selectedHub = hub ? getHubById(hub) : null;
+  const prevHubRef = useRef<string>("");
 
   useEffect(() => {
     if (!hub) return;
@@ -51,7 +52,10 @@ export function ManagerHubAssignmentStep() {
       hubName: hubData.name,
       hubCode: hubData.code ?? "",
     });
-    notify.success("Hub Assigned", `${hubData.name} has been selected.`);
+    if (prevHubRef.current && prevHubRef.current !== hub) {
+      notify.success("Hub Assigned", `${hubData.name} has been selected.`);
+    }
+    prevHubRef.current = hub;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hub]);
 

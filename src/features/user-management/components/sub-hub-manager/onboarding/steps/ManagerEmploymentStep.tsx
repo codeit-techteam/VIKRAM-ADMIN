@@ -23,7 +23,7 @@ import {
 } from "@/mock/manager-onboarding";
 import { useManagerDraftStore } from "@/store/manager-draft-store";
 import { ManagerWizardPreview } from "../ManagerWizardPreview";
-import { FieldWrapper, StepHeader, fieldLabel } from "./ManagerBasicInfoStep";
+import { FieldWrapper, StepHeader } from "./ManagerBasicInfoStep";
 
 export function ManagerEmploymentStep() {
   const { control } = useFormContext<ManagerOnboardingSchema>();

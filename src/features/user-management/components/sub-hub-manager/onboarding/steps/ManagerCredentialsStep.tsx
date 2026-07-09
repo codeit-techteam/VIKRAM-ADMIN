@@ -29,8 +29,6 @@ export function ManagerCredentialsStep() {
     control,
     name: "credentialsGenerated",
   });
-  const username = useWatch({ control, name: "username" });
-  const temporaryPassword = useWatch({ control, name: "temporaryPassword" });
 
   const handleGenerate = () => {
     const nextUsername = generateUsername(fullName || "manager", employeeId);

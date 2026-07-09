@@ -10,6 +10,7 @@ import {
   UserX,
   Zap,
 } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
@@ -24,7 +25,6 @@ import {
 import { ManagerFiltersBar } from "@/features/user-management/components/sub-hub-manager/ManagerFiltersBar";
 import { ManagerTable } from "@/features/user-management/components/sub-hub-manager/ManagerTable";
 import { TransferHubModal } from "@/features/user-management/components/sub-hub-manager/TransferHubModal";
-import { CreateManagerDrawer } from "@/features/user-management/components/sub-hub-manager/CreateManagerDrawer";
 import { Button } from "@/components/ui/button";
 import {
   EMPTY_MANAGER_FILTERS,
@@ -41,7 +41,6 @@ import { notify } from "@/utils/notify";
 export function ManagersPageContent() {
   const queryManagers = useSubHubManagerStore((state) => state.queryManagers);
   const transferHub = useSubHubManagerStore((state) => state.transferHub);
-  const createManager = useSubHubManagerStore((state) => state.createManager);
   const deactivateManager = useSubHubManagerStore(
     (state) => state.deactivateManager,
   );
@@ -61,7 +60,6 @@ export function ManagersPageContent() {
     null,
   );
   const [isTransferOpen, setIsTransferOpen] = useState(false);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setIsLoading(false), 450);
@@ -175,7 +173,7 @@ export function ManagersPageContent() {
             <Button
               type="button"
               className="gap-2"
-              onClick={() => setIsCreateOpen(true)}
+              render={<Link href={ROUTES.SUB_HUB_MANAGER_ADD} />}
             >
               <Plus className="size-4" />
               Create Manager
@@ -341,18 +339,6 @@ export function ManagersPageContent() {
           setTransferManager(null);
         }}
         onTransfer={handleTransfer}
-      />
-
-      <CreateManagerDrawer
-        open={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-        onCreate={(payload) => {
-          createManager(payload);
-          notify.success(
-            "Manager Created",
-            `${payload.name} has been added as a Sub-Hub Manager.`,
-          );
-        }}
       />
     </div>
   );

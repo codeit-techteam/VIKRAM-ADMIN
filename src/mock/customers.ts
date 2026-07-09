@@ -1,4 +1,5 @@
 import type {
+  CustomerDeliveryAddress,
   CustomerExecutive,
   CustomerHub,
   CustomerOrder,
@@ -108,7 +109,9 @@ export const CUSTOMER_EXECUTIVES: CustomerExecutive[] = [
   },
 ];
 
-export const CUSTOMER_SEED: CustomerRecord[] = [
+type CustomerSeedInput = Omit<CustomerRecord, "kycStatus">;
+
+const CUSTOMER_SEED_RAW: CustomerSeedInput[] = [
   {
     id: "cust-001",
     customerId: "BQI-88219",
@@ -116,6 +119,7 @@ export const CUSTOMER_SEED: CustomerRecord[] = [
     phone: "+91 98100 22001",
     email: "rajesh.kumar@tatasteel.com",
     customerType: "BUILDER",
+    designation: "Managing Director",
     status: "ACTIVE",
     registrationDate: daysAgoIso(180),
     address: {
@@ -684,6 +688,59 @@ export const CUSTOMER_SEED: CustomerRecord[] = [
   },
 ];
 
+export const CUSTOMER_SEED: CustomerRecord[] = CUSTOMER_SEED_RAW.map(
+  (customer) => ({
+    ...customer,
+    kycStatus: customer.activity.kycVerifiedAt ? "VERIFIED" : "PENDING",
+  }),
+);
+
+function buildAddress(
+  customer: CustomerSeedInput,
+  overrides: Partial<CustomerDeliveryAddress> = {},
+): CustomerDeliveryAddress {
+  const hub =
+    CUSTOMER_HUBS.find(
+      (entry) =>
+        entry.city === customer.address.city ||
+        entry.state === customer.address.state,
+    ) ?? CUSTOMER_HUBS[0];
+
+  return {
+    id: `addr-${customer.id}-primary`,
+    customerId: customer.id,
+    recipient: customer.name,
+    phone: customer.phone,
+    address: customer.address.primaryAddress,
+    city: customer.address.city,
+    state: customer.address.state,
+    pincode: customer.address.pincode,
+    serviceHubId: hub.id,
+    serviceHubName: hub.name,
+    isDefault: true,
+    ...overrides,
+  };
+}
+
+export const CUSTOMER_ADDRESSES_SEED: CustomerDeliveryAddress[] =
+  CUSTOMER_SEED_RAW.flatMap((customer) => {
+    const primary = buildAddress(customer);
+    const addresses: CustomerDeliveryAddress[] = [primary];
+
+    if (customer.activity.firstOrderAt) {
+      addresses.push(
+        buildAddress(customer, {
+          id: `addr-${customer.id}-site`,
+          recipient: `${customer.name} (Site)`,
+          address: `Site Office, ${customer.address.city}`,
+          isDefault: false,
+        }),
+      );
+    }
+
+    return addresses;
+  });
+
 export const CUSTOMER_ORDERS_SEED: CustomerOrder[] = [
   {
     id: "ord-001",
@@ -709,7 +766,7 @@ export const CUSTOMER_ORDERS_SEED: CustomerOrder[] = [
     customerId: "cust-001",
     date: daysAgoIso(3),
     hubId: "hub-mumbai-central",
-    status: "IN_TRANSIT",
+    status: "OUT_FOR_DELIVERY",
     amount: 156000,
   },
   {
@@ -745,7 +802,7 @@ export const CUSTOMER_ORDERS_SEED: CustomerOrder[] = [
     customerId: "cust-004",
     date: daysAgoIso(1),
     hubId: "hub-mumbai-central",
-    status: "CONFIRMED",
+    status: "PROCESSING",
     amount: 95000,
   },
   {
@@ -835,7 +892,7 @@ export const CUSTOMER_ORDERS_SEED: CustomerOrder[] = [
     customerId: "cust-011",
     date: daysAgoIso(10),
     hubId: "hub-mumbai-central",
-    status: "IN_TRANSIT",
+    status: "OUT_FOR_DELIVERY",
     amount: 72000,
   },
   {
@@ -871,7 +928,7 @@ export const CUSTOMER_ORDERS_SEED: CustomerOrder[] = [
     customerId: "cust-014",
     date: daysAgoIso(4),
     hubId: "hub-mumbai-central",
-    status: "CONFIRMED",
+    status: "PROCESSING",
     amount: 88000,
   },
   {
@@ -934,7 +991,7 @@ export const CUSTOMER_ORDERS_SEED: CustomerOrder[] = [
     customerId: "cust-019",
     date: daysAgoIso(6),
     hubId: "hub-gurgaon-central",
-    status: "IN_TRANSIT",
+    status: "OUT_FOR_DELIVERY",
     amount: 295000,
   },
   {
@@ -988,7 +1045,7 @@ export const CUSTOMER_ORDERS_SEED: CustomerOrder[] = [
     customerId: "cust-024",
     date: daysAgoIso(9),
     hubId: "hub-nagpur-north",
-    status: "CONFIRMED",
+    status: "PROCESSING",
     amount: 36000,
   },
   {

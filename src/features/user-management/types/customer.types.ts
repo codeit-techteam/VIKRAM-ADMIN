@@ -6,11 +6,17 @@ export type CustomerStatus =
 
 export type CustomerOrderStatus =
   | "PENDING"
-  | "CONFIRMED"
+  | "PROCESSING"
+  | "PACKED"
   | "DISPATCHED"
-  | "IN_TRANSIT"
+  | "OUT_FOR_DELIVERY"
   | "DELIVERED"
   | "CANCELLED";
+
+export type CustomerKycStatus = "PENDING" | "VERIFIED" | "REJECTED";
+
+export type CustomerBlockReason =
+  "VIOLATION" | "DUPLICATE" | "FRAUD" | "MANUAL";
 
 export interface CustomerExecutive {
   id: string;
@@ -35,6 +41,50 @@ export interface CustomerAddress {
   pincode: string;
 }
 
+export interface CustomerDeliveryAddress {
+  id: string;
+  customerId: string;
+  recipient: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+  serviceHubId: string;
+  serviceHubName: string;
+  isDefault: boolean;
+}
+
+export interface CustomerOrderProduct {
+  id: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  price: number;
+}
+
+export interface CustomerOrderTimelineEvent {
+  status: CustomerOrderStatus;
+  label: string;
+  timestamp: string;
+  note?: string;
+}
+
+export interface CustomerOrderDriver {
+  name: string;
+  phone: string;
+  vehicleNumber: string;
+}
+
+export interface CustomerOrderDetail extends CustomerOrder {
+  products: CustomerOrderProduct[];
+  timeline: CustomerOrderTimelineEvent[];
+  deliveryAddress: CustomerDeliveryAddress;
+  hub: CustomerHub;
+  executive: CustomerExecutive;
+  driver?: CustomerOrderDriver;
+}
+
 export interface CustomerActivityTimestamps {
   registeredAt: string;
   kycVerifiedAt?: string;
@@ -42,6 +92,7 @@ export interface CustomerActivityTimestamps {
   firstOrderAt?: string;
   latestOrderAt?: string;
   executiveAssignedAt?: string;
+  profileUpdatedAt?: string;
 }
 
 export interface CustomerRecord {
@@ -52,9 +103,14 @@ export interface CustomerRecord {
   email: string;
   customerType: CustomerType;
   status: CustomerStatus;
+  kycStatus: CustomerKycStatus;
   registrationDate: string;
   address: CustomerAddress;
   activity: CustomerActivityTimestamps;
+  designation?: string;
+  imageUrl?: string;
+  blockReason?: CustomerBlockReason;
+  blockedAt?: string;
 }
 
 export interface CustomerOrder {
@@ -97,6 +153,7 @@ export interface CustomerListItem extends CustomerRecord {
 export interface CustomerDetail extends CustomerListItem {
   orders: CustomerOrder[];
   serviceHub: string;
+  deliveryAddresses: CustomerDeliveryAddress[];
 }
 
 export interface CustomerStats {
@@ -142,14 +199,39 @@ export type CustomerActivityEventType =
   | "FIRST_LOGIN"
   | "FIRST_ORDER"
   | "LATEST_ORDER"
-  | "EXECUTIVE_ASSIGNED";
+  | "EXECUTIVE_ASSIGNED"
+  | "PROFILE_UPDATED";
 
 export interface CustomerActivityEvent {
   type: CustomerActivityEventType;
   label: string;
   date: string;
   description?: string;
+  user?: string;
 }
+
+export interface CustomerEditPayload {
+  name: string;
+  phone: string;
+  email: string;
+  customerType: CustomerType;
+  status: CustomerStatus;
+  address: CustomerAddress;
+}
+
+export const CUSTOMER_BLOCK_REASON_LABELS: Record<CustomerBlockReason, string> =
+  {
+    VIOLATION: "Violation",
+    DUPLICATE: "Duplicate",
+    FRAUD: "Fraud",
+    MANUAL: "Manual",
+  };
+
+export const CUSTOMER_KYC_STATUS_LABELS: Record<CustomerKycStatus, string> = {
+  PENDING: "KYC Pending",
+  VERIFIED: "KYC Verified",
+  REJECTED: "KYC Rejected",
+};
 
 export const CUSTOMER_TYPE_LABELS: Record<CustomerType, string> = {
   INDIVIDUAL: "Individual",

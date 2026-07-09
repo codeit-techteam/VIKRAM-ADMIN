@@ -1,4 +1,5 @@
 import {
+  CUSTOMER_ADDRESSES_SEED,
   CUSTOMER_EXECUTIVES,
   CUSTOMER_HUBS,
   CUSTOMER_ORDERS_SEED,
@@ -7,23 +8,73 @@ import {
 import type {
   CustomerActivityEvent,
   CustomerAssignedOperations,
+  CustomerDeliveryAddress,
   CustomerDetail,
+  CustomerEditPayload,
   CustomerExecutive,
   CustomerFilters,
   CustomerHub,
   CustomerListItem,
   CustomerOrder,
+  CustomerOrderDetail,
+  CustomerOrderProduct,
+  CustomerOrderStatus,
   CustomerOrderSummary,
+  CustomerOrderTimelineEvent,
   CustomerQueryParams,
   CustomerQueryResult,
   CustomerRecord,
   CustomerStats,
 } from "@/features/user-management/types/customer.types";
 
-const ACTIVE_ORDER_STATUSES = new Set(["DELIVERED", "CANCELLED"]);
+const TERMINAL_ORDER_STATUSES = new Set<CustomerOrderStatus>([
+  "DELIVERED",
+  "CANCELLED",
+]);
+
+const ORDER_STATUS_FLOW: CustomerOrderStatus[] = [
+  "PENDING",
+  "PROCESSING",
+  "PACKED",
+  "DISPATCHED",
+  "OUT_FOR_DELIVERY",
+  "DELIVERED",
+];
+
+const PRODUCT_TEMPLATES = [
+  { name: "Portland Cement 50kg", unit: "bags", basePrice: 380 },
+  { name: "TMT Steel Bars 12mm", unit: "tons", basePrice: 62000 },
+  { name: "River Sand", unit: "cubic ft", basePrice: 55 },
+  { name: "AAC Blocks 600x200", unit: "pieces", basePrice: 78 },
+  { name: "Ready Mix Concrete M25", unit: "cubic m", basePrice: 4800 },
+  { name: "Waterproofing Compound", unit: "litres", basePrice: 420 },
+];
+
+const DRIVER_TEMPLATES = [
+  {
+    name: "Ramesh Yadav",
+    phone: "+91 98765 11101",
+    vehicleNumber: "MH-12-AB-1234",
+  },
+  {
+    name: "Suresh Patil",
+    phone: "+91 98765 11102",
+    vehicleNumber: "MH-14-CD-5678",
+  },
+  {
+    name: "Ajay Singh",
+    phone: "+91 98765 11103",
+    vehicleNumber: "DL-01-EF-9012",
+  },
+  {
+    name: "Vikram Reddy",
+    phone: "+91 98765 11104",
+    vehicleNumber: "KA-05-GH-3456",
+  },
+];
 
 function isActiveOrder(status: CustomerOrder["status"]): boolean {
-  return !ACTIVE_ORDER_STATUSES.has(status);
+  return !TERMINAL_ORDER_STATUSES.has(status);
 }
 
 function getHubById(
@@ -47,6 +98,27 @@ function getCustomerOrders(
   return orders
     .filter((order) => order.customerId === customerId)
     .sort((left, right) => right.date.localeCompare(left.date));
+}
+
+function getCustomerAddresses(
+  customerId: string,
+  addresses: CustomerDeliveryAddress[],
+): CustomerDeliveryAddress[] {
+  return addresses
+    .filter((address) => address.customerId === customerId)
+    .sort((left, right) => Number(right.isDefault) - Number(left.isDefault));
+}
+
+export function getNearestHub(
+  city: string,
+  state: string,
+  hubs: CustomerHub[] = CUSTOMER_HUBS,
+): CustomerHub {
+  return (
+    hubs.find((hub) => hub.city.toLowerCase() === city.toLowerCase()) ??
+    hubs.find((hub) => hub.state.toLowerCase() === state.toLowerCase()) ??
+    hubs[0]
+  );
 }
 
 function computeOrderSummary(orders: CustomerOrder[]): CustomerOrderSummary {
@@ -95,6 +167,135 @@ function computeAssignedOperations(
     executiveName: executive?.name ?? "Not Assigned",
     executiveContact: executive?.phone,
     isAssigned: Boolean(hub && executive),
+  };
+}
+
+function hashString(value: string): number {
+  return value.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+}
+
+function buildOrderProducts(order: CustomerOrder): CustomerOrderProduct[] {
+  const count = 2 + (hashString(order.id) % 3);
+  const startIndex = hashString(order.orderId) % PRODUCT_TEMPLATES.length;
+
+  return Array.from({ length: count }, (_, index) => {
+    const template =
+      PRODUCT_TEMPLATES[(startIndex + index) % PRODUCT_TEMPLATES.length];
+    const quantity = 5 + ((hashString(order.id + index) % 20) + 1);
+
+    return {
+      id: `${order.id}-product-${index}`,
+      name: template.name,
+      quantity,
+      unit: template.unit,
+      price: template.basePrice * quantity,
+    };
+  });
+}
+
+function buildOrderTimeline(
+  order: CustomerOrder,
+): CustomerOrderTimelineEvent[] {
+  if (order.status === "CANCELLED") {
+    return [
+      {
+        status: "PENDING",
+        label: "Order Placed",
+        timestamp: order.date,
+      },
+      {
+        status: "CANCELLED",
+        label: "Order Cancelled",
+        timestamp: order.date,
+        note: "Cancelled before dispatch.",
+      },
+    ];
+  }
+
+  const statusIndex = ORDER_STATUS_FLOW.indexOf(order.status);
+  const events = ORDER_STATUS_FLOW.slice(0, Math.max(statusIndex + 1, 1)).map(
+    (status, index) => {
+      const timestamp = new Date(order.date);
+      timestamp.setHours(timestamp.getHours() + index * 6);
+
+      const labels: Record<CustomerOrderStatus, string> = {
+        PENDING: "Order Placed",
+        PROCESSING: "Order Processing",
+        PACKED: "Order Packed",
+        DISPATCHED: "Dispatched from Hub",
+        OUT_FOR_DELIVERY: "Out for Delivery",
+        DELIVERED: "Delivered",
+        CANCELLED: "Cancelled",
+      };
+
+      return {
+        status,
+        label: labels[status],
+        timestamp: timestamp.toISOString(),
+      };
+    },
+  );
+
+  return events;
+}
+
+export function getOrderDetail(
+  orderId: string,
+  orders: CustomerOrder[],
+  customers: CustomerRecord[],
+  addresses: CustomerDeliveryAddress[],
+  hubs: CustomerHub[] = CUSTOMER_HUBS,
+  executives: CustomerExecutive[] = CUSTOMER_EXECUTIVES,
+): CustomerOrderDetail | null {
+  const order = orders.find(
+    (entry) => entry.id === orderId || entry.orderId === orderId,
+  );
+
+  if (!order) {
+    return null;
+  }
+
+  const customer = customers.find((entry) => entry.id === order.customerId);
+
+  if (!customer) {
+    return null;
+  }
+
+  const hub = getHubById(order.hubId, hubs);
+  const executive = getExecutiveByHubId(order.hubId, executives);
+  const customerAddresses = getCustomerAddresses(order.customerId, addresses);
+  const deliveryAddress = customerAddresses.find(
+    (address) => address.isDefault,
+  ) ??
+    customerAddresses[0] ?? {
+      id: `addr-${customer.id}-fallback`,
+      customerId: customer.id,
+      recipient: customer.name,
+      phone: customer.phone,
+      address: customer.address.primaryAddress,
+      city: customer.address.city,
+      state: customer.address.state,
+      pincode: customer.address.pincode,
+      serviceHubId: hub?.id ?? hubs[0].id,
+      serviceHubName: hub?.name ?? hubs[0].name,
+      isDefault: true,
+    };
+
+  const driver =
+    order.status === "DISPATCHED" ||
+    order.status === "OUT_FOR_DELIVERY" ||
+    order.status === "DELIVERED"
+      ? DRIVER_TEMPLATES[hashString(order.id) % DRIVER_TEMPLATES.length]
+      : undefined;
+
+  return {
+    ...order,
+    products: buildOrderProducts(order),
+    timeline: buildOrderTimeline(order),
+    deliveryAddress,
+    hub: hub ?? hubs[0],
+    executive: executive ?? executives[0],
+    driver,
   };
 }
 
@@ -268,6 +469,7 @@ export function getCustomerDetail(
   customerId: string,
   customers: CustomerRecord[],
   orders: CustomerOrder[],
+  addresses: CustomerDeliveryAddress[] = CUSTOMER_ADDRESSES_SEED,
   hubs: CustomerHub[] = CUSTOMER_HUBS,
   executives: CustomerExecutive[] = CUSTOMER_EXECUTIVES,
 ): CustomerDetail | null {
@@ -281,13 +483,15 @@ export function getCustomerDetail(
 
   const enriched = enrichCustomer(customer, orders, hubs, executives);
   const customerOrders = getCustomerOrders(customer.id, orders);
+  const deliveryAddresses = getCustomerAddresses(customer.id, addresses);
 
   return {
     ...enriched,
     orders: customerOrders,
+    deliveryAddresses,
     serviceHub: enriched.assignedOperations.isAssigned
       ? enriched.assignedOperations.hubName
-      : "Awaiting first order",
+      : getNearestHub(customer.address.city, customer.address.state, hubs).name,
   };
 }
 
@@ -297,9 +501,10 @@ export function buildCustomerActivityTimeline(
   const events: CustomerActivityEvent[] = [
     {
       type: "REGISTERED",
-      label: "Registered",
+      label: "Customer Registered",
       date: customer.activity.registeredAt,
       description: "Customer account created on the platform.",
+      user: "System",
     },
   ];
 
@@ -309,6 +514,7 @@ export function buildCustomerActivityTimeline(
       label: "KYC Verified",
       date: customer.activity.kycVerifiedAt,
       description: "Identity verification completed.",
+      user: "Compliance Team",
     });
   }
 
@@ -318,6 +524,7 @@ export function buildCustomerActivityTimeline(
       label: "First Login",
       date: customer.activity.firstLoginAt,
       description: "Customer opened the mobile app for the first time.",
+      user: customer.name,
     });
   }
 
@@ -327,6 +534,7 @@ export function buildCustomerActivityTimeline(
       label: "First Order",
       date: customer.activity.firstOrderAt,
       description: "First order placed on the platform.",
+      user: customer.name,
     });
   }
 
@@ -336,6 +544,7 @@ export function buildCustomerActivityTimeline(
       label: "Executive Assigned",
       date: customer.activity.executiveAssignedAt,
       description: `Assigned to ${customer.assignedExecutive} at ${customer.assignedHub}.`,
+      user: "System",
     });
   }
 
@@ -348,10 +557,43 @@ export function buildCustomerActivityTimeline(
       label: "Latest Order",
       date: customer.activity.latestOrderAt,
       description: "Most recent order placed.",
+      user: customer.name,
+    });
+  }
+
+  if (customer.activity.profileUpdatedAt) {
+    events.push({
+      type: "PROFILE_UPDATED",
+      label: "Profile Updated",
+      date: customer.activity.profileUpdatedAt,
+      description: "Customer profile details were updated by admin.",
+      user: "Admin",
     });
   }
 
   return events.sort((left, right) => left.date.localeCompare(right.date));
+}
+
+export function generateTemporaryPassword(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  return Array.from({ length: 10 }, () =>
+    chars.charAt(Math.floor(Math.random() * chars.length)),
+  ).join("");
+}
+
+export function applyCustomerEdit(
+  customer: CustomerRecord,
+  payload: CustomerEditPayload,
+): CustomerRecord {
+  return {
+    ...customer,
+    ...payload,
+    address: { ...payload.address },
+    activity: {
+      ...customer.activity,
+      profileUpdatedAt: new Date().toISOString(),
+    },
+  };
 }
 
 export function getFilterOptions(
@@ -376,6 +618,7 @@ export function getFilterOptions(
 export {
   CUSTOMER_SEED,
   CUSTOMER_ORDERS_SEED,
+  CUSTOMER_ADDRESSES_SEED,
   CUSTOMER_HUBS,
   CUSTOMER_EXECUTIVES,
 };

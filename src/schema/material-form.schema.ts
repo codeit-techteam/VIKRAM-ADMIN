@@ -15,70 +15,73 @@ export const materialSkuSchema = z.object({
   status: z.enum(["active", "inactive"]),
 });
 
-export const materialFormSchema = z
-  .object({
-    materialName: z.string().min(1, "Material name is required"),
-    productDisplayName: z.string(),
-    shortDescription: z.string(),
-    longDescription: z.string(),
-    mainImage: z
-      .object({
-        id: z.string(),
-        url: z.string(),
-        name: z.string(),
-        isMain: z.boolean().optional(),
-      })
-      .nullable(),
-    galleryImages: z.array(
-      z.object({
-        id: z.string(),
-        url: z.string(),
-        name: z.string(),
-        isMain: z.boolean().optional(),
-      }),
-    ),
-    brand: z.string(),
-    manufacturer: z.string(),
-    hsnCode: z.string(),
-    gstPercent: z.number().min(0).max(100),
-    productStatus: z.enum(["active", "inactive", "draft"]),
+export const materialFormBaseSchema = z.object({
+  materialName: z.string().min(1, "Material name is required"),
+  productDisplayName: z.string(),
+  shortDescription: z.string(),
+  longDescription: z.string(),
+  mainImage: z
+    .object({
+      id: z.string(),
+      url: z.string(),
+      name: z.string(),
+      isMain: z.boolean().optional(),
+    })
+    .nullable(),
+  galleryImages: z.array(
+    z.object({
+      id: z.string(),
+      url: z.string(),
+      name: z.string(),
+      isMain: z.boolean().optional(),
+    }),
+  ),
+  brand: z.string(),
+  manufacturer: z.string(),
+  hsnCode: z.string(),
+  gstPercent: z.number().min(0).max(100),
+  productStatus: z.enum(["active", "inactive", "draft"]),
 
-    category: z.string().min(1, "Category is required"),
-    subCategory: z.string(),
-    tags: z.array(z.string()),
-    searchKeywords: z.string(),
+  category: z.string().min(1, "Category is required"),
+  subCategory: z.string(),
+  tags: z.array(z.string()),
+  searchKeywords: z.string(),
 
-    skus: z.array(materialSkuSchema).min(1, "At least one SKU is required"),
+  skus: z.array(materialSkuSchema).min(1, "At least one SKU is required"),
 
-    purchasePrice: z.number().min(0, "Purchase price is required"),
-    sellingPrice: z.number().min(0),
-    dealerPrice: z.number().min(0),
-    bulkPrice: z.number().min(0),
-    minimumOrderQuantity: z.number().min(0),
-    maximumOrderQuantity: z.number().min(0),
-    discountPercent: z.number().min(0).max(100),
-    gstIncluded: z.boolean(),
+  purchasePrice: z.number().min(0, "Purchase price is required"),
+  sellingPrice: z.number().min(0),
+  dealerPrice: z.number().min(0),
+  bulkPrice: z.number().min(0),
+  minimumOrderQuantity: z.number().min(0),
+  maximumOrderQuantity: z.number().min(0),
+  discountPercent: z.number().min(0).max(100),
+  gstIncluded: z.boolean(),
 
-    warehouse: z.string().min(1, "Warehouse is required"),
-    defaultLocation: z.string(),
-    rackNumber: z.string(),
-    binNumber: z.string(),
-    shelfNumber: z.string(),
-    openingStock: z.number().min(0, "Opening stock is required"),
-    warehouseMinimumStock: z.number().min(0),
-    warehouseMaximumStock: z.number().min(0),
-    reorderLevel: z.number().min(0),
-    lowStockAlert: z.boolean(),
-    allowInventoryTracking: z.enum(["yes", "no"]),
-  })
-  .refine((data) => data.purchasePrice > 0, {
+  warehouse: z.string().min(1, "Warehouse is required"),
+  defaultLocation: z.string(),
+  rackNumber: z.string(),
+  binNumber: z.string(),
+  shelfNumber: z.string(),
+  openingStock: z.number().min(0, "Opening stock is required"),
+  warehouseMinimumStock: z.number().min(0),
+  warehouseMaximumStock: z.number().min(0),
+  reorderLevel: z.number().min(0),
+  lowStockAlert: z.boolean(),
+  allowInventoryTracking: z.enum(["yes", "no"]),
+});
+
+export const materialFormSchema = materialFormBaseSchema.refine(
+  (data) => data.purchasePrice > 0,
+  {
     message: "Purchase price is required",
     path: ["purchasePrice"],
-  });
+  },
+);
 
 export type MaterialFormSchema = z.infer<typeof materialFormSchema>;
 
-export const step1Schema = materialFormSchema.pick({
+export const step1Schema = materialFormBaseSchema.pick({
   materialName: true,
   productDisplayName: true,
   shortDescription: true,
@@ -92,18 +95,18 @@ export const step1Schema = materialFormSchema.pick({
   productStatus: true,
 });
 
-export const step2Schema = materialFormSchema.pick({
+export const step2Schema = materialFormBaseSchema.pick({
   category: true,
   subCategory: true,
   tags: true,
   searchKeywords: true,
 });
 
-export const step3Schema = materialFormSchema.pick({
+export const step3Schema = materialFormBaseSchema.pick({
   skus: true,
 });
 
-export const step4Schema = materialFormSchema
+export const step4Schema = materialFormBaseSchema
   .pick({
     purchasePrice: true,
     sellingPrice: true,
@@ -119,7 +122,7 @@ export const step4Schema = materialFormSchema
     path: ["purchasePrice"],
   });
 
-export const step5Schema = materialFormSchema.pick({
+export const step5Schema = materialFormBaseSchema.pick({
   warehouse: true,
   defaultLocation: true,
   rackNumber: true,

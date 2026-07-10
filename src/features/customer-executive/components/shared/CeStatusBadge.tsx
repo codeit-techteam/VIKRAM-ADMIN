@@ -67,12 +67,16 @@ interface CeStatusBadgeProps extends VariantProps<
   status: CeStatus;
   label?: string;
   className?: string;
+  filterHref?: string;
+  onFilterClick?: () => void;
 }
 
 export function CeStatusBadge({
   status,
   label,
   className,
+  filterHref,
+  onFilterClick,
 }: CeStatusBadgeProps) {
   const displayLabel =
     label ??
@@ -82,11 +86,50 @@ export function CeStatusBadge({
         ? "APP"
         : status.replace(/_/g, " "));
 
-  return (
-    <span className={cn(ceStatusBadgeVariants({ variant: status }), className)}>
+  const badge = (
+    <span
+      className={cn(
+        ceStatusBadgeVariants({ variant: status }),
+        (filterHref || onFilterClick) &&
+          "cursor-pointer transition-opacity hover:opacity-80",
+        className,
+      )}
+    >
       {displayLabel}
     </span>
   );
+
+  if (filterHref) {
+    return (
+      <a
+        href={filterHref}
+        onClick={(event) => {
+          event.stopPropagation();
+          onFilterClick?.();
+        }}
+        className="inline-flex"
+      >
+        {badge}
+      </a>
+    );
+  }
+
+  if (onFilterClick) {
+    return (
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onFilterClick();
+        }}
+        className="inline-flex"
+      >
+        {badge}
+      </button>
+    );
+  }
+
+  return badge;
 }
 
 export function CeOrderSourceBadge({

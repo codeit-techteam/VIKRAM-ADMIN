@@ -78,8 +78,16 @@ export function CePaymentsPage() {
 
   useEffect(() => {
     const orderParam = searchParams.get("order");
-    if (orderParam) {
-      const filters = { ...EMPTY_PAYMENT_FILTERS, search: orderParam };
+    const statusParam = searchParams.get("status");
+
+    if (orderParam || statusParam) {
+      const filters: CePaymentFilters = {
+        ...EMPTY_PAYMENT_FILTERS,
+        ...(orderParam ? { search: orderParam } : {}),
+        ...(statusParam
+          ? { status: statusParam.toUpperCase() as CePaymentFilters["status"] }
+          : {}),
+      };
       setDraftFilters(filters);
       setAppliedFilters(filters);
       setCurrentPage(1);

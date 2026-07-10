@@ -119,19 +119,59 @@ interface OrderStatusBadgeProps {
   label?: string;
   className?: string;
   variant?: never;
+  filterHref?: string;
+  onFilterClick?: () => void;
 }
 
 type StatusBadgeProps = AuthStatusBadgeProps | OrderStatusBadgeProps;
 
 export function StatusBadge(props: StatusBadgeProps) {
   if ("status" in props && props.status) {
-    const { status, label, className } = props;
-
-    return (
-      <span className={cn(statusBadgeVariants({ variant: status }), className)}>
+    const { status, label, className, filterHref, onFilterClick } = props;
+    const badge = (
+      <span
+        className={cn(
+          statusBadgeVariants({ variant: status }),
+          (filterHref || onFilterClick) &&
+            "cursor-pointer transition-opacity hover:opacity-80",
+          className,
+        )}
+      >
         {label ?? status}
       </span>
     );
+
+    if (filterHref) {
+      return (
+        <a
+          href={filterHref}
+          onClick={(event) => {
+            event.stopPropagation();
+            onFilterClick?.();
+          }}
+          className="inline-flex"
+        >
+          {badge}
+        </a>
+      );
+    }
+
+    if (onFilterClick) {
+      return (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onFilterClick();
+          }}
+          className="inline-flex"
+        >
+          {badge}
+        </button>
+      );
+    }
+
+    return badge;
   }
 
   const { label, variant = "success", className } = props;

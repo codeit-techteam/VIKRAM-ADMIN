@@ -24,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { NAV_FILTER_PRESETS } from "@/constants/navigation-filters";
 import type { RecentOrder } from "@/features/dashboard/types/dashboard.types";
 import { cn } from "@/lib/utils";
 
@@ -50,40 +51,101 @@ export function RecentOrdersTable({
       }),
       columnHelper.accessor("customer", {
         header: "Customer",
-        cell: (info) => (
-          <span className="text-[#64748B]">{info.getValue()}</span>
-        ),
+        cell: (info) => {
+          const row = info.row.original;
+          return row.customerId ? (
+            <Link
+              href={NAV_FILTER_PRESETS.customerDetail(row.customerId)}
+              className="hover:text-primary text-[#64748B] hover:underline"
+              onClick={(event) => event.stopPropagation()}
+            >
+              {info.getValue()}
+            </Link>
+          ) : (
+            <span className="text-[#64748B]">{info.getValue()}</span>
+          );
+        },
       }),
       columnHelper.accessor("source", {
         header: "Source",
-        cell: (info) => <StatusBadge status={info.getValue()} />,
+        cell: (info) => {
+          const source = info.getValue();
+          const filterHref =
+            source === "Exec"
+              ? NAV_FILTER_PRESETS.ordersBySource("EXECUTIVE")
+              : NAV_FILTER_PRESETS.ordersBySource("APP");
+
+          return <StatusBadge status={source} filterHref={filterHref} />;
+        },
       }),
       columnHelper.accessor("assignedHub", {
         header: "Assigned Hub",
-        cell: (info) => (
-          <span className="text-[#64748B]">{info.getValue()}</span>
-        ),
+        cell: (info) => {
+          const row = info.row.original;
+          return row.hubId ? (
+            <Link
+              href={NAV_FILTER_PRESETS.hubDetail(row.hubId)}
+              className="hover:text-primary text-[#64748B] hover:underline"
+              onClick={(event) => event.stopPropagation()}
+            >
+              {info.getValue()}
+            </Link>
+          ) : (
+            <span className="text-[#64748B]">{info.getValue()}</span>
+          );
+        },
       }),
       columnHelper.accessor("paymentStatus", {
         header: "Payment",
         cell: (info) => {
           const status = info.getValue();
+          const filterHref =
+            status === "PENDING"
+              ? NAV_FILTER_PRESETS.paymentsPending()
+              : undefined;
 
-          return (
+          const content = (
             <span
               className={cn(
                 "text-xs font-semibold tracking-wide uppercase",
                 status === "PAID" ? "text-green-600" : "text-red-600",
+                filterHref && "hover:underline",
               )}
             >
               {status}
             </span>
           );
+
+          if (filterHref) {
+            return (
+              <Link
+                href={filterHref}
+                onClick={(event) => event.stopPropagation()}
+              >
+                {content}
+              </Link>
+            );
+          }
+
+          return content;
         },
       }),
       columnHelper.accessor("status", {
         header: "Status",
-        cell: (info) => <StatusBadge status={info.getValue()} />,
+        cell: (info) => {
+          const status = info.getValue();
+          const statusMap: Record<string, string> = {
+            PROCESSING: "ACTIVE",
+            DISPATCHED: "IN_TRANSIT",
+            DELIVERED: "DELIVERED",
+            "AWAITING HUB": "HUB_PROCESSING",
+          };
+          const filterHref = NAV_FILTER_PRESETS.ordersByStatus(
+            statusMap[status] ?? "ALL",
+          );
+
+          return <StatusBadge status={status} filterHref={filterHref} />;
+        },
       }),
       columnHelper.display({
         id: "actions",
@@ -116,12 +178,12 @@ export function RecentOrdersTable({
     <DashboardCard
       title="Recent Orders"
       action={
-        <button
-          type="button"
+        <Link
+          href={NAV_FILTER_PRESETS.ordersAll()}
           className="text-primary text-sm font-medium hover:underline"
         >
-          Download Master Sheet
-        </button>
+          View All Orders
+        </Link>
       }
       contentClassName="mt-6"
     >

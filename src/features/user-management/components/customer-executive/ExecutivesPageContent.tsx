@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -33,6 +34,7 @@ import { useCustomerStore } from "@/store/customer-store";
 import { notify } from "@/utils/notify";
 
 export function ExecutivesPageContent() {
+  const searchParams = useSearchParams();
   const queryExecutives = useCustomerStore((state) => state.queryExecutives);
   const customers = useCustomerStore((state) => state.customers);
   const orders = useCustomerStore((state) => state.orders);
@@ -53,6 +55,19 @@ export function ExecutivesPageContent() {
     const timer = window.setTimeout(() => setIsLoading(false), 450);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    const statusParam = searchParams.get("status");
+    if (statusParam) {
+      const filters: ExecutiveFilters = {
+        ...EMPTY_EXECUTIVE_FILTERS,
+        status: statusParam.toLowerCase(),
+      };
+      setDraftFilters(filters);
+      setAppliedFilters(filters);
+      setCurrentPage(1);
+    }
+  }, [searchParams]);
 
   const queryResult = useMemo(
     () =>

@@ -35,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ROUTES } from "@/constants/routes";
+import { NAV_FILTER_PRESETS } from "@/constants/navigation-filters";
 import { CeMetricCard } from "@/features/customer-executive/components/shared/CeMetricCard";
 import { CePageShell } from "@/features/customer-executive/components/shared/CePageShell";
 import { CeStatusBadge } from "@/features/customer-executive/components/shared/CeStatusBadge";
@@ -185,6 +186,7 @@ export function CeDashboardPage() {
             icon={Clock}
             iconContainerClassName="bg-blue-50"
             iconClassName="text-blue-600"
+            href={`${ROUTES.CUSTOMER_EXECUTIVE}/complaints`}
           />
         </div>
       )}
@@ -228,7 +230,13 @@ export function CeDashboardPage() {
                   </TableHeader>
                   <TableBody>
                     {recentOrders.items.map((order) => (
-                      <TableRow key={order.id}>
+                      <TableRow
+                        key={order.id}
+                        className="cursor-pointer hover:bg-orange-50/30"
+                        onClick={() =>
+                          router.push(NAV_FILTER_PRESETS.orderDetail(order.id))
+                        }
+                      >
                         <TableCell>
                           <span className="text-primary font-medium">
                             #{order.orderNumber}
@@ -244,10 +252,20 @@ export function CeDashboardPage() {
                         </TableCell>
                         <TableCell>{formatCurrency(order.amount)}</TableCell>
                         <TableCell>
-                          <CeStatusBadge status={order.status} />
+                          <CeStatusBadge
+                            status={order.status}
+                            filterHref={NAV_FILTER_PRESETS.ordersByStatus(
+                              order.status,
+                            )}
+                          />
                         </TableCell>
                         <TableCell>
-                          <CeStatusBadge status={order.orderSource} />
+                          <CeStatusBadge
+                            status={order.orderSource}
+                            filterHref={NAV_FILTER_PRESETS.ordersBySource(
+                              order.orderSource,
+                            )}
+                          />
                         </TableCell>
                         <TableCell className="text-sm text-[#64748B]">
                           {new Date(order.createdAt).toLocaleDateString(
@@ -343,7 +361,11 @@ export function CeDashboardPage() {
                 </TableHeader>
                 <TableBody>
                   {pendingPayments.map((payment) => (
-                    <TableRow key={payment.id}>
+                    <TableRow
+                      key={payment.id}
+                      className="cursor-pointer hover:bg-orange-50/30"
+                      onClick={() => setPaymentDrawer(payment)}
+                    >
                       <TableCell>
                         <p className="font-medium">{payment.customerName}</p>
                         <p className="text-xs text-[#64748B]">

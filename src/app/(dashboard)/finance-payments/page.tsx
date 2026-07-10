@@ -1,17 +1,11 @@
-import { DevModuleScreen } from "@/components/shared/DevModuleScreen";
+import type { Metadata } from "next";
 
-export default function FinancePaymentsPage() {
-  return (
-    <DevModuleScreen
-      title="Finance & Payments"
-      subtitle="Manage invoices, settlements, GST compliance, and payment reconciliation."
-      features={[
-        "Invoices",
-        "Payment Gateway",
-        "Settlements",
-        "GST Reports",
-        "Refund Management",
-      ]}
-    />
-  );
+import { FinancePaymentsPage } from "@/features/finance/components/FinancePaymentsPage";
+
+export const metadata: Metadata = {
+  title: "Finance & Payments",
+};
+
+export default function FinancePaymentsRoute() {
+  return <FinancePaymentsPage />;
 }

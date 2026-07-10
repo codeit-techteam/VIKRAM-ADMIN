@@ -10,6 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { AssignHubDialog } from "@/features/user-management/components/AssignHubDialog";
 import { CustomerBulkActionsBar } from "@/features/user-management/components/CustomerBulkActionsBar";
@@ -35,6 +36,7 @@ import { useCustomerStore } from "@/store/customer-store";
 import { notify } from "@/utils/notify";
 
 export function CustomersPageContent() {
+  const searchParams = useSearchParams();
   const queryCustomers = useCustomerStore((state) => state.queryCustomers);
   const customers = useCustomerStore((state) => state.customers);
   const orders = useCustomerStore((state) => state.orders);
@@ -74,6 +76,24 @@ export function CustomersPageContent() {
     const timer = window.setTimeout(() => setIsLoading(false), 500);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    const statusParam = searchParams.get("status");
+    const kycParam = searchParams.get("kyc");
+
+    if (statusParam || kycParam) {
+      const filters: CustomerFilters = {
+        ...EMPTY_CUSTOMER_FILTERS,
+        ...(statusParam ? { status: statusParam.toUpperCase() } : {}),
+      };
+      if (kycParam) {
+        filters.search = `kyc:${kycParam.toUpperCase()}`;
+      }
+      setDraftFilters(filters);
+      setAppliedFilters(filters);
+      setCurrentPage(1);
+    }
+  }, [searchParams]);
 
   const queryResult = useMemo(
     () =>

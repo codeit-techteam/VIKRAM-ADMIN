@@ -12,15 +12,15 @@ export const SUB_HUB_NETWORK_NAV_CHILDREN: NavChildItem[] = [
   },
   {
     label: "Hub Requisitions",
-    href: `${ROUTES.CENTRAL_WAREHOUSE}/requisitions`,
+    href: ROUTES.HUB_REQUISITIONS,
   },
   {
     label: "Hub Transfers",
-    href: `${ROUTES.CENTRAL_WAREHOUSE}/transfers`,
+    href: ROUTES.HUB_TRANSFERS,
   },
   {
     label: "Dispatch Logs",
-    href: `${ROUTES.CENTRAL_WAREHOUSE}/dispatch`,
+    href: ROUTES.HUB_DISPATCH_LOGS,
   },
   {
     label: "Add New Hub",

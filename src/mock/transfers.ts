@@ -750,6 +750,8 @@ function applyTransferFilters(
   return transfers.filter((transfer) => {
     if (filters.status === "delayed") {
       if (!isTransferDelayed(transfer)) return false;
+    } else if (filters.status === "WAITING_HUB_ACCEPTANCE") {
+      if (transfer.status !== "TRANSFER_CREATED") return false;
     } else if (filters.status !== "all" && transfer.status !== filters.status) {
       return false;
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { Clock } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { DashboardCard } from "@/components/shared/DashboardCard";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -17,6 +18,8 @@ export function NotificationCenter({
   notifications,
   isLoading,
 }: NotificationCenterProps) {
+  const router = useRouter();
+
   return (
     <DashboardCard
       title="Notification Center"
@@ -51,6 +54,11 @@ export function NotificationCenter({
               time={notification.time}
               type={notification.type}
               isUnread={notification.isUnread}
+              onClick={
+                notification.href
+                  ? () => router.push(notification.href!)
+                  : undefined
+              }
             />
           ))}
         </div>

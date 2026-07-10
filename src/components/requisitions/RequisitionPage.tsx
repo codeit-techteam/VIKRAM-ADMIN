@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { RequisitionAdvancedFilter } from "@/components/requisitions/RequisitionAdvancedFilter";
 import { RequisitionDetailDrawer } from "@/components/requisitions/RequisitionDetailDrawer";
@@ -24,6 +25,7 @@ import type {
 import { notify } from "@/utils/notify";
 
 export function RequisitionPage() {
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const requisitions = useWarehouseErpStore((state) => state.requisitions);
   const approveRequisition = useWarehouseErpStore(
@@ -51,6 +53,24 @@ export function RequisitionPage() {
     const timer = window.setTimeout(() => setIsLoading(false), 600);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    const statusParam = searchParams.get("status");
+    const hubParam = searchParams.get("hub");
+    const typeParam = searchParams.get("type");
+
+    if (statusParam?.toUpperCase() === "PENDING" || typeParam === "hub") {
+      setActiveChip("pending");
+    }
+
+    if (hubParam) {
+      setAdvancedFilters((current) => ({
+        ...current,
+        hubId: hubParam,
+      }));
+      setCurrentPage(1);
+    }
+  }, [searchParams]);
 
   const queryResult = useMemo(
     () =>

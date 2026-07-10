@@ -30,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ROUTES } from "@/constants/routes";
+import { NAV_FILTER_PRESETS } from "@/constants/navigation-filters";
 import { CeMetricCard } from "@/features/customer-executive/components/shared/CeMetricCard";
 import { CePageShell } from "@/features/customer-executive/components/shared/CePageShell";
 import { CeSearchFilter } from "@/features/customer-executive/components/shared/CeSearchFilter";
@@ -61,8 +62,23 @@ export function CeOrdersPage() {
 
   useEffect(() => {
     const orderParam = searchParams.get("order");
-    if (orderParam) {
-      const filters = { ...EMPTY_ORDER_FILTERS, search: orderParam };
+    const statusParam = searchParams.get("status");
+    const sourceParam = searchParams.get("orderSource");
+
+    if (orderParam || statusParam || sourceParam) {
+      const filters: CeOrderFilters = {
+        ...EMPTY_ORDER_FILTERS,
+        ...(orderParam ? { search: orderParam } : {}),
+        ...(statusParam
+          ? { status: statusParam.toUpperCase() as CeOrderFilters["status"] }
+          : {}),
+        ...(sourceParam
+          ? {
+              orderSource:
+                sourceParam.toUpperCase() as CeOrderFilters["orderSource"],
+            }
+          : {}),
+      };
       setDraftFilters(filters);
       setAppliedFilters(filters);
       setCurrentPage(1);
@@ -111,16 +127,19 @@ export function CeOrdersPage() {
           label="Active Orders"
           value={stats.active}
           isLoading={isLoading}
+          href={NAV_FILTER_PRESETS.ordersByStatus("ACTIVE")}
         />
         <CeMetricCard
           label="In Transit"
           value={stats.inTransit}
           isLoading={isLoading}
+          href={NAV_FILTER_PRESETS.ordersByStatus("IN_TRANSIT")}
         />
         <CeMetricCard
           label="Delivered"
           value={stats.delivered}
           isLoading={isLoading}
+          href={NAV_FILTER_PRESETS.ordersByStatus("DELIVERED")}
         />
         <CeMetricCard
           label="Cancelled"

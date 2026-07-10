@@ -1,7 +1,8 @@
 "use client";
 
 import { MoreVertical, Plus, User, Users } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Pagination } from "@/components/shared/Pagination";
@@ -47,6 +48,7 @@ import type { LogisticsDriver, DriverFilters } from "@/types/logistics.types";
 import { notify } from "@/utils/notify";
 
 export function FleetDriversPage() {
+  const searchParams = useSearchParams();
   const { isLoading } = useLogisticsLoading();
   const drivers = useLogisticsStore((s) => s.drivers);
   const deleteDriver = useLogisticsStore((s) => s.deleteDriver);
@@ -61,6 +63,16 @@ export function FleetDriversPage() {
   const [detailDriver, setDetailDriver] = useState<LogisticsDriver | null>(
     null,
   );
+
+  useEffect(() => {
+    const idParam = searchParams.get("id");
+    if (!idParam) return;
+    const match = drivers.find((d) => d.id === idParam);
+    if (match) {
+      setDetailDriver(match);
+      setFilters((current) => ({ ...current, search: match.name }));
+    }
+  }, [searchParams, drivers]);
 
   const stats = useMemo(() => getDriverStats(drivers), [drivers]);
 

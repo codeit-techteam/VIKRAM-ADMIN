@@ -1,33 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { StatCard } from "@/components/shared/StatCard";
 import { CriticalPendingActions } from "@/features/dashboard/components/CriticalPendingActions";
 import { DashboardQuickActions } from "@/features/dashboard/components/DashboardQuickActions";
 import { NotificationCenter } from "@/features/dashboard/components/NotificationCenter";
 import { RecentOrdersTable } from "@/features/dashboard/components/RecentOrdersTable";
-import {
-  DASHBOARD_NOTIFICATIONS,
-  PENDING_ACTIONS,
-  QUICK_ACTIONS,
-  RECENT_ORDERS,
-  STAT_CARDS,
-} from "@/features/dashboard/constants/dashboard.mock";
+import type { DashboardDateFilter } from "@/mock/executive-dashboard";
+import { fetchExecutiveDashboardData } from "@/mock/executive-dashboard";
 
-export function OperationsDashboard() {
+interface OperationsDashboardProps {
+  dateFilter?: DashboardDateFilter;
+}
+
+export function OperationsDashboard({
+  dateFilter = { range: "quarter" },
+}: OperationsDashboardProps) {
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 600);
+  const dashboardData = useMemo(
+    () => fetchExecutiveDashboardData(dateFilter),
+    [dateFilter],
+  );
 
+  useEffect(() => {
+    setIsLoading(true);
+    const timer = window.setTimeout(() => setIsLoading(false), 400);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [dateFilter]);
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {STAT_CARDS.map((card) => (
+        {dashboardData.statCards.map((card) => (
           <StatCard
             key={card.label}
             label={card.label}
@@ -43,19 +49,25 @@ export function OperationsDashboard() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="xl:col-span-2">
           <CriticalPendingActions
-            actions={PENDING_ACTIONS}
+            actions={dashboardData.pendingActions}
             isLoading={isLoading}
           />
         </div>
-        <DashboardQuickActions actions={QUICK_ACTIONS} isLoading={isLoading} />
+        <DashboardQuickActions
+          actions={dashboardData.quickActions}
+          isLoading={isLoading}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="xl:col-span-2">
-          <RecentOrdersTable orders={RECENT_ORDERS} isLoading={isLoading} />
+          <RecentOrdersTable
+            orders={dashboardData.recentOrders}
+            isLoading={isLoading}
+          />
         </div>
         <NotificationCenter
-          notifications={DASHBOARD_NOTIFICATIONS}
+          notifications={dashboardData.notifications}
           isLoading={isLoading}
         />
       </div>

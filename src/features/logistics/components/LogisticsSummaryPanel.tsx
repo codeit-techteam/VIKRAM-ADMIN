@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -17,6 +18,7 @@ export interface LogisticsSummaryItem {
   value: number;
   variant?: "default" | "warning" | "critical" | "success";
   icon?: LucideIcon;
+  filterHref?: string;
 }
 
 interface LogisticsSummaryPanelProps {
@@ -48,11 +50,12 @@ function SummaryRow({
   item: LogisticsSummaryItem;
   total: number;
 }) {
+  const router = useRouter();
   const variant = item.variant ?? "default";
   const percentage = total > 0 ? Math.round((item.value / total) * 100) : 0;
   const Icon = item.icon;
 
-  return (
+  const content = (
     <div className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
@@ -107,6 +110,20 @@ function SummaryRow({
       </Progress>
     </div>
   );
+
+  if (item.filterHref) {
+    return (
+      <button
+        type="button"
+        className="w-full rounded-lg text-left transition-colors hover:bg-gray-50/80"
+        onClick={() => router.push(item.filterHref!)}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return content;
 }
 
 export function LogisticsSummaryPanel({

@@ -367,6 +367,11 @@ function matchesSearch(customer: CustomerListItem, search: string): boolean {
 
   const query = search.trim().toLowerCase();
 
+  if (query.startsWith("kyc:")) {
+    const kycStatus = query.replace("kyc:", "").toUpperCase();
+    return customer.kycStatus === kycStatus;
+  }
+
   return (
     customer.name.toLowerCase().includes(query) ||
     customer.customerId.toLowerCase().includes(query) ||

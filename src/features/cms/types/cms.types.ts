@@ -9,11 +9,13 @@ export interface ContentUpdate {
   status: ContentUpdateStatus;
   updatedBy: string;
   lastModified: string;
+  href?: string;
 }
 
 export interface CmsStatCardData {
   label: string;
   value: string;
+  href?: string;
 }
 
 export interface QuickActionData {
@@ -21,4 +23,5 @@ export interface QuickActionData {
   label: string;
   iconName: "shopping-cart" | "upload" | "send" | "tag";
   circleColor: "orange" | "blue" | "indigo" | "green";
+  href?: string;
 }

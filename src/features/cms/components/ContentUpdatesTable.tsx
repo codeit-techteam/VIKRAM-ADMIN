@@ -8,9 +8,12 @@ import {
 } from "@tanstack/react-table";
 import { MoreVertical } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { ROUTES } from "@/constants/routes";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -27,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { ContentUpdate } from "@/features/cms/types/cms.types";
+import { buildFilteredUrl } from "@/utils/navigation-filters";
 
 interface ContentUpdatesTableProps {
   updates: ContentUpdate[];
@@ -34,7 +38,21 @@ interface ContentUpdatesTableProps {
 
 const columnHelper = createColumnHelper<ContentUpdate>();
 
+const STATUS_FILTER_ROUTES: Record<string, string> = {
+  Live: buildFilteredUrl(`${ROUTES.CUSTOMER_APP_CMS}/banners`, {
+    status: "Live",
+  }),
+  Draft: buildFilteredUrl(`${ROUTES.CUSTOMER_APP_CMS}/catalog`, {
+    status: "Draft",
+  }),
+  Expired: buildFilteredUrl(`${ROUTES.CUSTOMER_APP_CMS}/catalog`, {
+    status: "Expired",
+  }),
+};
+
 export function ContentUpdatesTable({ updates }: ContentUpdatesTableProps) {
+  const router = useRouter();
+
   const columns = useMemo(
     () => [
       columnHelper.accessor("assetName", {
@@ -75,7 +93,15 @@ export function ContentUpdatesTable({ updates }: ContentUpdatesTableProps) {
       }),
       columnHelper.accessor("status", {
         header: "Status",
-        cell: (info) => <StatusBadge status={info.getValue()} />,
+        cell: (info) => {
+          const status = info.getValue();
+          return (
+            <StatusBadge
+              status={status}
+              filterHref={STATUS_FILTER_ROUTES[status]}
+            />
+          );
+        },
       }),
       columnHelper.accessor("updatedBy", {
         header: "Updated By",
@@ -110,7 +136,13 @@ export function ContentUpdatesTable({ updates }: ContentUpdatesTableProps) {
                 }
               />
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>View Details</DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    row.original.href && router.push(row.original.href)
+                  }
+                >
+                  View Details
+                </DropdownMenuItem>
                 <DropdownMenuItem>Edit</DropdownMenuItem>
                 <DropdownMenuItem variant="destructive">
                   Delete
@@ -121,7 +153,7 @@ export function ContentUpdatesTable({ updates }: ContentUpdatesTableProps) {
         ),
       }),
     ],
-    [],
+    [router],
   );
 
   const table = useReactTable({
@@ -136,12 +168,12 @@ export function ContentUpdatesTable({ updates }: ContentUpdatesTableProps) {
         <h2 className="text-base font-semibold text-[#1A1A1A]">
           Recent Content Updates
         </h2>
-        <button
-          type="button"
+        <Link
+          href={`${ROUTES.CUSTOMER_APP_CMS}/catalog`}
           className="text-primary text-sm font-medium hover:underline"
         >
           View All Updates
-        </button>
+        </Link>
       </div>
 
       <div className="mt-6 overflow-x-auto">
@@ -170,7 +202,13 @@ export function ContentUpdatesTable({ updates }: ContentUpdatesTableProps) {
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id} className="border-gray-100">
+              <TableRow
+                key={row.id}
+                className="cursor-pointer border-gray-100 hover:bg-gray-50/80"
+                onClick={() =>
+                  row.original.href && router.push(row.original.href)
+                }
+              >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id} className="py-4">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

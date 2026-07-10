@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   Activity,
   AlertTriangle,
@@ -37,48 +38,57 @@ export function SubHubStatsCard({ stat, isLoading }: SubHubStatsCardProps) {
     );
   }
 
-  return (
-    <div
-      className={cn(
-        "rounded-xl border border-gray-100 p-6 shadow-sm transition-all duration-200 hover:scale-105 hover:shadow-lg",
-        isDanger ? "bg-red-50/50" : isWarning ? "bg-orange-50/60" : "bg-white",
-      )}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium tracking-wide text-gray-400 uppercase">
-            {stat.label}
-          </p>
-          <p
-            className={cn(
-              "mt-2 text-3xl font-bold",
-              isDanger
-                ? "text-red-600"
-                : isWarning
-                  ? "text-primary"
-                  : "text-[#1A1A1A]",
-            )}
-          >
-            {stat.value}
-          </p>
-          <p className="mt-1 text-sm text-[#64748B]">{stat.subtitle}</p>
-        </div>
-        <div
+  const cardClassName = cn(
+    "rounded-xl border border-gray-100 p-6 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-lg",
+    isDanger ? "bg-red-50/50" : isWarning ? "bg-orange-50/60" : "bg-white",
+    stat.href && "cursor-pointer hover:border-primary/20",
+  );
+
+  const content = (
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="text-xs font-medium tracking-wide text-gray-400 uppercase">
+          {stat.label}
+        </p>
+        <p
           className={cn(
-            "flex size-10 shrink-0 items-center justify-center rounded-lg",
+            "mt-2 text-3xl font-bold",
             isDanger
-              ? "bg-red-100"
+              ? "text-red-600"
               : isWarning
-                ? "bg-primary/15"
-                : "bg-primary/10",
+                ? "text-primary"
+                : "text-[#1A1A1A]",
           )}
         >
-          <Icon
-            className={cn("size-5", isDanger ? "text-red-600" : "text-primary")}
-            strokeWidth={1.75}
-          />
-        </div>
+          {stat.value}
+        </p>
+        <p className="mt-1 text-sm text-[#64748B]">{stat.subtitle}</p>
+      </div>
+      <div
+        className={cn(
+          "flex size-10 shrink-0 items-center justify-center rounded-lg",
+          isDanger
+            ? "bg-red-100"
+            : isWarning
+              ? "bg-primary/15"
+              : "bg-primary/10",
+        )}
+      >
+        <Icon
+          className={cn("size-5", isDanger ? "text-red-600" : "text-primary")}
+          strokeWidth={1.75}
+        />
       </div>
     </div>
   );
+
+  if (stat.href) {
+    return (
+      <Link href={stat.href} className={cn(cardClassName, "block")}>
+        {content}
+      </Link>
+    );
+  }
+
+  return <div className={cardClassName}>{content}</div>;
 }

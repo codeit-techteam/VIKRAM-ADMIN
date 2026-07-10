@@ -1,7 +1,8 @@
 "use client";
 
 import { MoreVertical, Plus, Truck } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Pagination } from "@/components/shared/Pagination";
@@ -48,6 +49,7 @@ import type { LogisticsVehicle, VehicleFilters } from "@/types/logistics.types";
 import { notify } from "@/utils/notify";
 
 export function FleetVehiclesPage() {
+  const searchParams = useSearchParams();
   const { isLoading } = useLogisticsLoading();
   const vehicles = useLogisticsStore((s) => s.vehicles);
   const deleteVehicle = useLogisticsStore((s) => s.deleteVehicle);
@@ -63,6 +65,19 @@ export function FleetVehiclesPage() {
   const [detailVehicle, setDetailVehicle] = useState<LogisticsVehicle | null>(
     null,
   );
+
+  useEffect(() => {
+    const idParam = searchParams.get("id");
+    if (!idParam) return;
+    const match = vehicles.find((v) => v.id === idParam);
+    if (match) {
+      setDetailVehicle(match);
+      setFilters((current) => ({
+        ...current,
+        search: match.vehicleNumber,
+      }));
+    }
+  }, [searchParams, vehicles]);
 
   const stats = useMemo(() => getVehicleStats(vehicles), [vehicles]);
 

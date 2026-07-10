@@ -757,12 +757,12 @@ export function getOpsStageHref(
 }
 
 export function getRaiseRequisitionHref(hubId: string, materialId?: string) {
-  const base = `${ROUTES.CENTRAL_WAREHOUSE}/requisitions?hub=${hubId}`;
+  const base = `${ROUTES.HUB_REQUISITIONS}?hub=${hubId}`;
   return materialId ? `${base}&material=${materialId}` : base;
 }
 
 export function getRaiseTransferHref(hubId: string) {
-  return `${ROUTES.CENTRAL_WAREHOUSE}/transfers/new?hub=${hubId}`;
+  return `${ROUTES.HUB_TRANSFERS}?hub=${hubId}`;
 }
 
 export function getHubInventoryHref(hubId?: string) {

@@ -2,7 +2,7 @@
 
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import {
   CreateTransferDialog,
@@ -35,6 +35,7 @@ import { notify } from "@/utils/notify";
 
 export function TransferPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const transfers = useTransferListStore((state) => state.transfers);
   const deleteTransfer = useTransferListStore((state) => state.deleteTransfer);
   const assignVehicle = useTransferListStore((state) => state.assignVehicle);
@@ -66,6 +67,24 @@ export function TransferPage() {
     const timer = window.setTimeout(() => setIsLoading(false), 600);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    const statusParam = searchParams.get("status");
+    const hubParam = searchParams.get("hub");
+
+    if (statusParam || hubParam) {
+      setFilters((current) => ({
+        ...current,
+        ...(statusParam
+          ? {
+              status: statusParam as TransferFilters["status"],
+            }
+          : {}),
+        ...(hubParam ? { destinationHubId: hubParam } : {}),
+      }));
+      setCurrentPage(1);
+    }
+  }, [searchParams]);
 
   const queryResult = useMemo(
     () =>

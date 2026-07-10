@@ -347,6 +347,7 @@ export function computeSubHubDashboardKpis(
       subtitle: `${subHubs.length - activeHubs.length} inactive in network`,
       icon: "active-hubs",
       variant: "default",
+      href: "/sub-hub-network",
     },
     {
       id: "inventory-health",
@@ -360,6 +361,7 @@ export function computeSubHubDashboardKpis(
           : averageHealth < 90
             ? "warning"
             : "default",
+      href: "/sub-hub-network/inventory",
     },
     {
       id: "pending-requisitions",
@@ -368,6 +370,7 @@ export function computeSubHubDashboardKpis(
       subtitle: "Pending, approved, or awaiting allocation",
       icon: "pending-requisitions",
       variant: pendingRequisitions > 0 ? "warning" : "default",
+      href: "/central-warehouse/requisitions?type=hub",
     },
     {
       id: "low-stock-hubs",
@@ -376,6 +379,7 @@ export function computeSubHubDashboardKpis(
       subtitle: "Hubs below reorder level",
       icon: "low-stock-hubs",
       variant: lowStockHubs > 0 ? "warning" : "default",
+      href: "/sub-hub-network/inventory?alert=low-stock",
     },
   ];
 }

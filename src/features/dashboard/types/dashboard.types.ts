@@ -39,6 +39,9 @@ export interface RecentOrder {
   paymentStatus: PaymentStatus;
   status: OrderStatus;
   href: string;
+  recordId?: string;
+  customerId?: string;
+  hubId?: string;
 }
 
 export type NotificationType =
@@ -56,6 +59,7 @@ export interface DashboardNotification {
   description: string;
   time: string;
   isUnread: boolean;
+  href?: string;
 }
 
 export interface ActivityStatItem {

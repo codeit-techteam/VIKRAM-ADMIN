@@ -116,6 +116,7 @@ export interface SubHubStat {
   subtitle: string;
   icon: SubHubStatIcon;
   variant?: "default" | "warning" | "danger";
+  href?: string;
 }
 
 export interface SubHub {

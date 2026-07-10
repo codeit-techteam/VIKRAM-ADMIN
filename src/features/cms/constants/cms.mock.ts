@@ -1,3 +1,4 @@
+import { ROUTES } from "@/constants/routes";
 import type {
   CmsStatCardData,
   ContentUpdate,
@@ -5,11 +6,31 @@ import type {
 } from "@/features/cms/types/cms.types";
 
 export const CMS_STAT_CARDS: CmsStatCardData[] = [
-  { label: "ACTIVE PRODUCTS", value: "1,240" },
-  { label: "CATALOGS", value: "18" },
-  { label: "ACTIVE OFFERS", value: "12" },
-  { label: "CUSTOMERS", value: "12.4k" },
-  { label: "NOTIFICATIONS", value: "86" },
+  {
+    label: "ACTIVE PRODUCTS",
+    value: "1,240",
+    href: `${ROUTES.CUSTOMER_APP_CMS}/catalog`,
+  },
+  {
+    label: "CATALOGS",
+    value: "18",
+    href: `${ROUTES.CUSTOMER_APP_CMS}/catalog`,
+  },
+  {
+    label: "ACTIVE OFFERS",
+    value: "12",
+    href: `${ROUTES.CUSTOMER_APP_CMS}/catalog`,
+  },
+  {
+    label: "CUSTOMERS",
+    value: "12.4k",
+    href: ROUTES.USER_MANAGEMENT_CUSTOMERS,
+  },
+  {
+    label: "NOTIFICATIONS",
+    value: "86",
+    href: `${ROUTES.CUSTOMER_APP_CMS}/push-notifications`,
+  },
 ];
 
 export const CMS_QUICK_ACTIONS: QuickActionData[] = [
@@ -18,24 +39,28 @@ export const CMS_QUICK_ACTIONS: QuickActionData[] = [
     label: "Add Product",
     iconName: "shopping-cart",
     circleColor: "orange",
+    href: `${ROUTES.CUSTOMER_APP_CMS}/catalog/new`,
   },
   {
     id: "upload-banner",
     label: "Upload Banner",
     iconName: "upload",
     circleColor: "blue",
+    href: `${ROUTES.CUSTOMER_APP_CMS}/banners`,
   },
   {
     id: "send-notification",
     label: "Send Notification",
     iconName: "send",
     circleColor: "indigo",
+    href: `${ROUTES.CUSTOMER_APP_CMS}/push-notifications`,
   },
   {
     id: "create-offer",
     label: "Create Offer",
     iconName: "tag",
     circleColor: "green",
+    href: `${ROUTES.CUSTOMER_APP_CMS}/catalog/new`,
   },
 ];
 
@@ -49,6 +74,7 @@ export const CONTENT_UPDATES: ContentUpdate[] = [
     status: "Live",
     updatedBy: "Arjun Sharma",
     lastModified: "2h ago",
+    href: `${ROUTES.CUSTOMER_APP_CMS}/banners`,
   },
   {
     id: "2",
@@ -59,6 +85,7 @@ export const CONTENT_UPDATES: ContentUpdate[] = [
     status: "Draft",
     updatedBy: "Priya V.",
     lastModified: "5h ago",
+    href: `${ROUTES.CUSTOMER_APP_CMS}/categories`,
   },
   {
     id: "3",
@@ -69,5 +96,6 @@ export const CONTENT_UPDATES: ContentUpdate[] = [
     status: "Expired",
     updatedBy: "System",
     lastModified: "Yesterday",
+    href: `${ROUTES.CUSTOMER_APP_CMS}/catalog`,
   },
 ];

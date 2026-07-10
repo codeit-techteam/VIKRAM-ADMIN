@@ -29,6 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ROUTES } from "@/constants/routes";
+import { buildFilteredUrl } from "@/utils/navigation-filters";
 import { AssignDriverDialog } from "@/features/logistics/components/AssignDriverDialog";
 import { AssignVehicleDialog } from "@/features/logistics/components/AssignVehicleDialog";
 import {
@@ -165,6 +166,9 @@ export function LogisticsDashboardPage() {
         label: "In Transit",
         value: stats.warehouseHub.inTransit,
         icon: Truck,
+        filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/warehouse`, {
+          status: "in_transit",
+        }),
       },
       {
         id: "wh-pending",
@@ -172,6 +176,9 @@ export function LogisticsDashboardPage() {
         value: stats.warehouseHub.pendingDispatch,
         variant: "warning",
         icon: Clock,
+        filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/warehouse`, {
+          status: "pending_dispatch",
+        }),
       },
       {
         id: "wh-delayed",
@@ -179,6 +186,9 @@ export function LogisticsDashboardPage() {
         value: stats.warehouseHub.delayed,
         variant: "critical",
         icon: AlertTriangle,
+        filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/tracking`, {
+          status: "delayed",
+        }),
       },
       {
         id: "wh-completed",
@@ -186,6 +196,9 @@ export function LogisticsDashboardPage() {
         value: stats.warehouseHub.completed,
         variant: "success",
         icon: CheckCircle2,
+        filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/warehouse`, {
+          status: "completed",
+        }),
       },
     ],
     [stats.warehouseHub],
@@ -198,6 +211,9 @@ export function LogisticsDashboardPage() {
         label: "Ready for Delivery",
         value: stats.hubCustomer.readyForDelivery,
         icon: Package,
+        filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/customer`, {
+          status: "ready",
+        }),
       },
       {
         id: "hc-ofd",
@@ -205,6 +221,9 @@ export function LogisticsDashboardPage() {
         value: stats.hubCustomer.outForDelivery,
         variant: "warning",
         icon: Truck,
+        filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/customer`, {
+          status: "out_for_delivery",
+        }),
       },
       {
         id: "hc-delivered",
@@ -212,6 +231,9 @@ export function LogisticsDashboardPage() {
         value: stats.hubCustomer.delivered,
         variant: "success",
         icon: CheckCircle2,
+        filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/customer`, {
+          status: "delivered",
+        }),
       },
       {
         id: "hc-failed",
@@ -219,12 +241,18 @@ export function LogisticsDashboardPage() {
         value: stats.hubCustomer.failedDelivery,
         variant: "critical",
         icon: AlertTriangle,
+        filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/customer`, {
+          status: "failed",
+        }),
       },
       {
         id: "hc-returned",
         label: "Returned",
         value: stats.hubCustomer.returned,
         icon: Package,
+        filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/customer`, {
+          status: "returned",
+        }),
       },
     ],
     [stats.hubCustomer],

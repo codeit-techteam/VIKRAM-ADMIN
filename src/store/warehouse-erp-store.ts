@@ -1250,6 +1250,7 @@ export const useWarehouseErpStore = create<WarehouseErpState>((set, get) => ({
         subtitle: "Current warehouse stock value",
         icon: "inventory" as const,
         variant: "default" as const,
+        href: "/central-warehouse/inventory",
       },
       {
         id: "pending-requisitions",
@@ -1258,6 +1259,7 @@ export const useWarehouseErpStore = create<WarehouseErpState>((set, get) => ({
         subtitle: "Waiting for approval",
         icon: "requisitions" as const,
         variant: "default" as const,
+        href: "/central-warehouse/requisitions?status=PENDING",
       },
       {
         id: "todays-dispatch",
@@ -1266,6 +1268,7 @@ export const useWarehouseErpStore = create<WarehouseErpState>((set, get) => ({
         subtitle: "Confirmed dispatches today",
         icon: "dispatch" as const,
         variant: "default" as const,
+        href: "/central-warehouse/dispatch",
       },
       {
         id: "low-stock-items",
@@ -1274,6 +1277,7 @@ export const useWarehouseErpStore = create<WarehouseErpState>((set, get) => ({
         subtitle: "Require replenishment",
         icon: "low-stock" as const,
         variant: "warning" as const,
+        href: "/central-warehouse/inventory?alert=low-stock",
       },
     ];
   },

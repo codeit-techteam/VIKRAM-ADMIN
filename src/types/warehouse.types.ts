@@ -10,6 +10,7 @@ export interface WarehouseStat {
   subtitle: string;
   icon: WarehouseStatIcon;
   variant?: "default" | "warning";
+  href?: string;
 }
 
 export type RequisitionPriority = "critical" | "high" | "medium" | "low";
@@ -502,7 +503,7 @@ export interface TransferListItem {
 }
 
 export interface TransferFilters {
-  status: TransferStatus | "all" | "delayed";
+  status: TransferStatus | "all" | "delayed" | "WAITING_HUB_ACCEPTANCE";
   sourceWarehouseId: string;
   destinationHubId: string;
   dateFrom: string;

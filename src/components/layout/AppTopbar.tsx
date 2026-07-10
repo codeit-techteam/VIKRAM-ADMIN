@@ -1,11 +1,11 @@
 "use client";
 
-import { Bell, Calendar, HelpCircle, Search } from "lucide-react";
+import { Bell, Calendar, HelpCircle } from "lucide-react";
 
+import { EnterpriseGlobalSearch } from "@/components/layout/global-search";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { ROLE_LABELS } from "@/constants/roles";
 import { useAuth } from "@/hooks/use-auth";
@@ -74,16 +74,13 @@ export function AppTopbar({
           isMinimal ? "max-w-none" : "lg:max-w-xl",
         )}
       >
-        <Search className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-gray-400" />
-        <Input
-          type="search"
+        <EnterpriseGlobalSearch
           placeholder={
             searchPlaceholder ??
             (isMinimal
               ? "Search resources, logs, or assets..."
               : "Search orders, hubs, customers...")
           }
-          className="focus-visible:ring-primary/20 h-11 w-full rounded-full border-transparent bg-[#EEF4FF] pl-10 text-sm placeholder:text-gray-400 focus-visible:border-transparent"
         />
       </div>
 

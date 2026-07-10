@@ -71,8 +71,8 @@ function hubActionLinks(hubId: string) {
   return {
     view: getHubDetailPath(hubId),
     inventory: getHubInventoryHref(hubId),
-    requisitions: `${ROUTES.CENTRAL_WAREHOUSE}/requisitions?hub=${hubId}`,
-    transfers: `${ROUTES.CENTRAL_WAREHOUSE}/transfers?hub=${hubId}`,
+    requisitions: `${ROUTES.HUB_REQUISITIONS}?hub=${hubId}`,
+    transfers: `${ROUTES.HUB_TRANSFERS}?hub=${hubId}`,
     details: `${getHubDetailPath(hubId)}?tab=analytics`,
   };
 }

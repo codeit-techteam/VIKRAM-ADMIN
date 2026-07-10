@@ -286,6 +286,20 @@ export interface CeNewOrderDraft {
   paymentMethod: PaymentMethod;
 }
 
+export interface CeNewComplaintDraft {
+  customerId: string;
+  orderId?: string;
+  issue: string;
+  issueType: string;
+  priority: ComplaintPriority;
+}
+
+export interface CeCreatePaymentLinkDraft {
+  customerId: string;
+  orderId?: string;
+  amount?: number;
+}
+
 export const CE_PAGE_SIZE = 10;
 
 export const EMPTY_CUSTOMER_FILTERS: CeCustomerFilters = {

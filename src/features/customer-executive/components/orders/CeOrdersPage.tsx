@@ -9,8 +9,8 @@ import {
   CreditCard,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Pagination } from "@/components/shared/Pagination";
@@ -35,6 +35,7 @@ import { CePageShell } from "@/features/customer-executive/components/shared/CeP
 import { CeSearchFilter } from "@/features/customer-executive/components/shared/CeSearchFilter";
 import { CeStatusBadge } from "@/features/customer-executive/components/shared/CeStatusBadge";
 import { CeTableSkeleton } from "@/features/customer-executive/components/shared/CeTableSkeleton";
+import { HighlightText } from "@/features/customer-executive/utils/highlight";
 import { useCeLoading } from "@/features/customer-executive/hooks/use-ce-loading";
 import {
   CE_PAGE_SIZE,
@@ -47,6 +48,7 @@ import { notify } from "@/utils/notify";
 
 export function CeOrdersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isLoading } = useCeLoading();
   const queryOrders = useCustomerExecutiveStore((s) => s.queryOrders);
   const orders = useCustomerExecutiveStore((s) => s.orders);
@@ -56,6 +58,16 @@ export function CeOrdersPage() {
   const [appliedFilters, setAppliedFilters] =
     useState<CeOrderFilters>(EMPTY_ORDER_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    const orderParam = searchParams.get("order");
+    if (orderParam) {
+      const filters = { ...EMPTY_ORDER_FILTERS, search: orderParam };
+      setDraftFilters(filters);
+      setAppliedFilters(filters);
+      setCurrentPage(1);
+    }
+  }, [searchParams]);
 
   const queryResult = useMemo(
     () =>
@@ -196,12 +208,19 @@ export function CeOrdersPage() {
               {queryResult.items.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell className="text-primary font-medium">
-                    #{order.orderNumber}
+                    #
+                    <HighlightText
+                      text={order.orderNumber}
+                      query={appliedFilters.search}
+                    />
                   </TableCell>
                   <TableCell>
                     <p className="font-medium">{order.company}</p>
                     <p className="text-xs text-[#64748B]">
-                      {order.customerName}
+                      <HighlightText
+                        text={order.customerName}
+                        query={appliedFilters.search}
+                      />
                     </p>
                   </TableCell>
                   <TableCell>{formatCurrency(order.amount)}</TableCell>

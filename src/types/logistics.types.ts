@@ -55,20 +55,75 @@ export type TimelineStage =
   | "reached_hub"
   | "completed";
 
+export interface FleetDocumentMeta {
+  name: string;
+  size: number;
+  previewUrl?: string;
+  uploadedAt: string;
+}
+
+export interface FleetVehicleDocuments {
+  rc?: FleetDocumentMeta | null;
+  insurance?: FleetDocumentMeta | null;
+  fitness?: FleetDocumentMeta | null;
+}
+
+export interface FleetDriverDocuments {
+  drivingLicense?: FleetDocumentMeta | null;
+  aadhaar?: FleetDocumentMeta | null;
+  pan?: FleetDocumentMeta | null;
+  policeVerification?: FleetDocumentMeta | null;
+  medicalCertificate?: FleetDocumentMeta | null;
+  profilePhoto?: FleetDocumentMeta | null;
+}
+
+export interface FleetBankingDetails {
+  accountHolder: string;
+  bankName: string;
+  accountNumber: string;
+  ifscCode: string;
+  upiId?: string;
+}
+
+export interface FleetTimelineEvent {
+  id: string;
+  label: string;
+  description?: string;
+  timestamp: string;
+  type: "info" | "success" | "warning";
+}
+
 export interface LogisticsVehicle {
   id: string;
   vehicleNumber: string;
   vehicleType: string;
   capacityKg: number;
+  capacityLabel?: string;
   assignedWarehouse: string;
   assignedHub: string;
   assignedDriverId: string | null;
   assignedDriverName: string | null;
   currentShipmentId: string | null;
   fuelType: string;
+  manufacturer?: string;
+  model?: string;
+  yearOfManufacture?: number;
   registrationDate: string;
   insuranceExpiry: string;
   fitnessExpiry: string;
+  pollutionExpiry?: string;
+  permitType?: string;
+  permitExpiry?: string;
+  currentOdometer?: number;
+  gpsInstalled?: boolean;
+  fastagNumber?: string;
+  vehicleColor?: string;
+  emergencyContact?: string;
+  remarks?: string;
+  lastMaintenanceDate?: string;
+  photoUrl?: string | null;
+  documents?: FleetVehicleDocuments;
+  timeline?: FleetTimelineEvent[];
   status: VehicleStatus;
 }
 
@@ -78,13 +133,38 @@ export interface LogisticsDriver {
   name: string;
   employeeId: string;
   mobile: string;
+  alternatePhone?: string;
+  email?: string;
+  gender?: string;
+  dob?: string;
+  bloodGroup?: string;
+  emergencyContactName?: string;
+  emergencyContactNumber?: string;
+  emergencyContactRelationship?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pinCode?: string;
   licenseNumber: string;
+  licenseIssueDate?: string;
   licenseExpiry: string;
+  licenseType?: string;
+  licenseIssuingState?: string;
+  joiningDate?: string;
+  employmentType?: string;
+  shift?: string;
+  aadhaarNumber?: string;
+  panNumber?: string;
+  banking?: FleetBankingDetails;
+  remarks?: string;
   assignedHub: string;
   assignedWarehouse: string;
   assignedVehicleId: string | null;
   assignedVehicleNumber: string | null;
   tripsToday: number;
+  tripsCompleted?: number;
+  documents?: FleetDriverDocuments;
+  timeline?: FleetTimelineEvent[];
   status: DriverStatus;
 }
 

@@ -8,7 +8,8 @@ import {
   Phone,
   Plus,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -41,9 +42,11 @@ import { CeMetricCard } from "@/features/customer-executive/components/shared/Ce
 import { CePageShell } from "@/features/customer-executive/components/shared/CePageShell";
 import { CeSearchFilter } from "@/features/customer-executive/components/shared/CeSearchFilter";
 import { CeStatusBadge } from "@/features/customer-executive/components/shared/CeStatusBadge";
+import { CeRaiseComplaintDialog } from "@/features/customer-executive/components/shared/CeRaiseComplaintDialog";
 import { CeTableSkeleton } from "@/features/customer-executive/components/shared/CeTableSkeleton";
 import { CeTimeline } from "@/features/customer-executive/components/shared/CeTimeline";
 import { useCeLoading } from "@/features/customer-executive/hooks/use-ce-loading";
+import { initiateCall } from "@/features/customer-executive/utils/communication";
 import { CE_ISSUE_TYPES } from "@/features/customer-executive/mock/seed";
 import {
   CE_PAGE_SIZE,
@@ -55,6 +58,7 @@ import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
 import { notify } from "@/utils/notify";
 
 export function CeComplaintsPage() {
+  const searchParams = useSearchParams();
   const { isLoading } = useCeLoading();
   const queryComplaints = useCustomerExecutiveStore((s) => s.queryComplaints);
   const complaints = useCustomerExecutiveStore((s) => s.complaints);
@@ -63,10 +67,14 @@ export function CeComplaintsPage() {
     (s) => s.updateComplaintStatus,
   );
   const addComplaintNote = useCustomerExecutiveStore((s) => s.addComplaintNote);
+  const getCustomer = useCustomerExecutiveStore((s) => s.getCustomer);
+  const markNotificationRead = useCustomerExecutiveStore(
+    (s) => s.markNotificationRead,
+  );
+  const notifications = useCustomerExecutiveStore((s) => s.notifications);
   const getCustomerActivities = useCustomerExecutiveStore(
     (s) => s.getCustomerActivities,
   );
-  const notifications = useCustomerExecutiveStore((s) => s.notifications);
 
   const [draftFilters, setDraftFilters] = useState<CeComplaintFilters>(
     EMPTY_COMPLAINT_FILTERS,
@@ -79,6 +87,24 @@ export function CeComplaintsPage() {
     useState<CeComplaint | null>(null);
   const [noteInput, setNoteInput] = useState("");
   const [showEscalation, setShowEscalation] = useState(true);
+  const [raiseDialogOpen, setRaiseDialogOpen] = useState(false);
+
+  useEffect(() => {
+    const orderParam = searchParams.get("order");
+    if (orderParam) {
+      const filters = { ...EMPTY_COMPLAINT_FILTERS, search: orderParam };
+      setDraftFilters(filters);
+      setAppliedFilters(filters);
+      setCurrentPage(1);
+
+      const match = complaints.find(
+        (c) =>
+          c.orderNumber?.toLowerCase().includes(orderParam.toLowerCase()) ||
+          c.ticketNumber.toLowerCase().includes(orderParam.toLowerCase()),
+      );
+      if (match) setSelectedComplaint(match);
+    }
+  }, [searchParams, complaints]);
 
   const queryResult = useMemo(
     () =>
@@ -131,7 +157,7 @@ export function CeComplaintsPage() {
       title="Complaint Management"
       subtitle="Track and resolve customer complaints efficiently."
       actions={
-        <Button>
+        <Button onClick={() => setRaiseDialogOpen(true)}>
           <Plus className="size-4" />
           Raise Complaint
         </Button>
@@ -306,9 +332,14 @@ export function CeComplaintsPage() {
                             Escalate
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() =>
-                              notify.info("Calling", complaint.customerName)
-                            }
+                            onClick={() => {
+                              const customer = getCustomer(
+                                complaint.customerId,
+                              );
+                              if (customer) {
+                                initiateCall(customer.phone, customer.name);
+                              }
+                            }}
                           >
                             <Phone className="size-4" />
                             Call Customer
@@ -472,7 +503,12 @@ export function CeComplaintsPage() {
                   <button
                     type="button"
                     className="text-sm text-[#64748B] hover:underline"
-                    onClick={() => setShowEscalation(false)}
+                    onClick={() => {
+                      if (escalationNotif) {
+                        markNotificationRead(escalationNotif.id);
+                      }
+                      setShowEscalation(false);
+                    }}
                   >
                     Dismiss
                   </button>
@@ -482,6 +518,12 @@ export function CeComplaintsPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <CeRaiseComplaintDialog
+        open={raiseDialogOpen}
+        onOpenChange={setRaiseDialogOpen}
+        onCreated={(complaint) => setSelectedComplaint(complaint)}
+      />
     </CePageShell>
   );
 }

@@ -27,6 +27,7 @@ import { FLEET_TABS } from "@/constants/logistics-navigation.constants";
 import { ROUTES } from "@/constants/routes";
 import { AddDriverDialog } from "@/features/logistics/components/AddDriverDialog";
 import { ConfirmDialog } from "@/features/logistics/components/ConfirmDialog";
+import { DriverDetailDrawer } from "@/features/logistics/components/DriverDetailDrawer";
 import { LogisticsFilterBar } from "@/features/logistics/components/LogisticsFilterBar";
 import {
   LogisticsMetricCard,
@@ -55,6 +56,9 @@ export function FleetDriversPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDriver, setEditDriver] = useState<LogisticsDriver | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LogisticsDriver | null>(
+    null,
+  );
+  const [detailDriver, setDetailDriver] = useState<LogisticsDriver | null>(
     null,
   );
 
@@ -214,7 +218,11 @@ export function FleetDriversPage() {
               </TableHeader>
               <TableBody>
                 {queryResult.data.map((driver) => (
-                  <TableRow key={driver.id} className="hover:bg-gray-50/50">
+                  <TableRow
+                    key={driver.id}
+                    className="cursor-pointer hover:bg-gray-50/50"
+                    onClick={() => setDetailDriver(driver)}
+                  >
                     <TableCell>
                       <Avatar className="size-8">
                         <AvatarFallback className="bg-primary/10 text-primary text-xs">
@@ -246,7 +254,10 @@ export function FleetDriversPage() {
                     <TableCell>
                       <LogisticsStatusBadge status={driver.status} />
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell
+                      className="text-right"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           render={
@@ -261,12 +272,7 @@ export function FleetDriversPage() {
                         />
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
-                            onClick={() =>
-                              notify.info(
-                                "Driver Profile",
-                                `${driver.name} — ${driver.employeeId}`,
-                              )
-                            }
+                            onClick={() => setDetailDriver(driver)}
                           >
                             View Profile
                           </DropdownMenuItem>
@@ -331,6 +337,11 @@ export function FleetDriversPage() {
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
         editDriver={editDriver}
+      />
+      <DriverDetailDrawer
+        driver={detailDriver}
+        open={!!detailDriver}
+        onOpenChange={(open) => !open && setDetailDriver(null)}
       />
       <ConfirmDialog
         open={!!deleteTarget}

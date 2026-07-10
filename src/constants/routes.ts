@@ -17,6 +17,8 @@ export const ROUTES = {
   CUSTOMER_EXECUTIVE_PAYMENTS: "/customer-executive/payments",
   CUSTOMER_EXECUTIVE_TRACKING: "/customer-executive/tracking",
   CUSTOMER_EXECUTIVE_COMPLAINTS: "/customer-executive/complaints",
+  CUSTOMER_EXECUTIVE_CUSTOMERS_NEW: "/customer-executive/customers/new",
+  CUSTOMER_EXECUTIVE_ORDERS_NEW: "/customer-executive/orders/new",
   USER_MANAGEMENT_CUSTOMER_EXECUTIVES: "/user-management/customer-executives",
   CUSTOMER_EXECUTIVE_ADD: "/user-management/customer-executives/add",
   SUB_HUB_MANAGERS: "/user-management/sub-hub-managers",

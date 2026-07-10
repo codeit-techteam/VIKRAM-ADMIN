@@ -67,6 +67,11 @@ import {
 import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
 import { formatCurrency } from "@/utils/format-currency";
 import { notify } from "@/utils/notify";
+import {
+  initiateCall,
+  openWhatsApp,
+} from "@/features/customer-executive/utils/communication";
+import { HighlightText } from "@/features/customer-executive/utils/highlight";
 import { UserPlus } from "lucide-react";
 
 const columnHelper = createColumnHelper<CeCustomer>();
@@ -93,6 +98,18 @@ export function CeCustomersPage() {
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [assignTargetIds, setAssignTargetIds] = useState<string[]>([]);
   const [selectedExecutiveId, setSelectedExecutiveId] = useState("");
+  const [sortBy, setSortBy] = useState<string>("lastOrderAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const toggleSort = (column: string) => {
+    if (sortBy === column) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(column);
+      setSortDir("asc");
+    }
+    setCurrentPage(1);
+  };
 
   const queryResult = useMemo(
     () =>
@@ -100,8 +117,10 @@ export function CeCustomersPage() {
         page: currentPage,
         limit: CE_PAGE_SIZE,
         filters: appliedFilters,
+        sortBy,
+        sortDir,
       }),
-    [queryCustomers, currentPage, appliedFilters, customers],
+    [queryCustomers, currentPage, appliedFilters, customers, sortBy, sortDir],
   );
 
   const applyFilters = () => {
@@ -146,21 +165,45 @@ export function CeCustomersPage() {
         ),
       }),
       columnHelper.accessor("name", {
-        header: "Customer",
+        header: () => (
+          <button
+            type="button"
+            className="hover:text-primary font-medium"
+            onClick={() => toggleSort("name")}
+          >
+            Customer {sortBy === "name" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+          </button>
+        ),
         cell: ({ row }) => {
           const c = row.original;
           return (
             <div className="flex items-center gap-3">
               <CeCustomerAvatar name={c.name} id={c.id} />
               <div>
-                <p className="font-medium">{c.name}</p>
+                <p className="font-medium">
+                  <HighlightText text={c.name} query={appliedFilters.search} />
+                </p>
                 <p className="text-xs text-[#64748B]">{c.phone}</p>
               </div>
             </div>
           );
         },
       }),
-      columnHelper.accessor("company", { header: "Company" }),
+      columnHelper.accessor("company", {
+        header: () => (
+          <button
+            type="button"
+            className="hover:text-primary font-medium"
+            onClick={() => toggleSort("company")}
+          >
+            Company{" "}
+            {sortBy === "company" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+          </button>
+        ),
+        cell: ({ getValue }) => (
+          <HighlightText text={getValue()} query={appliedFilters.search} />
+        ),
+      }),
       columnHelper.accessor("city", { header: "City" }),
       columnHelper.display({
         id: "executive",
@@ -225,14 +268,18 @@ export function CeCustomersPage() {
                   <ShoppingCart className="size-4" />
                   Create Order
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => notify.info("Calling", c.phone)}
-                >
+                <DropdownMenuItem onClick={() => initiateCall(c.phone, c.name)}>
                   <Phone className="size-4" />
                   Call
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => notify.info("WhatsApp", c.name)}
+                  onClick={() =>
+                    openWhatsApp(
+                      c.phone,
+                      `Hi ${c.name}, this is BuildQuick India support.`,
+                      c.name,
+                    )
+                  }
                 >
                   WhatsApp
                 </DropdownMenuItem>
@@ -246,7 +293,14 @@ export function CeCustomersPage() {
         },
       }),
     ],
-    [executives, getCustomerPendingAmount, router],
+    [
+      executives,
+      getCustomerPendingAmount,
+      router,
+      sortBy,
+      sortDir,
+      appliedFilters.search,
+    ],
   );
 
   const table = useReactTable({

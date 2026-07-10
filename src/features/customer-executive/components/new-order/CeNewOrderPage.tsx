@@ -3,7 +3,7 @@
 import { Minus, Plus, Search, Trash2, Truck } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,6 +69,14 @@ export function CeNewOrderPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
+
+  useEffect(() => {
+    if (preselectedCustomerId && selectedCustomer) {
+      setDeliveryAddress(selectedCustomer.address);
+      setDeliveryPincode(selectedCustomer.pincode);
+      setPhoneSearch(selectedCustomer.phone);
+    }
+  }, [preselectedCustomerId, selectedCustomer]);
 
   const filteredProducts = useMemo(() => {
     if (!productSearch.trim()) return products;

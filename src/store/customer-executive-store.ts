@@ -23,6 +23,7 @@ import {
   generateCustomerId,
   generateId,
   generateOrderNumber,
+  generateTicketNumber,
   getActivitiesForCustomer,
   getCustomerOrderStats,
   getCustomerPendingAmount,
@@ -39,6 +40,8 @@ import type {
   CeCustomerFilters,
   CeDashboardStats,
   CeExecutiveProfile,
+  CeCreatePaymentLinkDraft,
+  CeNewComplaintDraft,
   CeNewCustomerDraft,
   CeNewOrderDraft,
   CeNote,
@@ -113,6 +116,10 @@ interface CustomerExecutiveStore {
     status: CeComplaint["status"],
   ) => void;
   addComplaintNote: (complaintId: string, content: string) => void;
+  createComplaint: (draft: CeNewComplaintDraft) => CeComplaint;
+  generatePaymentLinkForCustomer: (
+    draft: CeCreatePaymentLinkDraft,
+  ) => CePayment | null;
   markNotificationRead: (notificationId: string) => void;
 }
 
@@ -495,6 +502,100 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
             : c,
         ),
       }));
+    },
+
+    createComplaint: (draft) => {
+      const customer = get().getCustomer(draft.customerId);
+      if (!customer) throw new Error("Customer not found");
+
+      const order = draft.orderId ? get().getOrder(draft.orderId) : undefined;
+
+      const newComplaint: CeComplaint = {
+        id: generateId("cmp"),
+        ticketNumber: generateTicketNumber(),
+        customerId: customer.id,
+        customerName: customer.name,
+        company: customer.company,
+        orderId: order?.id,
+        orderNumber: order?.orderNumber,
+        issue: draft.issue,
+        issueType: draft.issueType,
+        priority: draft.priority,
+        status: "OPEN",
+        assignedExecutiveId: get().currentExecutive.id,
+        createdAt: new Date().toISOString(),
+        internalNotes: [],
+        timeline: [],
+      };
+
+      set((state) => ({
+        complaints: [newComplaint, ...state.complaints],
+        activities: addActivity(state.activities, {
+          type: "COMPLAINT_RAISED",
+          title: "Complaint Raised",
+          description: `${customer.name}: ${draft.issue.slice(0, 60)}`,
+          customerId: customer.id,
+          orderId: order?.id,
+          complaintId: newComplaint.id,
+          createdAt: new Date().toISOString(),
+          createdBy: get().currentExecutive.name,
+        }),
+      }));
+
+      return newComplaint;
+    },
+
+    generatePaymentLinkForCustomer: (draft) => {
+      const customer = get().getCustomer(draft.customerId);
+      if (!customer) return null;
+
+      let payment = draft.orderId
+        ? get().payments.find(
+            (p) =>
+              p.orderId === draft.orderId &&
+              (p.status === "PENDING" || p.status === "PARTIAL"),
+          )
+        : get()
+            .payments.filter(
+              (p) =>
+                p.customerId === customer.id &&
+                (p.status === "PENDING" || p.status === "PARTIAL"),
+            )
+            .sort(
+              (a, b) =>
+                new Date(b.createdAt).getTime() -
+                new Date(a.createdAt).getTime(),
+            )[0];
+
+      if (!payment && draft.orderId) {
+        const order = get().getOrder(draft.orderId);
+        if (!order) return null;
+
+        payment = {
+          id: generateId("pay"),
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          customerId: customer.id,
+          customerName: customer.name,
+          customerPhone: customer.phone,
+          amount: draft.amount ?? order.amount,
+          paidAmount: 0,
+          status: "PENDING",
+          dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          linkStatus: "NOT_SENT",
+          reminderCount: 0,
+          createdAt: new Date().toISOString(),
+        };
+
+        set((state) => ({
+          payments: [payment!, ...state.payments],
+        }));
+      }
+
+      if (!payment) return null;
+
+      get().sendPaymentLink(payment.id);
+      return get().payments.find((p) => p.id === payment!.id) ?? payment;
     },
 
     markNotificationRead: (notificationId) => {

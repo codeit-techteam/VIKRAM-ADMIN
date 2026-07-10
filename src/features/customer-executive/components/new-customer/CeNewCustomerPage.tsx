@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Check, Grid3X3, MapPin, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { motion, AnimatePresence } from "framer-motion";
 import { z } from "zod";
@@ -24,6 +24,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { ROUTES } from "@/constants/routes";
 import { CeCustomerAvatar } from "@/features/customer-executive/components/shared/CeCustomerAvatar";
 import { CePageShell } from "@/features/customer-executive/components/shared/CePageShell";
+import {
+  clearCustomerDraft,
+  loadCustomerDraft,
+  saveCustomerDraft,
+} from "@/features/customer-executive/utils/draft-storage";
 import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
 import { notify } from "@/utils/notify";
 import type { CustomerType } from "@/features/customer-executive/types";
@@ -72,6 +77,7 @@ export function CeNewCustomerPage() {
   const [existingCustomer, setExistingCustomer] =
     useState<ReturnType<typeof getCustomerByPhone>>(undefined);
   const [lookupDone, setLookupDone] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
 
   const form = useForm<RegistrationForm>({
     resolver: zodResolver(registrationSchema),
@@ -88,6 +94,40 @@ export function CeNewCustomerPage() {
       pincode: "",
     },
   });
+
+  useEffect(() => {
+    const draft = loadCustomerDraft();
+    if (draft?.phone) {
+      setLookupPhone(draft.phone);
+      form.reset({
+        phone: draft.phone,
+        name: draft.name ?? "",
+        company: draft.company ?? "",
+        gst: draft.gst ?? "",
+        email: draft.email ?? "",
+        customerType:
+          (draft.customerType as RegistrationForm["customerType"]) ??
+          "CONTRACTOR",
+        address: draft.address ?? "",
+        state: draft.state ?? "Haryana",
+        city: draft.city ?? "",
+        pincode: draft.pincode ?? "",
+      });
+      if (draft.name) setStep(2);
+      if (draft.savedAt) setDraftSavedAt(draft.savedAt);
+    }
+  }, [form]);
+
+  const handleSaveDraft = () => {
+    const values = form.getValues();
+    saveCustomerDraft({
+      ...values,
+      phone: values.phone || lookupPhone,
+      customerType: values.customerType as CustomerType,
+    });
+    setDraftSavedAt(new Date().toISOString());
+    notify.success("Draft saved", "You can continue registration later");
+  };
 
   const handleLookup = () => {
     const found = getCustomerByPhone(lookupPhone);
@@ -108,6 +148,7 @@ export function CeNewCustomerPage() {
         gst: data.gst ?? "",
         customerType: data.customerType as CustomerType,
       });
+      clearCustomerDraft();
       notify.success(
         "Customer registered",
         `${customer.name} added successfully`,
@@ -257,6 +298,7 @@ export function CeNewCustomerPage() {
                         <SelectItem value="BUILDER">Builder</SelectItem>
                         <SelectItem value="DEALER">Dealer</SelectItem>
                         <SelectItem value="ARCHITECT">Architect</SelectItem>
+                        <SelectItem value="INDIVIDUAL">Individual</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -345,14 +387,19 @@ export function CeNewCustomerPage() {
         {step >= 2 && (
           <div className="sticky bottom-0 flex flex-col gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-lg sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-[#64748B]">
-              Draft saved by {currentExecutive.name}
+              {draftSavedAt
+                ? `Draft saved ${new Date(draftSavedAt).toLocaleString("en-IN")}`
+                : `Draft will be saved by ${currentExecutive.name}`}
             </p>
             <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={handleSaveDraft}>
+                Save Draft
+              </Button>
               <Button variant="outline" onClick={() => handleRegister(false)}>
-                Save Customer Profile
+                Register Customer
               </Button>
               <Button onClick={() => handleRegister(true)}>
-                Create Order & Continue →
+                Register & Create Order →
               </Button>
             </div>
           </div>

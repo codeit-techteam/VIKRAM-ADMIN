@@ -39,6 +39,10 @@ import { useCeLoading } from "@/features/customer-executive/hooks/use-ce-loading
 import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
 import { formatCurrency } from "@/utils/format-currency";
 import { notify } from "@/utils/notify";
+import {
+  initiateCall,
+  openWhatsApp,
+} from "@/features/customer-executive/utils/communication";
 import { notFound } from "next/navigation";
 
 interface CeCustomerProfilePageProps {
@@ -72,6 +76,10 @@ export function CeCustomerProfilePage({
   const updateNote = useCustomerExecutiveStore((s) => s.updateNote);
   const deleteNote = useCustomerExecutiveStore((s) => s.deleteNote);
   const sendPaymentLink = useCustomerExecutiveStore((s) => s.sendPaymentLink);
+  const generatePaymentLinkForCustomer = useCustomerExecutiveStore(
+    (s) => s.generatePaymentLinkForCustomer,
+  );
+  const copyPaymentLink = useCustomerExecutiveStore((s) => s.copyPaymentLink);
 
   const customer = getCustomer(customerId);
   const [newNote, setNewNote] = useState("");
@@ -131,6 +139,21 @@ export function CeCustomerProfilePage({
     deleteNote(deleteNoteId);
     setDeleteNoteId(null);
     notify.success("Note deleted");
+  };
+
+  const handleGeneratePaymentLink = async () => {
+    if (!customer) return;
+    const payment = generatePaymentLinkForCustomer({ customerId: customer.id });
+    if (!payment) {
+      notify.error(
+        "No pending payment",
+        "All payments are settled for this customer",
+      );
+      return;
+    }
+    const link = copyPaymentLink(payment.id);
+    await navigator.clipboard.writeText(link);
+    notify.success("Payment link sent", `Link copied for ${customer.name}`);
   };
 
   return (
@@ -482,7 +505,11 @@ export function CeCustomerProfilePage({
                   </span>
                   →
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={handleGeneratePaymentLink}
+                >
                   <CreditCard className="size-4" />
                   Generate Payment Link
                 </Button>
@@ -501,7 +528,7 @@ export function CeCustomerProfilePage({
                 <Button
                   variant="outline"
                   className="w-full justify-start"
-                  onClick={() => notify.info("Calling", customer.phone)}
+                  onClick={() => initiateCall(customer.phone, customer.name)}
                 >
                   <Phone className="size-4" />
                   Call Customer
@@ -509,7 +536,13 @@ export function CeCustomerProfilePage({
                 <Button
                   variant="outline"
                   className="w-full justify-start text-green-700"
-                  onClick={() => notify.info("WhatsApp", customer.name)}
+                  onClick={() =>
+                    openWhatsApp(
+                      customer.phone,
+                      `Hi ${customer.name}, this is BuildQuick India support.`,
+                      customer.name,
+                    )
+                  }
                 >
                   <MessageSquareWarning className="size-4" />
                   WhatsApp

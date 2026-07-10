@@ -23,6 +23,9 @@ export const LOGISTICS_WAREHOUSES = [
   "Gurgaon Central Warehouse",
   "Noida Central Warehouse",
   "Faridabad Central Warehouse",
+  "Mumbai Central Warehouse",
+  "Bangalore Central Warehouse",
+  "Kolkata Central Warehouse",
 ];
 export const LOGISTICS_HUBS = [
   "South Delhi Hub",
@@ -30,6 +33,15 @@ export const LOGISTICS_HUBS = [
   "Gurgaon Sector 14 Hub",
   "Faridabad Hub",
   "Ghaziabad Hub",
+  "Andheri Hub",
+  "Thane Hub",
+  "Navi Mumbai Hub",
+  "Whitefield Hub",
+  "Electronic City Hub",
+  "Yelahanka Hub",
+  "Salt Lake Hub",
+  "Howrah Hub",
+  "New Town Hub",
 ];
 
 export const EMPTY_WAREHOUSE_FILTERS: WarehouseShipmentFilters = {

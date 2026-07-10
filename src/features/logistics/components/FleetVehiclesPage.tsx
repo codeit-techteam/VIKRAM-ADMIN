@@ -26,6 +26,7 @@ import { FLEET_TABS } from "@/constants/logistics-navigation.constants";
 import { ROUTES } from "@/constants/routes";
 import { AddVehicleDialog } from "@/features/logistics/components/AddVehicleDialog";
 import { ConfirmDialog } from "@/features/logistics/components/ConfirmDialog";
+import { VehicleDetailDrawer } from "@/features/logistics/components/VehicleDetailDrawer";
 import { LogisticsFilterBar } from "@/features/logistics/components/LogisticsFilterBar";
 import {
   LogisticsMetricCard,
@@ -57,6 +58,9 @@ export function FleetVehiclesPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editVehicle, setEditVehicle] = useState<LogisticsVehicle | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LogisticsVehicle | null>(
+    null,
+  );
+  const [detailVehicle, setDetailVehicle] = useState<LogisticsVehicle | null>(
     null,
   );
 
@@ -230,7 +234,11 @@ export function FleetVehiclesPage() {
               </TableHeader>
               <TableBody>
                 {queryResult.data.map((vehicle) => (
-                  <TableRow key={vehicle.id} className="hover:bg-gray-50/50">
+                  <TableRow
+                    key={vehicle.id}
+                    className="cursor-pointer hover:bg-gray-50/50"
+                    onClick={() => setDetailVehicle(vehicle)}
+                  >
                     <TableCell className="font-medium">
                       {vehicle.vehicleNumber}
                     </TableCell>
@@ -261,7 +269,10 @@ export function FleetVehiclesPage() {
                     <TableCell>
                       <LogisticsStatusBadge status={vehicle.status} />
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell
+                      className="text-right"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           render={
@@ -336,6 +347,11 @@ export function FleetVehiclesPage() {
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
         editVehicle={editVehicle}
+      />
+      <VehicleDetailDrawer
+        vehicle={detailVehicle}
+        open={!!detailVehicle}
+        onOpenChange={(open) => !open && setDetailVehicle(null)}
       />
       <ConfirmDialog
         open={!!deleteTarget}

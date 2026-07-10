@@ -45,6 +45,10 @@ import { CE_PAGE_SIZE } from "@/features/customer-executive/types";
 import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
 import { formatCurrency } from "@/utils/format-currency";
 import { notify } from "@/utils/notify";
+import {
+  initiateCall,
+  openWhatsApp,
+} from "@/features/customer-executive/utils/communication";
 import { MoreHorizontal, Eye } from "lucide-react";
 import {
   Sheet,
@@ -69,6 +73,7 @@ export function CeDashboardPage() {
   );
   const sendPaymentLink = useCustomerExecutiveStore((s) => s.sendPaymentLink);
   const copyPaymentLink = useCustomerExecutiveStore((s) => s.copyPaymentLink);
+  const currentExecutive = useCustomerExecutiveStore((s) => s.currentExecutive);
 
   const [orderPage, setOrderPage] = useState(1);
   const [paymentDrawer, setPaymentDrawer] = useState<CePayment | null>(null);
@@ -97,12 +102,16 @@ export function CeDashboardPage() {
     notify.success("Link copied to clipboard");
   };
 
-  const handleCall = (phone: string) => {
-    notify.info("Initiating call", phone);
+  const handleCall = (phone: string, name?: string) => {
+    initiateCall(phone, name);
   };
 
   const handleWhatsApp = (phone: string, name: string) => {
-    notify.info("Opening WhatsApp", `Messaging ${name}`);
+    openWhatsApp(
+      phone,
+      `Hi ${name}, this is ${currentExecutive?.name ?? "your executive"} from BuildQuick India.`,
+      name,
+    );
   };
 
   return (
@@ -464,7 +473,12 @@ export function CeDashboardPage() {
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => handleCall(paymentDrawer.customerPhone)}
+                  onClick={() =>
+                    handleCall(
+                      paymentDrawer.customerPhone,
+                      paymentDrawer.customerName,
+                    )
+                  }
                 >
                   <Phone className="size-4" />
                   Call Customer

@@ -2,7 +2,7 @@
 
 import { Check, MapPin, Phone, Search, Truck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { ROUTES } from "@/constants/routes";
 import { CePageShell } from "@/features/customer-executive/components/shared/CePageShell";
 import { CeStatusBadge } from "@/features/customer-executive/components/shared/CeStatusBadge";
+import {
+  getLatestOrderForCustomer,
+  searchOrders,
+} from "@/features/customer-executive/utils/search";
+import { initiateCall } from "@/features/customer-executive/utils/communication";
 import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
 import type { TrackingStep } from "@/features/customer-executive/types";
 import { notify } from "@/utils/notify";
@@ -37,15 +42,34 @@ function getStepIndex(step: TrackingStep): number {
 export function CeTrackingPage() {
   const searchParams = useSearchParams();
   const initialOrder = searchParams.get("order") ?? "";
+  const initialCustomer = searchParams.get("customer") ?? "";
 
   const getOrderByNumber = useCustomerExecutiveStore((s) => s.getOrderByNumber);
   const orders = useCustomerExecutiveStore((s) => s.orders);
+  const customers = useCustomerExecutiveStore((s) => s.customers);
   const drivers = useCustomerExecutiveStore((s) => s.drivers);
   const vehicles = useCustomerExecutiveStore((s) => s.vehicles);
   const hubs = useCustomerExecutiveStore((s) => s.hubs);
 
-  const [searchQuery, setSearchQuery] = useState(initialOrder);
+  const [searchQuery, setSearchQuery] = useState(
+    initialOrder || initialCustomer,
+  );
   const [selectedOrderNumber, setSelectedOrderNumber] = useState(initialOrder);
+
+  useEffect(() => {
+    if (initialOrder) {
+      setSearchQuery(initialOrder);
+      setSelectedOrderNumber(initialOrder);
+      return;
+    }
+    if (initialCustomer) {
+      const latest = getLatestOrderForCustomer(orders, initialCustomer);
+      if (latest) {
+        setSearchQuery(latest.orderNumber);
+        setSelectedOrderNumber(latest.orderNumber);
+      }
+    }
+  }, [initialOrder, initialCustomer, orders]);
 
   const order = useMemo(() => {
     if (!selectedOrderNumber)
@@ -59,12 +83,14 @@ export function CeTrackingPage() {
   const currentStepIndex = order ? getStepIndex(order.trackingStep) : -1;
 
   const handleSearch = () => {
-    const found = getOrderByNumber(searchQuery);
+    const found =
+      searchOrders(orders, customers, searchQuery) ??
+      getOrderByNumber(searchQuery);
     if (found) {
       setSelectedOrderNumber(found.orderNumber);
       notify.success("Order found", found.orderNumber);
     } else {
-      notify.error("Order not found", "Check the order ID and try again");
+      notify.error("Order not found", "Check the order ID, phone, or name");
     }
   };
 
@@ -197,9 +223,7 @@ export function CeTrackingPage() {
                       variant="ghost"
                       size="sm"
                       className="text-primary"
-                      onClick={() =>
-                        notify.info("Calling driver", driver.phone)
-                      }
+                      onClick={() => initiateCall(driver.phone, driver.name)}
                     >
                       <Phone className="size-4" />
                       Call Driver

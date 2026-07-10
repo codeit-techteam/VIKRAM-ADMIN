@@ -11,7 +11,8 @@ import {
   Send,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Pagination } from "@/components/shared/Pagination";
@@ -39,7 +40,13 @@ import { CeSearchFilter } from "@/features/customer-executive/components/shared/
 import { CeStatusBadge } from "@/features/customer-executive/components/shared/CeStatusBadge";
 import { CeTableSkeleton } from "@/features/customer-executive/components/shared/CeTableSkeleton";
 import { CeConfirmationDialog } from "@/features/customer-executive/components/shared/CeConfirmationDialog";
+import { CeCreatePaymentLinkDialog } from "@/features/customer-executive/components/shared/CeCreatePaymentLinkDialog";
 import { useCeLoading } from "@/features/customer-executive/hooks/use-ce-loading";
+import { exportPaymentsCsv } from "@/features/customer-executive/utils/export";
+import {
+  initiateCall,
+  openWhatsApp,
+} from "@/features/customer-executive/utils/communication";
 import {
   CE_PAGE_SIZE,
   EMPTY_PAYMENT_FILTERS,
@@ -51,6 +58,7 @@ import { formatCurrency } from "@/utils/format-currency";
 import { notify } from "@/utils/notify";
 
 export function CePaymentsPage() {
+  const searchParams = useSearchParams();
   const { isLoading } = useCeLoading();
   const queryPayments = useCustomerExecutiveStore((s) => s.queryPayments);
   const payments = useCustomerExecutiveStore((s) => s.payments);
@@ -66,6 +74,17 @@ export function CePaymentsPage() {
   );
   const [currentPage, setCurrentPage] = useState(1);
   const [confirmPaidId, setConfirmPaidId] = useState<string | null>(null);
+  const [createLinkOpen, setCreateLinkOpen] = useState(false);
+
+  useEffect(() => {
+    const orderParam = searchParams.get("order");
+    if (orderParam) {
+      const filters = { ...EMPTY_PAYMENT_FILTERS, search: orderParam };
+      setDraftFilters(filters);
+      setAppliedFilters(filters);
+      setCurrentPage(1);
+    }
+  }, [searchParams]);
 
   const queryResult = useMemo(
     () =>
@@ -140,11 +159,11 @@ export function CePaymentsPage() {
       subtitle="Track, nudge, and verify pending customer payments in real-time."
       actions={
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => exportPaymentsCsv(payments)}>
             <Download className="size-4" />
             Export
           </Button>
-          <Button>
+          <Button onClick={() => setCreateLinkOpen(true)}>
             <Plus className="size-4" />
             Create Payment Link
           </Button>
@@ -345,7 +364,10 @@ export function CePaymentsPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() =>
-                                notify.info("Calling", payment.customerPhone)
+                                initiateCall(
+                                  payment.customerPhone,
+                                  payment.customerName,
+                                )
                               }
                             >
                               <Phone className="size-4" />
@@ -353,7 +375,11 @@ export function CePaymentsPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() =>
-                                notify.info("WhatsApp", payment.customerName)
+                                openWhatsApp(
+                                  payment.customerPhone,
+                                  `Hi ${payment.customerName}, regarding your pending payment for order #${payment.orderNumber}.`,
+                                  payment.customerName,
+                                )
                               }
                             >
                               <MessageCircle className="size-4" />
@@ -410,8 +436,19 @@ export function CePaymentsPage() {
                 </div>
               ))}
               <Link
-                href="#"
+                href={`${ROUTES.CUSTOMER_EXECUTIVE}/payments?status=overdue`}
                 className="text-primary text-sm font-medium hover:underline"
+                onClick={(e) => {
+                  e.preventDefault();
+                  const filters = {
+                    ...EMPTY_PAYMENT_FILTERS,
+                    status: "PENDING" as const,
+                    dateRange: "ALL" as const,
+                  };
+                  setDraftFilters(filters);
+                  setAppliedFilters(filters);
+                  setCurrentPage(1);
+                }}
               >
                 View All Critical
               </Link>
@@ -437,6 +474,11 @@ export function CePaymentsPage() {
         description="Confirm that you have verified this payment has been received from the customer."
         confirmLabel="Mark as Paid"
         onConfirm={handleMarkPaid}
+      />
+
+      <CeCreatePaymentLinkDialog
+        open={createLinkOpen}
+        onOpenChange={setCreateLinkOpen}
       />
     </CePageShell>
   );

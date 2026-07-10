@@ -6,11 +6,8 @@ export const AUTH_COPY = {
   emailPlaceholder: "Enter your email address",
   passwordLabel: "Password",
   passwordPlaceholder: "Enter your password",
-  otpLabel: "One-Time Password",
-  otpPlaceholder: "Enter 6-digit OTP",
   forgotPassword: "Forgot Password?",
   rememberMe: "Remember me",
-  otpLogin: "OTP Login",
   signInCta: "Sign In to Dashboard",
   securityFooter: "Enterprise Grade Security • 256-bit Encryption",
 } as const;

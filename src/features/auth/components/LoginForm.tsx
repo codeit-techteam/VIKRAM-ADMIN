@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "framer-motion";
-import { ArrowRight, KeyRound, Mail, ShieldCheck } from "lucide-react";
+import { ArrowRight, Mail, ShieldCheck } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -15,7 +15,6 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { AUTH_COPY, AUTH_ASSETS } from "@/constants/auth.constants";
 import { ROUTES } from "@/constants/routes";
 import {
@@ -33,7 +32,6 @@ const defaultValues: z.input<typeof loginSchema> = {
   email: "",
   password: "",
   rememberMe: false,
-  otpLogin: false,
 };
 
 const fadeUp = {
@@ -59,14 +57,11 @@ export function LoginForm() {
   const {
     control,
     handleSubmit,
-    watch,
     formState: { errors },
   } = useForm<z.input<typeof loginSchema>, unknown, LoginSchema>({
     resolver: zodResolver(loginSchema),
     defaultValues,
   });
-
-  const otpLogin = watch("otpLogin");
 
   const onSubmit = handleSubmit(async (values) => {
     setIsSubmitting(true);
@@ -166,58 +161,33 @@ export function LoginForm() {
               htmlFor="password"
               className="text-sm font-medium text-neutral-700"
             >
-              {otpLogin ? AUTH_COPY.otpLabel : AUTH_COPY.passwordLabel}
+              {AUTH_COPY.passwordLabel}
             </Label>
-            {!otpLogin ? (
-              <Link
-                href="/forgot-password"
-                className="text-primary text-xs font-medium transition-colors hover:text-[#e66000] hover:underline"
-              >
-                {AUTH_COPY.forgotPassword}
-              </Link>
-            ) : null}
+            <Link
+              href="/forgot-password"
+              className="text-primary text-xs font-medium transition-colors hover:text-[#e66000] hover:underline"
+            >
+              {AUTH_COPY.forgotPassword}
+            </Link>
           </div>
 
-          {otpLogin ? (
-            <Controller
-              control={control}
-              name="password"
-              render={({ field }) => (
-                <IconInput
-                  id="password"
-                  icon={KeyRound}
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  placeholder={AUTH_COPY.otpPlaceholder}
-                  aria-invalid={!!errors.password}
-                  value={field.value}
-                  onChange={field.onChange}
-                  onBlur={field.onBlur}
-                  name={field.name}
-                  ref={field.ref}
-                />
-              )}
-            />
-          ) : (
-            <Controller
-              control={control}
-              name="password"
-              render={({ field }) => (
-                <PasswordInput
-                  id="password"
-                  autoComplete="current-password"
-                  placeholder={AUTH_COPY.passwordPlaceholder}
-                  aria-invalid={!!errors.password}
-                  value={field.value}
-                  onChange={field.onChange}
-                  onBlur={field.onBlur}
-                  name={field.name}
-                  ref={field.ref}
-                />
-              )}
-            />
-          )}
+          <Controller
+            control={control}
+            name="password"
+            render={({ field }) => (
+              <PasswordInput
+                id="password"
+                autoComplete="current-password"
+                placeholder={AUTH_COPY.passwordPlaceholder}
+                aria-invalid={!!errors.password}
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                name={field.name}
+                ref={field.ref}
+              />
+            )}
+          />
 
           {errors.password ? (
             <p className="text-destructive text-sm">
@@ -228,7 +198,7 @@ export function LoginForm() {
       </motion.div>
 
       <motion.div
-        className="flex items-center justify-between gap-4"
+        className="flex items-center gap-2.5"
         custom={0.15}
         variants={fadeUp}
       >
@@ -236,7 +206,7 @@ export function LoginForm() {
           control={control}
           name="rememberMe"
           render={({ field }) => (
-            <div className="flex items-center gap-2.5">
+            <>
               <Checkbox
                 id="rememberMe"
                 checked={field.value}
@@ -248,27 +218,7 @@ export function LoginForm() {
               >
                 {AUTH_COPY.rememberMe}
               </Label>
-            </div>
-          )}
-        />
-
-        <Controller
-          control={control}
-          name="otpLogin"
-          render={({ field }) => (
-            <div className="flex items-center gap-2.5">
-              <Label
-                htmlFor="otpLogin"
-                className="cursor-pointer text-sm font-normal text-neutral-600"
-              >
-                {AUTH_COPY.otpLogin}
-              </Label>
-              <Switch
-                id="otpLogin"
-                checked={field.value}
-                onCheckedChange={field.onChange}
-              />
-            </div>
+            </>
           )}
         />
       </motion.div>

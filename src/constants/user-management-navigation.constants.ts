@@ -1,5 +1,3 @@
-import { Briefcase, UserCog, Users } from "lucide-react";
-
 import { ROUTES } from "@/constants/routes";
 import type { NavChildItem } from "@/constants/navigation.constants";
 
@@ -7,17 +5,14 @@ export const USER_MANAGEMENT_NAV_CHILDREN: NavChildItem[] = [
   {
     label: "Customers",
     href: `${ROUTES.USER_MANAGEMENT}/customers`,
-    icon: Users,
   },
   {
     label: "Customer Executives",
     href: ROUTES.USER_MANAGEMENT_CUSTOMER_EXECUTIVES,
-    icon: UserCog,
   },
   {
     label: "Sub Hub Managers",
     href: `${ROUTES.USER_MANAGEMENT}/sub-hub-managers`,
-    icon: Briefcase,
   },
 ];
 

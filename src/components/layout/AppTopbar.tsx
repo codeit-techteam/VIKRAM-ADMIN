@@ -17,7 +17,6 @@ interface AppTopbarProps {
   showUserId?: boolean;
   variant?: "default" | "minimal";
   searchPlaceholder?: string;
-  mobileNavTrigger?: React.ReactNode;
 }
 
 function formatTopbarDate(date: Date) {
@@ -34,7 +33,6 @@ export function AppTopbar({
   showUserId = true,
   variant = "default",
   searchPlaceholder,
-  mobileNavTrigger,
 }: AppTopbarProps) {
   const { user } = useAuth();
   const isMinimal = variant === "minimal";
@@ -51,8 +49,6 @@ export function AppTopbar({
 
   return (
     <header className="sticky top-0 z-20 flex h-[72px] shrink-0 items-center gap-4 border-b border-gray-100 bg-white px-4 sm:px-6">
-      {mobileNavTrigger}
-
       {!isMinimal && (
         <>
           <div className="hidden min-w-fit lg:block">

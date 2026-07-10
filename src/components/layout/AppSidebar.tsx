@@ -1,116 +1,100 @@
 "use client";
 
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Hammer, Wrench } from "lucide-react";
 import { useEffect } from "react";
 
-import { SidebarContent } from "@/components/layout/sidebar/SidebarContent";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
+import { SidebarNavItem } from "@/components/layout/SidebarNavItem";
+import { SidebarSection } from "@/components/layout/SidebarSection";
+import {
+  BOTTOM_NAV_ITEMS,
+  NAV_SECTIONS,
+} from "@/constants/navigation.constants";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/store/sidebar-store";
 
 export function AppSidebar() {
+  const pathname = usePathname();
   const isCollapsed = useSidebarStore((state) => state.isCollapsed);
-  const isMobileOpen = useSidebarStore((state) => state.isMobileOpen);
   const setCollapsed = useSidebarStore((state) => state.setCollapsed);
-  const setMobileOpen = useSidebarStore((state) => state.setMobileOpen);
 
   useEffect(() => {
-    const tabletQuery = window.matchMedia(
-      "(min-width: 768px) and (max-width: 1023px)",
-    );
-    const mobileQuery = window.matchMedia("(max-width: 767px)");
+    const mediaQuery = window.matchMedia("(max-width: 1023px)");
 
-    const handleTabletChange = (
-      event: MediaQueryListEvent | MediaQueryList,
-    ) => {
-      if (event.matches) {
-        setCollapsed(true);
-      }
+    const handleChange = (event: MediaQueryListEvent | MediaQueryList) => {
+      setCollapsed(event.matches);
     };
 
-    const handleMobileChange = (
-      event: MediaQueryListEvent | MediaQueryList,
-    ) => {
-      if (event.matches) {
-        setMobileOpen(false);
-      }
-    };
+    handleChange(mediaQuery);
+    mediaQuery.addEventListener("change", handleChange);
 
-    handleTabletChange(tabletQuery);
-    handleMobileChange(mobileQuery);
-
-    tabletQuery.addEventListener("change", handleTabletChange);
-    mobileQuery.addEventListener("change", handleMobileChange);
-
-    return () => {
-      tabletQuery.removeEventListener("change", handleTabletChange);
-      mobileQuery.removeEventListener("change", handleMobileChange);
-    };
-  }, [setCollapsed, setMobileOpen]);
-
-  const closeMobile = () => setMobileOpen(false);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, [setCollapsed]);
 
   return (
-    <>
-      <aside
-        className={cn(
-          "fixed top-0 left-0 z-30 hidden h-screen shrink-0 flex-col border-r border-gray-100 bg-white transition-[width] duration-200 md:flex",
-          isCollapsed ? "w-[72px]" : "w-[260px]",
-        )}
-        aria-label="Main navigation"
-      >
-        <SidebarContent isCollapsed={isCollapsed} />
-
-        <div
+    <aside
+      className={cn(
+        "sticky top-0 flex h-screen shrink-0 flex-col border-r border-gray-100 bg-white",
+        isCollapsed ? "w-[72px]" : "w-[260px]",
+      )}
+    >
+      <div className="border-b border-gray-100 px-4 py-5">
+        <Link
+          href="/dashboard"
           className={cn(
-            "absolute top-[88px] -right-3 z-40 hidden lg:block",
-            isCollapsed && "top-[84px]",
+            "flex items-center gap-3",
+            isCollapsed && "justify-center",
           )}
         >
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="size-6 rounded-full border-gray-200 bg-white shadow-sm"
-            onClick={() => setCollapsed(!isCollapsed)}
-          >
-            {isCollapsed ? (
-              <PanelLeftOpen className="size-3.5" />
-            ) : (
-              <PanelLeftClose className="size-3.5" />
-            )}
-          </Button>
-        </div>
-      </aside>
+          <div className="bg-primary flex size-10 shrink-0 items-center justify-center rounded-xl">
+            <div className="relative flex items-center">
+              <Wrench className="size-3.5 text-white" />
+              <Hammer className="absolute -right-1.5 size-3 text-white" />
+            </div>
+          </div>
+          {!isCollapsed && (
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-[#1A1A1A]">
+                Bajriwala
+              </p>
+              <p className="truncate text-[10px] tracking-wide text-gray-400 uppercase">
+                Operations Control Tower
+              </p>
+            </div>
+          )}
+        </Link>
+      </div>
 
-      <Sheet open={isMobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-[280px] p-0" showCloseButton>
-          <SidebarContent
-            isCollapsed={false}
-            onNavigate={closeMobile}
-            className="pt-2"
+      <div className="flex-1 overflow-y-auto px-3 py-4">
+        {NAV_SECTIONS.map((section, index) => (
+          <SidebarSection
+            key={section.label ?? `section-${index}`}
+            label={section.label}
+            items={section.items}
+            pathname={pathname}
+            isCollapsed={isCollapsed}
           />
-        </SheetContent>
-      </Sheet>
-    </>
-  );
-}
+        ))}
+      </div>
 
-export function SidebarMobileTrigger() {
-  const setMobileOpen = useSidebarStore((state) => state.setMobileOpen);
+      <div className="border-t border-gray-100 px-3 py-4">
+        <nav className="flex flex-col gap-0.5">
+          {BOTTOM_NAV_ITEMS.map((item) => {
+            const isLogout = item.label === "Logout";
 
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      className="md:hidden"
-      aria-label="Open navigation menu"
-      onClick={() => setMobileOpen(true)}
-    >
-      <PanelLeftOpen className="size-5" />
-    </Button>
+            return (
+              <SidebarNavItem
+                key={item.href}
+                item={item}
+                pathname={pathname}
+                isCollapsed={isCollapsed}
+                isLogout={isLogout}
+              />
+            );
+          })}
+        </nav>
+      </div>
+    </aside>
   );
 }

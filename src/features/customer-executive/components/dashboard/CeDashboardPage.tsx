@@ -85,7 +85,12 @@ export function CeDashboardPage() {
       queryOrders({
         page: orderPage,
         limit: CE_PAGE_SIZE,
-        filters: { search: "", status: "ALL", orderSource: "ALL" },
+        filters: {
+          search: "",
+          status: "ALL",
+          statusGroup: "ALL",
+          orderSource: "ALL",
+        },
       }),
     [queryOrders, orderPage],
   );

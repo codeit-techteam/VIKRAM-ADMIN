@@ -87,7 +87,7 @@ export function StatCard({
     "rounded-xl border border-gray-100 bg-white p-6 shadow-sm",
     href &&
       !isLoading &&
-      "transition-colors hover:border-primary/20 hover:bg-gray-50/50",
+      "cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-primary hover:shadow-md",
     className,
   );
 

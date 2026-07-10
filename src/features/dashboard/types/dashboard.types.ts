@@ -1,9 +1,14 @@
+import type { LucideIcon } from "lucide-react";
+
 export interface StatCardData {
   label: string;
   value: string;
   subtext: string;
   valueVariant?: "default" | "warning";
   href?: string;
+  icon?: LucideIcon;
+  iconContainerClassName?: string;
+  iconClassName?: string;
 }
 
 export type ActionPriority = "high" | "medium";

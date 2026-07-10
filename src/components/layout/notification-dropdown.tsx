@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Bell } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -14,7 +13,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { ROUTES } from "@/constants/routes";
 import { useNotificationStore } from "@/store/notification-store";
 import { formatRelativeDate } from "@/utils/format-date";
 import { cn } from "@/lib/utils";
@@ -77,10 +75,6 @@ export function NotificationDropdown() {
             ))
           )}
         </ScrollArea>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem render={<Link href={ROUTES.NOTIFICATION_CENTER} />}>
-          View all notifications
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

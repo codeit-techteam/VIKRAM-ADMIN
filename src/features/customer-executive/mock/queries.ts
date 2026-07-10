@@ -1,3 +1,4 @@
+import { CE_ORDERS_IN_TRANSIT_STATUSES } from "@/constants/orders.constants";
 import type {
   CeActivity,
   CeComplaint,
@@ -101,7 +102,11 @@ export function queryOrders(
     );
   }
 
-  if (filters.status !== "ALL") {
+  if (filters.statusGroup === "IN_TRANSIT") {
+    result = result.filter((o) =>
+      CE_ORDERS_IN_TRANSIT_STATUSES.includes(o.status),
+    );
+  } else if (filters.status !== "ALL") {
     result = result.filter((o) => o.status === filters.status);
   }
 

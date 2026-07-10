@@ -223,6 +223,7 @@ export interface CeCustomerFilters {
 export interface CeOrderFilters {
   search: string;
   status: OrderStatus | "ALL";
+  statusGroup: "IN_TRANSIT" | "ALL";
   orderSource: OrderSource | "ALL";
 }
 
@@ -312,6 +313,7 @@ export const EMPTY_CUSTOMER_FILTERS: CeCustomerFilters = {
 export const EMPTY_ORDER_FILTERS: CeOrderFilters = {
   search: "",
   status: "ALL",
+  statusGroup: "ALL",
   orderSource: "ALL",
 };
 

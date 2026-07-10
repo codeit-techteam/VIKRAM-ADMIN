@@ -1,3 +1,5 @@
+import { Building2, Package, Truck, Users } from "lucide-react";
+
 import { NAV_FILTER_PRESETS } from "@/constants/navigation-filters";
 import { ROUTES } from "@/constants/routes";
 import type {
@@ -115,7 +117,7 @@ export function fetchExecutiveDashboardData(
   const activeUsers = scaleValue(90, filter);
   const totalOrders = scaleValue(160, filter);
   const totalHubs = "48";
-  const pendingApprovals = scaleValue(142, filter);
+  const ordersInTransit = "38";
 
   return {
     statCards: [
@@ -124,25 +126,36 @@ export function fetchExecutiveDashboardData(
         value: totalOrders,
         subtext,
         href: NAV_FILTER_PRESETS.ordersAll(),
+        icon: Package,
+        iconContainerClassName: "bg-blue-50",
+        iconClassName: "text-blue-600",
       },
       {
         label: "ACTIVE USERS",
         value: activeUsers,
         subtext: "Growth across contractor profiles.",
-        href: NAV_FILTER_PRESETS.customersActive(),
+        href: ROUTES.USER_MANAGEMENT,
+        icon: Users,
+        iconContainerClassName: "bg-emerald-50",
+        iconClassName: "text-emerald-600",
       },
       {
         label: "TOTAL HUBS",
         value: totalHubs,
         subtext: "8 Central, 40 Regional Sub-hubs.",
         href: ROUTES.SUB_HUB_NETWORK,
+        icon: Building2,
+        iconContainerClassName: "bg-violet-50",
+        iconClassName: "text-violet-600",
       },
       {
-        label: "PENDING APPROVALS",
-        value: pendingApprovals,
-        subtext: "Requires immediate supervisor review.",
-        valueVariant: "warning",
-        href: ROUTES.APPROVALS_CENTER,
+        label: "ORDERS IN TRANSIT",
+        value: ordersInTransit,
+        subtext: "Orders currently moving to customers",
+        href: NAV_FILTER_PRESETS.ordersInTransit(),
+        icon: Truck,
+        iconContainerClassName: "bg-orange-50",
+        iconClassName: "text-primary",
       },
     ],
     pendingActions: [

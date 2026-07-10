@@ -1,6 +1,5 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  Bell,
   LayoutDashboard,
   LogOut,
   Network,
@@ -89,12 +88,6 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: UserCog,
         hasSubmenu: true,
         children: CUSTOMER_EXECUTIVE_NAV_CHILDREN,
-      },
-      {
-        label: "Notification Center",
-        href: "/notification-center",
-        icon: Bell,
-        hasSubmenu: true,
       },
     ],
   },

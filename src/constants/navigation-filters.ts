@@ -1,12 +1,20 @@
+import { ORDERS_IN_TRANSIT_STATUS_GROUP } from "@/constants/orders.constants";
 import { ROUTES } from "@/constants/routes";
 import { buildFilteredUrl } from "@/utils/navigation-filters";
 
 export const NAV_FILTER_PRESETS = {
-  ordersAll: () =>
-    buildFilteredUrl(ROUTES.CUSTOMER_EXECUTIVE_ORDERS, { status: "ALL" }),
+  ordersAll: () => ROUTES.ORDERS,
+
+  ordersInTransit: () =>
+    buildFilteredUrl(ROUTES.ORDERS, {
+      statusGroup: ORDERS_IN_TRANSIT_STATUS_GROUP,
+    }),
 
   ordersByStatus: (status: string) =>
-    buildFilteredUrl(ROUTES.CUSTOMER_EXECUTIVE_ORDERS, { status }),
+    buildFilteredUrl(ROUTES.ORDERS, { status }),
+
+  ordersByStatusGroup: (statusGroup: string) =>
+    buildFilteredUrl(ROUTES.ORDERS, { statusGroup }),
 
   ordersBySource: (orderSource: string) =>
     buildFilteredUrl(ROUTES.CUSTOMER_EXECUTIVE_ORDERS, { orderSource }),

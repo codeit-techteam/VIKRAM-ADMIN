@@ -12,6 +12,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import {
+  CE_ORDERS_IN_TRANSIT_STATUSES,
+  ORDERS_IN_TRANSIT_STATUS_GROUP,
+} from "@/constants/orders.constants";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Pagination } from "@/components/shared/Pagination";
 import { Button } from "@/components/ui/button";
@@ -63,14 +67,18 @@ export function CeOrdersPage() {
   useEffect(() => {
     const orderParam = searchParams.get("order");
     const statusParam = searchParams.get("status");
+    const statusGroupParam = searchParams.get("statusGroup");
     const sourceParam = searchParams.get("orderSource");
 
-    if (orderParam || statusParam || sourceParam) {
+    if (orderParam || statusParam || statusGroupParam || sourceParam) {
       const filters: CeOrderFilters = {
         ...EMPTY_ORDER_FILTERS,
         ...(orderParam ? { search: orderParam } : {}),
         ...(statusParam
           ? { status: statusParam.toUpperCase() as CeOrderFilters["status"] }
+          : {}),
+        ...(statusGroupParam?.toUpperCase() === ORDERS_IN_TRANSIT_STATUS_GROUP
+          ? { statusGroup: ORDERS_IN_TRANSIT_STATUS_GROUP }
           : {}),
         ...(sourceParam
           ? {
@@ -98,7 +106,9 @@ export function CeOrdersPage() {
   const stats = useMemo(
     () => ({
       active: orders.filter((o) => o.status === "ACTIVE").length,
-      inTransit: orders.filter((o) => o.status === "IN_TRANSIT").length,
+      inTransit: orders.filter((o) =>
+        CE_ORDERS_IN_TRANSIT_STATUSES.includes(o.status),
+      ).length,
       delivered: orders.filter((o) => o.status === "DELIVERED").length,
       cancelled: orders.filter((o) => o.status === "CANCELLED").length,
     }),
@@ -133,7 +143,7 @@ export function CeOrdersPage() {
           label="In Transit"
           value={stats.inTransit}
           isLoading={isLoading}
-          href={NAV_FILTER_PRESETS.ordersByStatus("IN_TRANSIT")}
+          href={NAV_FILTER_PRESETS.ordersInTransit()}
         />
         <CeMetricCard
           label="Delivered"
@@ -162,6 +172,7 @@ export function CeOrdersPage() {
               setDraftFilters((f) => ({
                 ...f,
                 status: v as CeOrderFilters["status"],
+                statusGroup: "ALL",
               })),
             options: [
               { label: "All Status", value: "ALL" },

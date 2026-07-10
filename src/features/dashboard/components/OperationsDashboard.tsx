@@ -41,6 +41,9 @@ export function OperationsDashboard({
             subtext={card.subtext}
             valueVariant={card.valueVariant}
             href={card.href}
+            icon={card.icon}
+            iconContainerClassName={card.iconContainerClassName}
+            iconClassName={card.iconClassName}
             isLoading={isLoading}
           />
         ))}

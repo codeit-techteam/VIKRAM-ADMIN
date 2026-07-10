@@ -2,6 +2,7 @@ import type { PaginationMeta } from "@/types/api";
 import type {
   DispatchLog,
   DispatchLogFilters,
+  DispatchLogOperationalFilter,
   DispatchLogOrderLine,
   DispatchLogQueryParams,
   DispatchLogStats,
@@ -30,12 +31,55 @@ export const DISPATCH_LOG_STATUS_LABELS: Record<DispatchLogStatus, string> = {
   COMPLETED: "Completed",
 };
 
+export const DISPATCH_LOG_OPERATIONAL_FILTER_LABELS: Record<
+  DispatchLogOperationalFilter,
+  string
+> = {
+  "pending-dispatch": "Pending Dispatch",
+  ready: "Ready",
+  "vehicle-pending": "Vehicle Pending",
+  "driver-pending": "Driver Pending",
+};
+
+/** Orders accepted by hub but not yet dispatched. */
+export const PENDING_DISPATCH_STATUSES: DispatchLogStatus[] = [
+  "PACKED",
+  "READY",
+  "LOADED",
+];
+
 export const DISPATCH_LOG_STATUS_OPTIONS = Object.entries(
-  DISPATCH_LOG_STATUS_LABELS,
+  DISPATCH_LOG_OPERATIONAL_FILTER_LABELS,
 ).map(([value, label]) => ({
-  value: value as DispatchLogStatus,
+  value: value as DispatchLogOperationalFilter,
   label,
 }));
+
+export function isPendingDispatchLog(item: DispatchLog): boolean {
+  return PENDING_DISPATCH_STATUSES.includes(item.status);
+}
+
+export function matchesDispatchOperationalFilter(
+  item: DispatchLog,
+  filter: DispatchLogOperationalFilter,
+): boolean {
+  switch (filter) {
+    case "pending-dispatch":
+      return isPendingDispatchLog(item);
+    case "ready":
+      return item.status === "READY";
+    case "vehicle-pending":
+      return isPendingDispatchLog(item) && !item.vehicleId;
+    case "driver-pending":
+      return isPendingDispatchLog(item) && !item.driverId;
+    default:
+      return false;
+  }
+}
+
+export function computePendingDispatchCount(items: DispatchLog[]): number {
+  return items.filter(isPendingDispatchLog).length;
+}
 
 export const DISPATCH_LOG_HUB_OPTIONS = [
   { id: "hub-gurgaon-north", name: "Gurgaon North" },
@@ -442,12 +486,27 @@ function matchesFilters(
     const q = filters.driver.trim().toLowerCase();
     if (!(item.driverName ?? "").toLowerCase().includes(q)) return false;
   }
-  if (
-    filters.status &&
-    filters.status !== "all" &&
-    item.status !== filters.status
-  ) {
-    return false;
+  if (filters.status && filters.status !== "all") {
+    const operationalFilters = Object.keys(
+      DISPATCH_LOG_OPERATIONAL_FILTER_LABELS,
+    ) as DispatchLogOperationalFilter[];
+
+    if (
+      operationalFilters.includes(
+        filters.status as DispatchLogOperationalFilter,
+      )
+    ) {
+      if (
+        !matchesDispatchOperationalFilter(
+          item,
+          filters.status as DispatchLogOperationalFilter,
+        )
+      ) {
+        return false;
+      }
+    } else if (item.status !== filters.status) {
+      return false;
+    }
   }
   if (filters.date && !isSameDay(item.createdAt, new Date(filters.date))) {
     return false;

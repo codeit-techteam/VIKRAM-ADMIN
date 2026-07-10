@@ -73,6 +73,22 @@ export const NAV_FILTER_PRESETS = {
   hubDispatchLogsByHub: (hubId: string) =>
     buildFilteredUrl(ROUTES.HUB_DISPATCH_LOGS, { hub: hubId }),
 
+  pendingDispatchLogs: () =>
+    buildFilteredUrl(ROUTES.HUB_DISPATCH_LOGS, {
+      status: "pending-dispatch",
+    }),
+
+  dispatchLogsByStatus: (status: string) =>
+    buildFilteredUrl(ROUTES.HUB_DISPATCH_LOGS, { status }),
+
+  financePayments: () => ROUTES.FINANCE_PAYMENTS,
+
+  ordersBySourceAlias: (source: string) =>
+    buildFilteredUrl(ROUTES.ORDERS, { source }),
+
+  ordersInTransitAlias: () =>
+    buildFilteredUrl(ROUTES.ORDERS, { status: "in-transit" }),
+
   customerDetail: (customerId: string) =>
     `${ROUTES.CUSTOMER_EXECUTIVE_CUSTOMERS}/${customerId}`,
 

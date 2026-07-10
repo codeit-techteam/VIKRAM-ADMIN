@@ -25,6 +25,7 @@ import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/hooks/use-auth";
 import {
   DISPATCH_LOG_HUB_OPTIONS,
+  DISPATCH_LOG_OPERATIONAL_FILTER_LABELS,
   DISPATCH_LOG_PAGE_SIZE,
   EMPTY_DISPATCH_LOG_FILTERS,
   fetchDispatchLogs,
@@ -35,10 +36,29 @@ import { useDispatchLogStore } from "@/store/dispatch-log-store";
 import type {
   DispatchLog,
   DispatchLogFilters,
+  DispatchLogOperationalFilter,
   DispatchLogStatus,
 } from "@/types/dispatch-log.types";
 import { printDispatchLogSlip } from "@/utils/dispatch-log-print";
 import { notify } from "@/utils/notify";
+
+const OPERATIONAL_FILTER_VALUES = Object.keys(
+  DISPATCH_LOG_OPERATIONAL_FILTER_LABELS,
+) as DispatchLogOperationalFilter[];
+
+function parseStatusParam(statusParam: string): DispatchLogFilters["status"] {
+  const normalized = statusParam.toLowerCase();
+
+  if (
+    OPERATIONAL_FILTER_VALUES.includes(
+      normalized as DispatchLogOperationalFilter,
+    )
+  ) {
+    return normalized as DispatchLogOperationalFilter;
+  }
+
+  return statusParam.toUpperCase() as DispatchLogStatus;
+}
 
 const STAT_FILTER_MAP: Partial<
   Record<DispatchLogStatKey, Partial<DispatchLogFilters>>
@@ -125,9 +145,7 @@ export function DispatchLogsPage() {
     setFilters((current) => ({
       ...current,
       ...(hubParam ? { hubId: hubParam } : {}),
-      ...(statusParam
-        ? { status: statusParam.toUpperCase() as DispatchLogStatus }
-        : {}),
+      ...(statusParam ? { status: parseStatusParam(statusParam) } : {}),
       ...(orderParam ? { customer: orderParam } : {}),
     }));
     setCurrentPage(1);

@@ -16,9 +16,11 @@ export type ActionPriority = "high" | "medium";
 export interface PendingAction {
   id: string;
   title: string;
+  subtitle?: string;
   count: number;
   priority: ActionPriority;
   href: string;
+  icon?: LucideIcon;
 }
 
 export interface QuickActionItem {

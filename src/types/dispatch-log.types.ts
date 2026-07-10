@@ -7,6 +7,9 @@ export type DispatchLogStatus =
   | "DELIVERED"
   | "COMPLETED";
 
+export type DispatchLogOperationalFilter =
+  "pending-dispatch" | "ready" | "vehicle-pending" | "driver-pending";
+
 export interface DispatchLogTimelineEvent {
   id: string;
   status: DispatchLogStatus;
@@ -59,7 +62,7 @@ export interface DispatchLogFilters {
   customer: string;
   vehicle: string;
   driver: string;
-  status: DispatchLogStatus | "all";
+  status: DispatchLogStatus | DispatchLogOperationalFilter | "all";
   date: string;
 }
 

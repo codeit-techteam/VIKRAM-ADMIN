@@ -2,9 +2,9 @@
 
 import { AlertCircle } from "lucide-react";
 
+import { DashboardKpiCard } from "@/components/shared/DashboardKpiCard";
 import { DashboardCard } from "@/components/shared/DashboardCard";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { PriorityActionCard } from "@/components/shared/PriorityActionCard";
 import type { PendingAction } from "@/features/dashboard/types/dashboard.types";
 
 interface CriticalPendingActionsProps {
@@ -26,11 +26,10 @@ export function CriticalPendingActions({
       {isLoading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {Array.from({ length: 4 }).map((_, index) => (
-            <PriorityActionCard
+            <DashboardKpiCard
               key={index}
               title=""
-              count={0}
-              priority="high"
+              value={0}
               href="#"
               isLoading
             />
@@ -44,12 +43,16 @@ export function CriticalPendingActions({
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {actions.map((action) => (
-            <PriorityActionCard
+            <DashboardKpiCard
               key={action.id}
               title={action.title}
-              count={action.count}
-              priority={action.priority}
+              subtitle={action.subtitle}
+              value={action.count}
               href={action.href}
+              icon={action.icon}
+              accent={
+                action.id === "pending-dispatches" ? "orange" : action.priority
+              }
             />
           ))}
         </div>

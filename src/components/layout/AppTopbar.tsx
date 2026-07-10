@@ -1,12 +1,11 @@
 "use client";
 
-import { Calendar, HelpCircle } from "lucide-react";
+import { Calendar } from "lucide-react";
 
 import { EnterpriseGlobalSearch } from "@/components/layout/global-search";
 import { NotificationBell } from "@/features/notification-center";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ROLE_LABELS } from "@/constants/roles";
 import { useAuth } from "@/hooks/use-auth";
@@ -18,6 +17,7 @@ interface AppTopbarProps {
   showUserId?: boolean;
   variant?: "default" | "minimal";
   searchPlaceholder?: string;
+  mobileNavTrigger?: React.ReactNode;
 }
 
 function formatTopbarDate(date: Date) {
@@ -34,6 +34,7 @@ export function AppTopbar({
   showUserId = true,
   variant = "default",
   searchPlaceholder,
+  mobileNavTrigger,
 }: AppTopbarProps) {
   const { user } = useAuth();
   const isMinimal = variant === "minimal";
@@ -50,6 +51,8 @@ export function AppTopbar({
 
   return (
     <header className="sticky top-0 z-20 flex h-[72px] shrink-0 items-center gap-4 border-b border-gray-100 bg-white px-4 sm:px-6">
+      {mobileNavTrigger}
+
       {!isMinimal && (
         <>
           <div className="hidden min-w-fit lg:block">
@@ -99,17 +102,7 @@ export function AppTopbar({
             <span>{formatTopbarDate(new Date())}</span>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1">
-            <NotificationBell />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-9 text-gray-500"
-            >
-              <HelpCircle className="size-[18px]" />
-              <span className="sr-only">Help</span>
-            </Button>
-          </div>
+          <NotificationBell />
 
           <Separator orientation="vertical" className="hidden h-8 sm:block" />
 

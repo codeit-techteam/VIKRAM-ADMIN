@@ -68,22 +68,29 @@ export function CeOrdersPage() {
     const orderParam = searchParams.get("order");
     const statusParam = searchParams.get("status");
     const statusGroupParam = searchParams.get("statusGroup");
-    const sourceParam = searchParams.get("orderSource");
+    const sourceParam =
+      searchParams.get("orderSource") ?? searchParams.get("source");
 
     if (orderParam || statusParam || statusGroupParam || sourceParam) {
+      const normalizedStatus = statusParam?.toLowerCase();
+      const normalizedSource = sourceParam?.toLowerCase();
+
       const filters: CeOrderFilters = {
         ...EMPTY_ORDER_FILTERS,
         ...(orderParam ? { search: orderParam } : {}),
-        ...(statusParam
+        ...(statusParam && normalizedStatus !== "in-transit"
           ? { status: statusParam.toUpperCase() as CeOrderFilters["status"] }
           : {}),
-        ...(statusGroupParam?.toUpperCase() === ORDERS_IN_TRANSIT_STATUS_GROUP
+        ...(statusGroupParam?.toUpperCase() ===
+          ORDERS_IN_TRANSIT_STATUS_GROUP || normalizedStatus === "in-transit"
           ? { statusGroup: ORDERS_IN_TRANSIT_STATUS_GROUP }
           : {}),
         ...(sourceParam
           ? {
               orderSource:
-                sourceParam.toUpperCase() as CeOrderFilters["orderSource"],
+                normalizedSource === "customer-executive"
+                  ? "EXECUTIVE"
+                  : (sourceParam.toUpperCase() as CeOrderFilters["orderSource"]),
             }
           : {}),
       };

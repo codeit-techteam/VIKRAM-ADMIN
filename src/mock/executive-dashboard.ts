@@ -14,6 +14,10 @@ import {
   CE_CUSTOMERS,
   CE_HUBS,
 } from "@/features/customer-executive/mock/seed";
+import {
+  computePendingDispatchCount,
+  DISPATCH_LOG_LIST,
+} from "@/mock/dispatch-logs";
 
 export type DashboardDateRange =
   "today" | "week" | "month" | "quarter" | "year" | "custom";
@@ -79,6 +83,11 @@ function mapCeStatus(status: string): RecentOrder["status"] {
     default:
       return "PROCESSING";
   }
+}
+
+function computePendingDispatches(filter: DashboardDateFilter): number {
+  const baseCount = computePendingDispatchCount(DISPATCH_LOG_LIST);
+  return Math.max(1, Math.round(baseCount * getScale(filter)));
 }
 
 function buildRecentOrders(): RecentOrder[] {
@@ -152,7 +161,7 @@ export function fetchExecutiveDashboardData(
         label: "ORDERS IN TRANSIT",
         value: ordersInTransit,
         subtext: "Orders currently moving to customers",
-        href: NAV_FILTER_PRESETS.ordersInTransit(),
+        href: NAV_FILTER_PRESETS.ordersInTransitAlias(),
         icon: Truck,
         iconContainerClassName: "bg-orange-50",
         iconClassName: "text-primary",
@@ -160,32 +169,34 @@ export function fetchExecutiveDashboardData(
     ],
     pendingActions: [
       {
-        id: "hub-acceptance",
-        title: "Pending Hub Acceptance",
-        count: Math.max(1, Math.round(8 * getScale(filter))),
-        priority: "high",
-        href: NAV_FILTER_PRESETS.transfersWaitingHubAcceptance(),
+        id: "pending-dispatches",
+        title: "Pending Dispatches",
+        subtitle: "Orders waiting to leave assigned hubs",
+        count: computePendingDispatches(filter),
+        priority: "medium",
+        href: NAV_FILTER_PRESETS.pendingDispatchLogs(),
+        icon: Package,
       },
       {
         id: "customer-payments",
         title: "Pending Customer Payments",
         count: Math.max(1, Math.round(12 * getScale(filter))),
         priority: "high",
-        href: NAV_FILTER_PRESETS.paymentsPending(),
+        href: NAV_FILTER_PRESETS.financePayments(),
       },
       {
         id: "warehouse-requests",
         title: "Warehouse Requests",
         count: Math.max(1, Math.round(15 * getScale(filter))),
         priority: "medium",
-        href: `${ROUTES.CENTRAL_WAREHOUSE}/transfers`,
+        href: NAV_FILTER_PRESETS.hubRequisitions(),
       },
       {
         id: "exec-orders",
         title: "Customer Exec Orders",
         count: Math.max(1, Math.round(21 * getScale(filter))),
         priority: "medium",
-        href: NAV_FILTER_PRESETS.ordersBySource("EXECUTIVE"),
+        href: NAV_FILTER_PRESETS.ordersBySourceAlias("customer-executive"),
       },
     ],
     quickActions: [

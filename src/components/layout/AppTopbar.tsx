@@ -45,7 +45,10 @@ export function AppTopbar({
       .toUpperCase()
       .slice(0, 2) ?? "SA";
 
+  const displayName = user?.name ?? "Super Admin";
   const roleLabel = user?.role ? ROLE_LABELS[user.role] : "Super Admin";
+  const showRoleBadge =
+    showUserId && roleLabel.toLowerCase() !== displayName.toLowerCase();
 
   return (
     <header className="sticky top-0 z-20 flex h-[72px] shrink-0 items-center gap-4 border-b border-gray-100 bg-white px-4 sm:px-6">
@@ -71,7 +74,7 @@ export function AppTopbar({
       <div
         className={cn(
           "relative min-w-0 flex-1",
-          isMinimal ? "max-w-none" : "lg:max-w-xl",
+          isMinimal ? "max-w-none" : "max-w-2xl",
         )}
       >
         <EnterpriseGlobalSearch
@@ -85,15 +88,15 @@ export function AppTopbar({
       </div>
 
       {isMinimal ? (
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           <NotificationBell />
           <span className="text-primary hidden text-sm font-semibold sm:inline">
             Bajriwala
           </span>
         </div>
       ) : (
-        <>
-          <div className="hidden shrink-0 items-center gap-2 text-sm text-[#64748B] md:flex">
+        <div className="ml-auto flex shrink-0 items-center gap-3 sm:gap-4">
+          <div className="hidden items-center gap-2 text-sm text-[#64748B] md:flex">
             <Calendar className="size-4 text-gray-400" aria-hidden="true" />
             <span>{formatTopbarDate(new Date())}</span>
           </div>
@@ -102,28 +105,25 @@ export function AppTopbar({
 
           <Separator orientation="vertical" className="hidden h-8 sm:block" />
 
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="flex items-center gap-3">
             <div className="hidden text-right sm:block">
-              <p className="text-sm font-semibold text-[#1A1A1A]">
-                {user?.name ?? "Super Admin"}
+              <p className="text-sm leading-tight font-semibold text-[#1A1A1A]">
+                {displayName}
               </p>
-              {showUserId ? (
+              {showRoleBadge ? (
                 <Badge className="bg-primary/10 text-primary hover:bg-primary/10 mt-0.5 rounded px-1.5 py-0 text-[10px] font-semibold tracking-wide uppercase">
                   {roleLabel}
                 </Badge>
-              ) : (
+              ) : !showUserId ? (
                 <p className="text-xs text-gray-400">{roleLabel}</p>
-              )}
+              ) : null}
             </div>
-            <Avatar size="lg" className="size-10">
-              <AvatarImage
-                src={user?.avatar}
-                alt={user?.name ?? "Super Admin"}
-              />
+            <Avatar size="lg" className="size-10 shrink-0">
+              <AvatarImage src={user?.avatar} alt={displayName} />
               <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
           </div>
-        </>
+        </div>
       )}
     </header>
   );

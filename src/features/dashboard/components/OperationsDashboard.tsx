@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import { StatCard } from "@/components/shared/StatCard";
 import { CriticalPendingActions } from "@/features/dashboard/components/CriticalPendingActions";
 import { DashboardQuickActions } from "@/features/dashboard/components/DashboardQuickActions";
-import { NotificationCenter } from "@/features/dashboard/components/NotificationCenter";
 import { RecentOrdersTable } from "@/features/dashboard/components/RecentOrdersTable";
 import type { DashboardDateFilter } from "@/mock/executive-dashboard";
 import { fetchExecutiveDashboardData } from "@/mock/executive-dashboard";
@@ -56,24 +55,17 @@ export function OperationsDashboard({
             isLoading={isLoading}
           />
         </div>
+
         <DashboardQuickActions
           actions={dashboardData.quickActions}
           isLoading={isLoading}
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <RecentOrdersTable
-            orders={dashboardData.recentOrders}
-            isLoading={isLoading}
-          />
-        </div>
-        <NotificationCenter
-          notifications={dashboardData.notifications}
-          isLoading={isLoading}
-        />
-      </div>
+      <RecentOrdersTable
+        orders={dashboardData.recentOrders}
+        isLoading={isLoading}
+      />
     </div>
   );
 }

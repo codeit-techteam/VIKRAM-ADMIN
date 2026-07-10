@@ -24,7 +24,7 @@ export function CriticalPendingActions({
       }
     >
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-stretch">
           {Array.from({ length: 4 }).map((_, index) => (
             <DashboardKpiCard
               key={index}
@@ -41,7 +41,7 @@ export function CriticalPendingActions({
           description="All operational tasks are up to date."
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-stretch">
           {actions.map((action) => (
             <DashboardKpiCard
               key={action.id}

@@ -34,16 +34,13 @@ export function DashboardQuickActions({
     <DashboardCard
       title="Quick Actions"
       titleIcon={<Zap className="text-primary size-4" aria-hidden="true" />}
+      contentClassName="grid auto-rows-min grid-cols-2 gap-2.5"
     >
-      {isLoading ? (
-        <div className="grid grid-cols-2 gap-3">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-[88px] rounded-xl" />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-3">
-          {actions.map((action) => {
+      {isLoading
+        ? Array.from({ length: 4 }).map((_, index) => (
+            <Skeleton key={index} className="h-[76px] rounded-xl" />
+          ))
+        : actions.map((action) => {
             const Icon = iconMap[action.iconName];
 
             return (
@@ -51,18 +48,19 @@ export function DashboardQuickActions({
                 key={action.id}
                 href={action.href}
                 className={cn(
-                  "hover:border-primary/20 flex flex-col items-center justify-center gap-2 rounded-xl border border-gray-100 bg-white px-3 py-4 text-center shadow-sm transition-colors hover:bg-gray-50/50",
+                  "group flex flex-col items-center justify-center gap-2 rounded-xl border border-gray-100 bg-[#FAFBFC] px-3 py-3 text-center transition-all duration-150",
+                  "hover:border-primary/20 hover:bg-primary/5 hover:shadow-sm",
                 )}
               >
-                <Icon className="text-primary size-5" strokeWidth={1.75} />
+                <span className="bg-primary/10 text-primary group-hover:bg-primary/15 flex size-9 items-center justify-center rounded-lg transition-colors">
+                  <Icon className="size-4" strokeWidth={1.75} />
+                </span>
                 <span className="text-xs leading-tight font-medium text-[#1A1A1A]">
                   {action.label}
                 </span>
               </Link>
             );
           })}
-        </div>
-      )}
     </DashboardCard>
   );
 }

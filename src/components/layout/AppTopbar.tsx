@@ -1,8 +1,9 @@
 "use client";
 
-import { Bell, Calendar, HelpCircle } from "lucide-react";
+import { Calendar, HelpCircle } from "lucide-react";
 
 import { EnterpriseGlobalSearch } from "@/components/layout/global-search";
+import { NotificationBell } from "@/features/notification-center";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -86,10 +87,7 @@ export function AppTopbar({
 
       {isMinimal ? (
         <div className="flex shrink-0 items-center gap-2">
-          <Button variant="ghost" size="icon" className="size-9 text-gray-500">
-            <Bell className="size-[18px]" />
-            <span className="sr-only">Notifications</span>
-          </Button>
+          <NotificationBell />
           <span className="text-primary hidden text-sm font-semibold sm:inline">
             Bajriwala
           </span>
@@ -102,15 +100,7 @@ export function AppTopbar({
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="relative size-9 text-gray-500"
-            >
-              <Bell className="size-[18px]" />
-              <span className="bg-primary absolute top-1.5 right-1.5 size-2 rounded-full ring-2 ring-white" />
-              <span className="sr-only">Notifications</span>
-            </Button>
+            <NotificationBell />
             <Button
               variant="ghost"
               size="icon"

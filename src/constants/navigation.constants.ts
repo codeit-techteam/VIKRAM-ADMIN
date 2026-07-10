@@ -42,6 +42,28 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard }],
   },
   {
+    label: "CONTENT",
+    items: [
+      {
+        label: "Customer App CMS",
+        href: "/customer-app-cms",
+        icon: Smartphone,
+        hasSubmenu: true,
+        children: [
+          { label: "CMS Dashboard", href: "/customer-app-cms" },
+          { label: "Banner Management", href: "/customer-app-cms/banners" },
+          { label: "Video Management", href: "/customer-app-cms/videos" },
+          { label: "Product Catalog", href: "/customer-app-cms/catalog" },
+          { label: "Categories", href: "/customer-app-cms/categories" },
+          {
+            label: "Push Notification",
+            href: "/customer-app-cms/push-notifications",
+          },
+        ],
+      },
+    ],
+  },
+  {
     label: "OPERATIONS",
     items: [
       {
@@ -88,28 +110,6 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: UserCog,
         hasSubmenu: true,
         children: CUSTOMER_EXECUTIVE_NAV_CHILDREN,
-      },
-    ],
-  },
-  {
-    label: "CONTENT",
-    items: [
-      {
-        label: "Customer App CMS",
-        href: "/customer-app-cms",
-        icon: Smartphone,
-        hasSubmenu: true,
-        children: [
-          { label: "CMS Dashboard", href: "/customer-app-cms" },
-          { label: "Banner Management", href: "/customer-app-cms/banners" },
-          { label: "Video Management", href: "/customer-app-cms/videos" },
-          { label: "Product Catalog", href: "/customer-app-cms/catalog" },
-          { label: "Categories", href: "/customer-app-cms/categories" },
-          {
-            label: "Push Notification",
-            href: "/customer-app-cms/push-notifications",
-          },
-        ],
       },
     ],
   },
@@ -164,6 +164,10 @@ export function getNavContextFromPath(pathname: string): {
   section?: string;
   page: string;
 } {
+  if (pathname === "/notification-center") {
+    return { page: "Notification Center", section: "OPERATIONS" };
+  }
+
   for (const navSection of NAV_SECTIONS) {
     for (const item of navSection.items) {
       if (item.children?.length) {

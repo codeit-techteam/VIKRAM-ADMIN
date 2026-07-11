@@ -83,6 +83,15 @@ export const NAV_FILTER_PRESETS = {
 
   financePayments: () => ROUTES.FINANCE_PAYMENTS,
 
+  financePending: () =>
+    buildFilteredUrl(ROUTES.FINANCE_PAYMENTS, { status: "pending" }),
+
+  financePaidToday: () =>
+    buildFilteredUrl(ROUTES.FINANCE_PAYMENTS, { filter: "today" }),
+
+  financePaid: () =>
+    buildFilteredUrl(ROUTES.FINANCE_PAYMENTS, { filter: "paid" }),
+
   ordersBySourceAlias: (source: string) =>
     buildFilteredUrl(ROUTES.ORDERS, { source }),
 

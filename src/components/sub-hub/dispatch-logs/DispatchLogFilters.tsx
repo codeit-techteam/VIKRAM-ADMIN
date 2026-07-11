@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DISPATCH_LOG_STATUS_OPTIONS } from "@/mock/dispatch-logs";
+import { DISPATCH_LOG_FILTER_OPTIONS } from "@/mock/dispatch-logs";
 import type { DispatchLogFilters } from "@/types/dispatch-log.types";
 import { cn } from "@/lib/utils";
 
@@ -106,7 +106,7 @@ export function DispatchLogFiltersBar({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
-              {DISPATCH_LOG_STATUS_OPTIONS.map((option) => (
+              {DISPATCH_LOG_FILTER_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>

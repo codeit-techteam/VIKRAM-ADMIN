@@ -22,6 +22,8 @@ export interface NavChildItem {
   href: string;
   icon?: LucideIcon;
   badge?: number;
+  /** Additional paths that should activate this nav child */
+  aliases?: string[];
 }
 
 export interface NavItem {
@@ -139,6 +141,18 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   ...BOTTOM_NAV_ITEMS.filter((item) => item.label !== "Logout"),
 ];
 
+export function childMatchesPath(
+  child: NavChildItem,
+  pathname: string,
+): boolean {
+  if (!pathname) return false;
+
+  const paths = [child.href, ...(child.aliases ?? [])];
+  return paths.some(
+    (href) => pathname === href || pathname.startsWith(`${href}/`),
+  );
+}
+
 export function findActiveChildItem(
   children: NavChildItem[],
   pathname: string,
@@ -147,17 +161,23 @@ export function findActiveChildItem(
     return undefined;
   }
 
-  const matches = children.filter(
-    (child) => pathname === child.href || pathname.startsWith(`${child.href}/`),
-  );
+  const matches = children.filter((child) => childMatchesPath(child, pathname));
 
   if (matches.length === 0) {
     return undefined;
   }
 
-  return matches.reduce((best, current) =>
-    current.href.length > best.href.length ? current : best,
-  );
+  return matches.reduce((best, current) => {
+    const bestLength = Math.max(
+      best.href.length,
+      ...(best.aliases?.map((path) => path.length) ?? []),
+    );
+    const currentLength = Math.max(
+      current.href.length,
+      ...(current.aliases?.map((path) => path.length) ?? []),
+    );
+    return currentLength > bestLength ? current : best;
+  });
 }
 
 export function getNavContextFromPath(pathname: string): {

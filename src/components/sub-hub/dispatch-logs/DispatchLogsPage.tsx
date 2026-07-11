@@ -27,6 +27,7 @@ import {
   DISPATCH_LOG_HUB_OPTIONS,
   DISPATCH_LOG_OPERATIONAL_FILTER_LABELS,
   DISPATCH_LOG_PAGE_SIZE,
+  DISPATCH_LOG_STATUS_LABELS,
   EMPTY_DISPATCH_LOG_FILTERS,
   fetchDispatchLogs,
   filterDispatchLogs,
@@ -49,6 +50,11 @@ const OPERATIONAL_FILTER_VALUES = Object.keys(
 function parseStatusParam(statusParam: string): DispatchLogFilters["status"] {
   const normalized = statusParam.toLowerCase();
 
+  // Legacy URL support: old "ready" filter maps to pending dispatch.
+  if (normalized === "ready") {
+    return "pending-dispatch";
+  }
+
   if (
     OPERATIONAL_FILTER_VALUES.includes(
       normalized as DispatchLogOperationalFilter,
@@ -57,13 +63,22 @@ function parseStatusParam(statusParam: string): DispatchLogFilters["status"] {
     return normalized as DispatchLogOperationalFilter;
   }
 
-  return statusParam.toUpperCase() as DispatchLogStatus;
+  const upper = statusParam.toUpperCase();
+
+  // Legacy entity statuses from older seed data.
+  if (upper === "PACKED" || upper === "READY" || upper === "LOADED") {
+    return "READY_FOR_DISPATCH";
+  }
+  if (upper === "COMPLETED") {
+    return "DELIVERED";
+  }
+
+  return upper as DispatchLogStatus;
 }
 
 const STAT_FILTER_MAP: Partial<
   Record<DispatchLogStatKey, Partial<DispatchLogFilters>>
 > = {
-  "in-progress": { status: "DISPATCHED" },
   delivered: { status: "DELIVERED" },
 };
 
@@ -89,7 +104,7 @@ function downloadCsv(items: DispatchLog[]) {
       item.vehicleNumber ?? "",
       item.driverName ?? "",
       item.dispatchTime ? formatDispatchLogDateTime(item.dispatchTime) : "",
-      item.status,
+      DISPATCH_LOG_STATUS_LABELS[item.status],
       formatDispatchLogDateTime(item.lastUpdated),
     ]
       .map((cell) => `"${String(cell).replaceAll('"', '""')}"`)
@@ -177,16 +192,14 @@ export function DispatchLogsPage() {
 
     if (activeStat === "in-progress") {
       filtered = filtered.filter((item) =>
-        ["PACKED", "READY", "LOADED", "DISPATCHED", "REACHED_AREA"].includes(
+        ["READY_FOR_DISPATCH", "DISPATCHED", "REACHED_AREA"].includes(
           item.status,
         ),
       );
     }
 
     if (activeStat === "delivered") {
-      filtered = filtered.filter(
-        (item) => item.status === "DELIVERED" || item.status === "COMPLETED",
-      );
+      filtered = filtered.filter((item) => item.status === "DELIVERED");
     }
 
     const paginated = fetchDispatchLogs(filtered, {

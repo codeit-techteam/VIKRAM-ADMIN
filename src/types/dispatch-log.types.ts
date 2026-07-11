@@ -1,14 +1,8 @@
 export type DispatchLogStatus =
-  | "PACKED"
-  | "READY"
-  | "LOADED"
-  | "DISPATCHED"
-  | "REACHED_AREA"
-  | "DELIVERED"
-  | "COMPLETED";
+  "READY_FOR_DISPATCH" | "DISPATCHED" | "REACHED_AREA" | "DELIVERED";
 
 export type DispatchLogOperationalFilter =
-  "pending-dispatch" | "ready" | "vehicle-pending" | "driver-pending";
+  "pending-dispatch" | "vehicle-pending" | "driver-pending";
 
 export interface DispatchLogTimelineEvent {
   id: string;

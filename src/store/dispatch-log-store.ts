@@ -22,7 +22,7 @@ interface DispatchLogStore {
 }
 
 function computeDelayed(log: DispatchLog): boolean {
-  if (log.status === "DELIVERED" || log.status === "COMPLETED") return false;
+  if (log.status === "DELIVERED") return false;
   return new Date(log.expectedDelivery).getTime() < Date.now();
 }
 

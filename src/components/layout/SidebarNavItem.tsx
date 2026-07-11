@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import {
+  childMatchesPath,
   findActiveChildItem,
   type NavChildItem,
   type NavItem,
@@ -22,11 +23,23 @@ interface SidebarNavItemProps {
 }
 
 function isPathActive(pathname: string, href: string): boolean {
-  if (!pathname) {
+  if (!pathname || !href) {
     return false;
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function isNavItemActive(item: NavItem, pathname: string): boolean {
+  if (isPathActive(pathname, item.href)) {
+    return true;
+  }
+
+  if (item.children?.length) {
+    return Boolean(findActiveChildItem(item.children, pathname));
+  }
+
+  return false;
 }
 
 function SidebarChildLink({
@@ -83,19 +96,18 @@ export function SidebarNavItem({
   const Icon = item.icon;
 
   const hasChildren = Boolean(item.children?.length);
-  const activeChild = hasChildren
-    ? findActiveChildItem(item.children!, pathname)
-    : undefined;
-  const isChildActive = Boolean(activeChild);
   const isParentRouteActive = isPathActive(pathname, item.href);
-  const isInSection = isParentRouteActive || isChildActive;
+  const isInSection = isNavItemActive(item, pathname);
   const [isManualOpen, setIsManualOpen] = useState(false);
 
+  // Keep the active section expanded when the route changes (e.g. /orders).
   useEffect(() => {
-    if (!isInSection) {
+    if (isInSection) {
+      setIsManualOpen(true);
+    } else {
       setIsManualOpen(false);
     }
-  }, [isInSection]);
+  }, [isInSection, pathname]);
 
   const isExpanded =
     hasChildren && !isCollapsed && (isInSection || isManualOpen);
@@ -199,7 +211,7 @@ export function SidebarNavItem({
               <SidebarChildLink
                 key={child.href}
                 child={child}
-                isActive={activeChild?.href === child.href}
+                isActive={childMatchesPath(child, pathname)}
               />
             ))}
           </div>

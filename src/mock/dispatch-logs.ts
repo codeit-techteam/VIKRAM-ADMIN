@@ -22,13 +22,10 @@ export const EMPTY_DISPATCH_LOG_FILTERS: DispatchLogFilters = {
 };
 
 export const DISPATCH_LOG_STATUS_LABELS: Record<DispatchLogStatus, string> = {
-  PACKED: "Packed",
-  READY: "Ready",
-  LOADED: "Loaded",
+  READY_FOR_DISPATCH: "Ready for Dispatch",
   DISPATCHED: "Dispatched",
   REACHED_AREA: "Reached Area",
   DELIVERED: "Delivered",
-  COMPLETED: "Completed",
 };
 
 export const DISPATCH_LOG_OPERATIONAL_FILTER_LABELS: Record<
@@ -36,24 +33,34 @@ export const DISPATCH_LOG_OPERATIONAL_FILTER_LABELS: Record<
   string
 > = {
   "pending-dispatch": "Pending Dispatch",
-  ready: "Ready",
   "vehicle-pending": "Vehicle Pending",
   "driver-pending": "Driver Pending",
 };
 
 /** Orders accepted by hub but not yet dispatched. */
 export const PENDING_DISPATCH_STATUSES: DispatchLogStatus[] = [
-  "PACKED",
-  "READY",
-  "LOADED",
+  "READY_FOR_DISPATCH",
 ];
 
-export const DISPATCH_LOG_STATUS_OPTIONS = Object.entries(
-  DISPATCH_LOG_OPERATIONAL_FILTER_LABELS,
-).map(([value, label]) => ({
-  value: value as DispatchLogOperationalFilter,
-  label,
-}));
+/** Entity status options for the Update Status modal. */
+export const DISPATCH_LOG_STATUS_OPTIONS = (
+  Object.entries(DISPATCH_LOG_STATUS_LABELS) as Array<
+    [DispatchLogStatus, string]
+  >
+).map(([value, label]) => ({ value, label }));
+
+/** Operational filter options for the filter bar. */
+export const DISPATCH_LOG_FILTER_OPTIONS = [
+  ...Object.entries(DISPATCH_LOG_OPERATIONAL_FILTER_LABELS).map(
+    ([value, label]) => ({
+      value: value as DispatchLogOperationalFilter,
+      label,
+    }),
+  ),
+  ...DISPATCH_LOG_STATUS_OPTIONS.filter(
+    (option) => option.value !== "READY_FOR_DISPATCH",
+  ),
+];
 
 export function isPendingDispatchLog(item: DispatchLog): boolean {
   return PENDING_DISPATCH_STATUSES.includes(item.status);
@@ -66,8 +73,6 @@ export function matchesDispatchOperationalFilter(
   switch (filter) {
     case "pending-dispatch":
       return isPendingDispatchLog(item);
-    case "ready":
-      return item.status === "READY";
     case "vehicle-pending":
       return isPendingDispatchLog(item) && !item.vehicleId;
     case "driver-pending":
@@ -264,7 +269,7 @@ function buildDispatchLog(
     driverMobile: driver.mobile,
     dispatchTime: null,
     expectedDelivery: hoursFromNow(3 + (index % 5)),
-    status: "PACKED",
+    status: "READY_FOR_DISPATCH",
     isDelayed: false,
     lastUpdated: createdAt,
     deliveryNotes: "",
@@ -272,10 +277,10 @@ function buildDispatchLog(
     orderValue,
     timeline: [
       timelineEvent(
-        "PACKED",
-        hub.name + " Packer",
+        "READY_FOR_DISPATCH",
+        hub.name + " Supervisor",
         createdAt,
-        "Materials packed at dispatch counter.",
+        "Order ready for dispatch at hub.",
         false,
       ),
     ],
@@ -287,35 +292,32 @@ function buildDispatchLog(
 export const DISPATCH_LOG_LIST: DispatchLog[] = [
   buildDispatchLog(1, {
     dispatchId: "DSP-9101",
-    status: "PACKED",
+    status: "READY_FOR_DISPATCH",
     dispatchTime: null,
     lastUpdated: hoursAgo(3),
   }),
   buildDispatchLog(2, {
     dispatchId: "DSP-9102",
-    status: "READY",
+    status: "READY_FOR_DISPATCH",
     timeline: [
-      timelineEvent("PACKED", "Packer", hoursAgo(8), "Packed", false),
       timelineEvent(
-        "READY",
+        "READY_FOR_DISPATCH",
         "Dispatch Supervisor",
         hoursAgo(4),
-        "Ready for loading bay.",
+        "Materials staged and ready for dispatch.",
       ),
     ],
     lastUpdated: hoursAgo(4),
   }),
   buildDispatchLog(3, {
     dispatchId: "DSP-9103",
-    status: "LOADED",
+    status: "READY_FOR_DISPATCH",
     timeline: [
-      timelineEvent("PACKED", "Packer", hoursAgo(10), undefined, false),
-      timelineEvent("READY", "Supervisor", hoursAgo(7), undefined),
       timelineEvent(
-        "LOADED",
+        "READY_FOR_DISPATCH",
         "Loading Team",
         hoursAgo(3),
-        "Loaded on vehicle.",
+        "Vehicle loaded — awaiting dispatch confirmation.",
       ),
     ],
     lastUpdated: hoursAgo(3),
@@ -325,7 +327,13 @@ export const DISPATCH_LOG_LIST: DispatchLog[] = [
     status: "DISPATCHED",
     dispatchTime: hoursAgo(2),
     timeline: [
-      timelineEvent("PACKED", "Packer", hoursAgo(12), undefined, false),
+      timelineEvent(
+        "READY_FOR_DISPATCH",
+        "Supervisor",
+        hoursAgo(12),
+        undefined,
+        false,
+      ),
       timelineEvent(
         "DISPATCHED",
         "Dispatch Manager",
@@ -358,6 +366,12 @@ export const DISPATCH_LOG_LIST: DispatchLog[] = [
     timeline: [
       timelineEvent("DISPATCHED", "Ops", hoursAgo(8), undefined),
       timelineEvent(
+        "REACHED_AREA",
+        "Mohit Verma",
+        hoursAgo(3),
+        "Arrived at site area.",
+      ),
+      timelineEvent(
         "DELIVERED",
         "Mohit Verma",
         hoursAgo(1),
@@ -368,12 +382,12 @@ export const DISPATCH_LOG_LIST: DispatchLog[] = [
   }),
   buildDispatchLog(7, {
     dispatchId: "DSP-9107",
-    status: "COMPLETED",
+    status: "DELIVERED",
     dispatchTime: hoursAgo(14),
     deliveryNotes: "Invoice generated. Order closed.",
     timeline: [
-      timelineEvent("DELIVERED", "Driver", hoursAgo(6), undefined),
-      timelineEvent("COMPLETED", "System", hoursAgo(5), "Dispatch log closed."),
+      timelineEvent("DISPATCHED", "Ops", hoursAgo(14), undefined),
+      timelineEvent("DELIVERED", "Driver", hoursAgo(5), "Dispatch closed."),
     ],
     lastUpdated: hoursAgo(5),
   }),
@@ -395,7 +409,7 @@ export const DISPATCH_LOG_LIST: DispatchLog[] = [
   }),
   buildDispatchLog(9, {
     dispatchId: "DSP-9109",
-    status: "READY",
+    status: "READY_FOR_DISPATCH",
     vehicleId: null,
     vehicleNumber: null,
     vehicleType: null,
@@ -403,21 +417,25 @@ export const DISPATCH_LOG_LIST: DispatchLog[] = [
     driverName: null,
     driverMobile: null,
     timeline: [
-      timelineEvent("PACKED", "Packer", hoursAgo(2), undefined, false),
-      timelineEvent("READY", "Supervisor", hoursAgo(1), "Awaiting vehicle."),
+      timelineEvent(
+        "READY_FOR_DISPATCH",
+        "Supervisor",
+        hoursAgo(1),
+        "Awaiting vehicle assignment.",
+      ),
     ],
     lastUpdated: hoursAgo(1),
   }),
   buildDispatchLog(10, {
     dispatchId: "DSP-9110",
-    status: "LOADED",
+    status: "READY_FOR_DISPATCH",
     dispatchTime: null,
     timeline: [
       timelineEvent(
-        "LOADED",
+        "READY_FOR_DISPATCH",
         "Loading Team",
         hoursAgo(2),
-        "Manual load check done.",
+        "Ready for dispatch confirmation.",
       ),
     ],
     lastUpdated: hoursAgo(2),
@@ -425,17 +443,20 @@ export const DISPATCH_LOG_LIST: DispatchLog[] = [
   ...Array.from({ length: 5 }, (_, i) =>
     buildDispatchLog(11 + i, {
       dispatchId: `DSP-${9111 + i}`,
-      status: (["PACKED", "READY", "DISPATCHED", "DELIVERED", "COMPLETED"][i] ??
-        "PACKED") as DispatchLogStatus,
+      status: ([
+        "READY_FOR_DISPATCH",
+        "READY_FOR_DISPATCH",
+        "DISPATCHED",
+        "REACHED_AREA",
+        "DELIVERED",
+      ][i] ?? "READY_FOR_DISPATCH") as DispatchLogStatus,
       dispatchTime: i >= 2 ? hoursAgo(3 + i) : null,
     }),
   ),
 ];
 
 const IN_PROGRESS_STATUSES: DispatchLogStatus[] = [
-  "PACKED",
-  "READY",
-  "LOADED",
+  "READY_FOR_DISPATCH",
   "DISPATCHED",
   "REACHED_AREA",
 ];
@@ -451,9 +472,7 @@ export function computeDispatchLogStats(
     inProgress: items.filter((item) =>
       IN_PROGRESS_STATUSES.includes(item.status),
     ).length,
-    delivered: items.filter(
-      (item) => item.status === "DELIVERED" || item.status === "COMPLETED",
-    ).length,
+    delivered: items.filter((item) => item.status === "DELIVERED").length,
     delayed: items.filter((item) => item.isDelayed).length,
   };
 }

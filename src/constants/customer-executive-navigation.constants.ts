@@ -12,7 +12,8 @@ export const CUSTOMER_EXECUTIVE_NAV_CHILDREN: NavChildItem[] = [
   },
   {
     label: "Orders",
-    href: `${ROUTES.CUSTOMER_EXECUTIVE}/orders`,
+    href: ROUTES.ORDERS,
+    aliases: [ROUTES.CUSTOMER_EXECUTIVE_ORDERS],
   },
   {
     label: "Payments",

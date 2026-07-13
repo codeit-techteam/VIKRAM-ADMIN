@@ -115,7 +115,10 @@ export function DispatchLogDetailDrawer({
                 {log.dispatchId} · {log.orderId} · Manual tracking
               </SheetDescription>
             </div>
-            <DispatchLogStatusBadge status={log.status} />
+            <DispatchLogStatusBadge
+              status={log.status}
+              isDelayed={log.isDelayed}
+            />
           </div>
         </SheetHeader>
 

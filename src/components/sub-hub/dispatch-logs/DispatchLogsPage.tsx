@@ -137,7 +137,9 @@ function downloadCsv(items: DispatchLog[]) {
       item.vehicleNumber ?? "",
       item.driverName ?? "",
       item.dispatchTime ? formatDispatchLogDateTime(item.dispatchTime) : "",
-      DISPATCH_LOG_STATUS_LABELS[item.status],
+      item.isDelayed && item.status !== "DELIVERED"
+        ? "Delayed"
+        : DISPATCH_LOG_STATUS_LABELS[item.status],
       formatDispatchLogDateTime(item.lastUpdated),
     ]
       .map((cell) => `"${String(cell).replaceAll('"', '""')}"`)
@@ -440,16 +442,17 @@ export function DispatchLogsPage() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {statCards.map((stat, index) => (
-          <DispatchLogStatsCard
-            key={stat.id}
-            stat={stat}
-            isLoading={isLoading}
-            index={index}
-            isActive={activeStat === stat.id}
-            onClick={() => handleStatClick(stat.id)}
-          />
+          <div key={stat.id} className="min-w-0">
+            <DispatchLogStatsCard
+              stat={stat}
+              isLoading={isLoading}
+              index={index}
+              isActive={activeStat === stat.id}
+              onClick={() => handleStatClick(stat.id)}
+            />
+          </div>
         ))}
       </div>
 

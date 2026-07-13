@@ -14,10 +14,11 @@ import {
   Eye,
   Info,
   MapPin,
-  MoreVertical,
+  MoreHorizontal,
   Package,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 
 import { DashboardCard } from "@/components/shared/DashboardCard";
@@ -42,8 +43,6 @@ import type { SubHubTableRow } from "@/types/erp.types";
 import { getHubInventoryHref } from "@/utils/hub-profile-metrics";
 import {
   getHubDetailPath,
-  getHubHealthScoreBarColor,
-  getHubHealthScoreColor,
   getInventoryHealthBarColor,
   getInventoryHealthColor,
 } from "@/utils/sub-hub-metrics";
@@ -57,15 +56,7 @@ interface SubHubTableProps {
 const columnHelper = createColumnHelper<SubHubTableRow>();
 const PAGE_SIZE = 10;
 
-const COLUMN_WIDTHS = [
-  "20%",
-  "16%",
-  "14%",
-  "12%",
-  "12%",
-  "14%",
-  "12%",
-] as const;
+const COLUMN_WIDTHS = ["28%", "18%", "18%", "10%", "10%", "16%"] as const;
 
 function hubActionLinks(hubId: string) {
   return {
@@ -91,10 +82,10 @@ function CompactHealthBar({
   const clamped = Math.max(0, Math.min(100, value));
 
   return (
-    <div className="flex min-w-0 items-center gap-2">
-      <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100">
+    <div className="flex min-w-0 items-center gap-2.5">
+      <div className="h-1.5 min-w-[56px] flex-1 overflow-hidden rounded-full bg-gray-100">
         <div
-          className={cn("h-full rounded-full", barColor)}
+          className={cn("h-full rounded-full transition-all", barColor)}
           style={{ width: `${clamped}%` }}
         />
       </div>
@@ -111,50 +102,48 @@ function CompactHealthBar({
   );
 }
 
-function TableActionButton({
-  href,
-  label,
-  icon: Icon,
-  className,
+function MetricCell({
+  value,
+  emphasize,
 }: {
-  href: string;
-  label: string;
-  icon: typeof Eye;
-  className?: string;
+  value: number;
+  emphasize?: boolean;
 }) {
   return (
-    <Link
-      href={href}
-      title={label}
-      aria-label={label}
+    <span
       className={cn(
-        buttonVariants({ variant: "ghost", size: "icon" }),
-        "size-8 shrink-0 text-[#64748B]",
-        className,
+        "text-sm font-semibold tabular-nums",
+        emphasize && value > 0
+          ? "text-orange-600"
+          : value > 0
+            ? "text-[#1A1A1A]"
+            : "text-[#94A3B8]",
       )}
-      onClick={(event) => event.stopPropagation()}
     >
-      <Icon className="size-4" />
-    </Link>
+      {value}
+    </span>
   );
 }
 
 export function SubHubTable({ rows, isLoading }: SubHubTableProps) {
+  const router = useRouter();
+
   const columns = useMemo(
     () => [
       columnHelper.accessor("name", {
         header: "Hub",
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="bg-primary/10 flex size-7 shrink-0 items-center justify-center rounded-lg">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="bg-primary/10 flex size-8 shrink-0 items-center justify-center rounded-lg">
               <MapPin className="text-primary size-3.5" strokeWidth={1.75} />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-[#1A1A1A]">
+              <p className="truncate text-sm font-semibold text-[#1A1A1A]">
                 {row.original.name}
               </p>
               <p className="truncate text-xs text-[#64748B]">
                 {row.original.nodeId} · {row.original.city}
+                {row.original.region ? ` · ${row.original.region}` : null}
               </p>
             </div>
           </div>
@@ -163,7 +152,7 @@ export function SubHubTable({ rows, isLoading }: SubHubTableProps) {
       columnHelper.accessor("managerName", {
         header: "Manager",
         cell: (info) => (
-          <span className="block truncate text-sm text-[#64748B]">
+          <span className="block truncate text-sm font-medium text-[#1A1A1A]">
             {info.getValue()}
           </span>
         ),
@@ -181,57 +170,34 @@ export function SubHubTable({ rows, isLoading }: SubHubTableProps) {
       }),
       columnHelper.accessor("pendingOrders", {
         header: "Orders",
-        cell: (info) => (
-          <span className="text-sm font-semibold text-[#1A1A1A] tabular-nums">
-            {info.getValue()}
-          </span>
-        ),
+        cell: (info) => <MetricCell value={info.getValue()} emphasize />,
       }),
-      columnHelper.display({
-        id: "transfers",
-        header: "Transfers",
-        cell: ({ row }) => (
-          <div className="text-xs font-medium tabular-nums">
-            <span className="text-emerald-600">
-              ↓{row.original.incomingTransfers}
-            </span>
-            <span className="mx-1 text-[#94A3B8]">/</span>
-            <span className="text-blue-600">
-              ↑{row.original.outgoingTransfers}
-            </span>
-          </div>
-        ),
-      }),
-      columnHelper.accessor("healthScore", {
-        header: "Hub Health",
-        cell: ({ row }) => (
-          <CompactHealthBar
-            value={row.original.healthScore}
-            barColor={getHubHealthScoreBarColor(row.original.healthScore)}
-            textColor={getHubHealthScoreColor(row.original.healthScore)}
-          />
-        ),
+      columnHelper.accessor("pendingRequisitions", {
+        header: "Reqs",
+        cell: (info) => <MetricCell value={info.getValue()} />,
       }),
       columnHelper.display({
         id: "actions",
-        header: "Actions",
+        header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => {
           const links = hubActionLinks(row.original.hubId);
 
           return (
-            <div className="flex items-center justify-end gap-0.5">
-              <TableActionButton
+            <div
+              className="flex items-center justify-end gap-1"
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              <Link
                 href={links.view}
-                label="View"
-                icon={Eye}
-                className="hover:text-primary hover:bg-orange-50"
-              />
-              <TableActionButton
-                href={links.inventory}
-                label="Inventory"
-                icon={Package}
-                className="hover:bg-blue-50 hover:text-blue-600"
-              />
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "h-8 gap-1.5 px-2.5 text-xs font-medium",
+                )}
+              >
+                <Eye className="size-3.5" />
+                View
+              </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger
                   className={cn(
@@ -239,11 +205,14 @@ export function SubHubTable({ rows, isLoading }: SubHubTableProps) {
                     "size-8 shrink-0 text-[#64748B] hover:bg-gray-100 hover:text-[#1A1A1A]",
                   )}
                   aria-label={`More actions for ${row.original.name}`}
-                  onClick={(event) => event.stopPropagation()}
                 >
-                  <MoreVertical className="size-4" />
+                  <MoreHorizontal className="size-4" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem render={<Link href={links.inventory} />}>
+                    <Package />
+                    Inventory
+                  </DropdownMenuItem>
                   <DropdownMenuItem render={<Link href={links.requisitions} />}>
                     <ClipboardList />
                     Requisitions
@@ -255,10 +224,6 @@ export function SubHubTable({ rows, isLoading }: SubHubTableProps) {
                   <DropdownMenuItem render={<Link href={links.details} />}>
                     <Info />
                     Analytics
-                  </DropdownMenuItem>
-                  <DropdownMenuItem render={<Link href={links.view} />}>
-                    <Eye />
-                    Hub Details
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -300,11 +265,16 @@ export function SubHubTable({ rows, isLoading }: SubHubTableProps) {
           <h2 className="text-base font-semibold text-[#1A1A1A]">
             Active Hub Table
           </h2>
+          {!isLoading && totalCount > 0 ? (
+            <p className="mt-1 text-sm text-[#64748B]">
+              {totalCount} hub{totalCount === 1 ? "" : "s"}
+            </p>
+          ) : null}
         </div>
 
         {isLoading ? (
           <div className="px-6 pb-6">
-            <DataTableSkeleton columns={7} rows={5} />
+            <DataTableSkeleton columns={6} rows={5} />
           </div>
         ) : rows.length === 0 ? (
           <div className="px-6 pb-6">
@@ -317,13 +287,13 @@ export function SubHubTable({ rows, isLoading }: SubHubTableProps) {
         ) : (
           <>
             <div className="w-full overflow-x-auto">
-              <table className="w-full table-fixed border-collapse text-sm">
+              <table className="w-full min-w-[760px] table-fixed border-collapse text-sm">
                 <colgroup>
                   {COLUMN_WIDTHS.map((width, index) => (
                     <col key={index} style={{ width }} />
                   ))}
                 </colgroup>
-                <TableHeader className="sticky top-0 z-10 bg-white [&_tr]:border-b [&_tr]:border-gray-100">
+                <TableHeader className="sticky top-0 z-10 bg-[#FAFAFA] [&_tr]:border-b [&_tr]:border-gray-100">
                   {table.getHeaderGroups().map((headerGroup) => (
                     <TableRow
                       key={headerGroup.id}
@@ -332,7 +302,13 @@ export function SubHubTable({ rows, isLoading }: SubHubTableProps) {
                       {headerGroup.headers.map((header) => (
                         <TableHead
                           key={header.id}
-                          className="h-10 bg-white px-4 text-xs font-medium tracking-wide text-gray-400 uppercase"
+                          className={cn(
+                            "h-11 bg-[#FAFAFA] px-4 text-xs font-medium tracking-wide text-gray-400 uppercase",
+                            header.column.id === "actions" && "text-right",
+                            (header.column.id === "pendingOrders" ||
+                              header.column.id === "pendingRequisitions") &&
+                              "text-center",
+                          )}
                         >
                           {header.isPlaceholder
                             ? null
@@ -346,27 +322,44 @@ export function SubHubTable({ rows, isLoading }: SubHubTableProps) {
                   ))}
                 </TableHeader>
                 <TableBody>
-                  {table.getRowModel().rows.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      className="border-b border-gray-100 transition-colors hover:bg-gray-50/80"
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell
-                          key={cell.id}
-                          className={cn(
-                            "px-4 py-3.5 align-middle",
-                            cell.column.id === "actions" && "text-right",
-                          )}
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
+                  {table.getRowModel().rows.map((row) => {
+                    const hubPath = getHubDetailPath(row.original.hubId);
+
+                    return (
+                      <TableRow
+                        key={row.id}
+                        role="link"
+                        tabIndex={0}
+                        aria-label={`Open ${row.original.name}`}
+                        onClick={() => router.push(hubPath)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            router.push(hubPath);
+                          }
+                        }}
+                        className="cursor-pointer border-b border-gray-100 transition-colors hover:bg-orange-50/40"
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell
+                            key={cell.id}
+                            className={cn(
+                              "px-4 py-3.5 align-middle",
+                              cell.column.id === "actions" && "text-right",
+                              (cell.column.id === "pendingOrders" ||
+                                cell.column.id === "pendingRequisitions") &&
+                                "text-center",
+                            )}
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </table>
             </div>

@@ -1,7 +1,6 @@
 "use client";
 
 import type { HubPerformanceKpis } from "@/utils/hub-profile-metrics";
-import { cn } from "@/lib/utils";
 
 interface HubPerformanceStripProps {
   kpis: HubPerformanceKpis;
@@ -13,16 +12,6 @@ export function HubPerformanceStrip({ kpis }: HubPerformanceStripProps) {
     { label: "Today's Dispatches", value: kpis.todaysDispatches },
     { label: "Incoming Transfers", value: kpis.incomingTransfers },
     { label: "Pending Requisitions", value: kpis.pendingRequisitions },
-    {
-      label: "Low Stock Alerts",
-      value: kpis.lowStockAlerts,
-      warn: kpis.lowStockAlerts > 0,
-    },
-    {
-      label: "Inventory Health",
-      value: `${kpis.inventoryHealth}%`,
-      tone: kpis.inventoryHealthLabel,
-    },
   ] as const;
 
   return (
@@ -30,7 +19,7 @@ export function HubPerformanceStrip({ kpis }: HubPerformanceStripProps) {
       <h2 className="text-base font-semibold text-[#1A1A1A]">
         Hub Performance
       </h2>
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {items.map((item) => (
           <div
             key={item.label}
@@ -39,18 +28,7 @@ export function HubPerformanceStrip({ kpis }: HubPerformanceStripProps) {
             <p className="text-[11px] font-medium tracking-wide text-gray-400 uppercase">
               {item.label}
             </p>
-            <p
-              className={cn(
-                "mt-1.5 text-xl font-bold tabular-nums",
-                "warn" in item && item.warn
-                  ? "text-orange-500"
-                  : "tone" in item && item.tone === "critical"
-                    ? "text-red-600"
-                    : "tone" in item && item.tone === "warning"
-                      ? "text-orange-500"
-                      : "text-[#1A1A1A]",
-              )}
-            >
+            <p className="mt-1.5 text-xl font-bold text-[#1A1A1A] tabular-nums">
               {item.value}
             </p>
           </div>

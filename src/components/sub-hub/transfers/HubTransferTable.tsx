@@ -356,7 +356,10 @@ export function HubTransferTable({
                       {formatHubTransferDateTime(item.expectedDelivery)}
                     </TableCell>
                     <TableCell>
-                      <HubTransferStatusBadge status={item.status} />
+                      <HubTransferStatusBadge
+                        status={item.status}
+                        isDelayed={item.isDelayed}
+                      />
                     </TableCell>
                     <TableCell
                       className={cn(

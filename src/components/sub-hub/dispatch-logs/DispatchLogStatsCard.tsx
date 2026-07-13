@@ -53,7 +53,7 @@ export function DispatchLogStatsCard({
 
   if (isLoading) {
     return (
-      <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+      <div className="h-full min-h-[132px] rounded-xl border-2 border-gray-100 bg-white p-6 shadow-sm">
         <Skeleton className="h-3 w-28" />
         <Skeleton className="mt-3 h-8 w-16" />
         <Skeleton className="mt-2 h-3 w-24" />
@@ -67,23 +67,22 @@ export function DispatchLogStatsCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28, delay: index * 0.06 }}
       className={cn(
-        "rounded-xl border p-6 shadow-sm transition-all duration-200",
-        onClick && "cursor-pointer hover:scale-[1.02] hover:shadow-md",
-        isActive
-          ? "border-primary bg-primary/5 ring-primary/20 ring-2"
-          : "border-gray-100",
-        isDanger
-          ? "bg-red-50/50"
-          : isWarning
-            ? "bg-orange-50/60"
-            : isSuccess
-              ? "bg-emerald-50/50"
-              : "bg-white",
+        "flex h-full min-h-[132px] w-full flex-col rounded-xl border-2 p-6 shadow-sm transition-all duration-200",
+        onClick && "cursor-pointer hover:shadow-md",
+        isActive ? "border-primary bg-primary/5" : "border-gray-100",
+        !isActive &&
+          (isDanger
+            ? "bg-red-50/50"
+            : isWarning
+              ? "bg-orange-50/60"
+              : isSuccess
+                ? "bg-emerald-50/50"
+                : "bg-white"),
       )}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium tracking-wide text-gray-400 uppercase">
+      <div className="flex flex-1 items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-medium tracking-wide text-gray-400 uppercase">
             {stat.label}
           </p>
           <p
@@ -101,7 +100,9 @@ export function DispatchLogStatsCard({
             {stat.value}
           </p>
           {stat.subtitle ? (
-            <p className="mt-1 text-sm text-[#64748B]">{stat.subtitle}</p>
+            <p className="mt-1 line-clamp-2 text-sm text-[#64748B]">
+              {stat.subtitle}
+            </p>
           ) : null}
         </div>
         <div
@@ -124,7 +125,11 @@ export function DispatchLogStatsCard({
 
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className="w-full text-left">
+      <button
+        type="button"
+        onClick={onClick}
+        className="h-full w-full min-w-0 text-left"
+      >
         {content}
       </button>
     );

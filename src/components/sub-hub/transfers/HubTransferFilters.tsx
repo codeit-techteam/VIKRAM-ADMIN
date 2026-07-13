@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { HUB_TRANSFER_STATUS_OPTIONS } from "@/mock/hub-transfers";
+import { HUB_TRANSFER_FILTER_OPTIONS } from "@/mock/hub-transfers";
 import type {
   HubTransferFilters,
   HubTransferPriority,
@@ -130,7 +130,7 @@ export function HubTransferFiltersBar({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
-              {HUB_TRANSFER_STATUS_OPTIONS.map((option) => (
+              {HUB_TRANSFER_FILTER_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>

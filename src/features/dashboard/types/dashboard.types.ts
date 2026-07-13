@@ -1,5 +1,14 @@
 import type { LucideIcon } from "lucide-react";
 
+export type DashboardDateRange =
+  "today" | "week" | "month" | "quarter" | "year" | "custom";
+
+export interface DashboardDateFilter {
+  range: DashboardDateRange;
+  customFrom?: string;
+  customTo?: string;
+}
+
 export interface StatCardData {
   label: string;
   value: string;

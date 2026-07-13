@@ -7,14 +7,12 @@ import { useMemo, useState } from "react";
 import { FilterBar } from "@/components/shared/FilterBar";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Pagination } from "@/components/shared/Pagination";
-import { StatCard } from "@/components/shared/StatCard";
 import { SubModuleTabs } from "@/components/shared/SubModuleTabs";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { ProductTable } from "@/features/catalog/components/ProductTable";
 import {
   CATALOG_FILTER_OPTIONS,
-  CATALOG_STAT_CARDS,
   CATALOG_SUB_MODULE_TABS,
   MOCK_PRODUCTS,
 } from "@/features/catalog/constants/product.mock";
@@ -128,27 +126,6 @@ export function CatalogPageContent() {
             </>
           }
         />
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            label="Total Active SKUs"
-            value={CATALOG_STAT_CARDS.totalActiveSkus}
-          />
-          <StatCard
-            label="Low Stock Items"
-            value={CATALOG_STAT_CARDS.lowStockItems}
-            valueVariant="warning"
-          />
-          <StatCard
-            label="Pending Pricing"
-            value={CATALOG_STAT_CARDS.pendingPricing}
-            subtext="Needs review"
-          />
-          <StatCard
-            label="Top Category"
-            value={CATALOG_STAT_CARDS.topCategory}
-          />
-        </div>
 
         <FilterBar
           searchValue={searchQuery}

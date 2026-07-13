@@ -12,22 +12,27 @@ const statusStyles: Record<DispatchLogStatus, string> = {
 
 interface DispatchLogStatusBadgeProps {
   status: DispatchLogStatus;
+  /** When true and not yet delivered, surface Delayed instead of pipeline status. */
+  isDelayed?: boolean;
   className?: string;
 }
 
 export function DispatchLogStatusBadge({
   status,
+  isDelayed = false,
   className,
 }: DispatchLogStatusBadgeProps) {
+  const showDelayed = isDelayed && status !== "DELIVERED";
+
   return (
     <span
       className={cn(
         "inline-flex rounded-full px-3 py-1 text-[11px] font-semibold tracking-wide uppercase",
-        statusStyles[status],
+        showDelayed ? "bg-red-100 text-red-700" : statusStyles[status],
         className,
       )}
     >
-      {DISPATCH_LOG_STATUS_LABELS[status]}
+      {showDelayed ? "Delayed" : DISPATCH_LOG_STATUS_LABELS[status]}
     </span>
   );
 }

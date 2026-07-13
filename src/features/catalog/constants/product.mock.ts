@@ -55,13 +55,6 @@ export const MOCK_PRODUCTS: Product[] = [
   },
 ];
 
-export const CATALOG_STAT_CARDS = {
-  totalActiveSkus: 15,
-  lowStockItems: 5,
-  pendingPricing: 18,
-  topCategory: "Cement",
-} as const;
-
 export const CATALOG_FILTER_OPTIONS = {
   categories: [
     { value: "all", label: "All Categories" },

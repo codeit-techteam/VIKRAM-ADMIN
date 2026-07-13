@@ -34,12 +34,16 @@ interface HubInventoryStatsCardProps {
   stat: HubInventoryStatCardData;
   isLoading?: boolean;
   index?: number;
+  isActive?: boolean;
+  onClick?: () => void;
 }
 
 export function HubInventoryStatsCard({
   stat,
   isLoading,
   index = 0,
+  isActive = false,
+  onClick,
 }: HubInventoryStatsCardProps) {
   const Icon = iconMap[stat.id];
   const isWarning = stat.variant === "warning";
@@ -47,7 +51,7 @@ export function HubInventoryStatsCard({
 
   if (isLoading) {
     return (
-      <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+      <div className="h-full rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
         <Skeleton className="h-3 w-28" />
         <Skeleton className="mt-3 h-8 w-24" />
         <Skeleton className="mt-2 h-3 w-20" />
@@ -55,13 +59,17 @@ export function HubInventoryStatsCard({
     );
   }
 
-  return (
+  const content = (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28, delay: index * 0.06 }}
       className={cn(
-        "rounded-xl border border-gray-100 p-6 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-md",
+        "h-full rounded-xl border p-6 shadow-sm transition-all duration-200",
+        onClick && "cursor-pointer hover:scale-[1.02] hover:shadow-md",
+        isActive
+          ? "border-primary bg-primary/5 ring-primary/20 ring-2"
+          : "border-gray-100",
         isDanger ? "bg-red-50/50" : isWarning ? "bg-orange-50/60" : "bg-white",
       )}
     >
@@ -101,4 +109,18 @@ export function HubInventoryStatsCard({
       </div>
     </motion.div>
   );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="h-full w-full text-left"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return content;
 }

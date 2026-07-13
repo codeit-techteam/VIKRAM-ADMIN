@@ -28,6 +28,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import {
   Select,
   SelectContent,
@@ -137,6 +138,9 @@ export function PushNotificationsPageContent() {
       <PageHeader
         title="Push Notifications"
         subtitle="Send targeted announcements directly to the Bajriwala customer app."
+        breadcrumbs={getNavBreadcrumbsFromPath(
+          "/customer-app-cms/push-notifications",
+        )}
         actions={
           <>
             <Button

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/shared/PageHeader";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { MaintenancePage } from "@/features/logistics";
 
 export const metadata: Metadata = {
@@ -13,6 +14,7 @@ export default function MaintenanceRoute() {
       <PageHeader
         title="Maintenance"
         subtitle="Track vehicle maintenance schedules, repairs, and service completions."
+        breadcrumbs={getNavBreadcrumbsFromPath("/logistics/maintenance")}
       />
       <MaintenancePage />
     </div>

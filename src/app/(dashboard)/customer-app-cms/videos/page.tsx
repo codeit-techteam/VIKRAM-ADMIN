@@ -11,6 +11,7 @@ import {
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
 import { Button } from "@/components/ui/button";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { VideoCtaTable } from "@/features/cms/components/VideoCtaTable";
 import { VideoLibrarySection } from "@/features/cms/components/VideoLibrarySection";
 import { VIDEOS } from "@/features/cms/constants/video.mock";
@@ -27,6 +28,7 @@ export default function VideoManagementPage() {
       <PageHeader
         title="Video Management"
         subtitle="Upload videos and configure CTA buttons that appear on the customer application."
+        breadcrumbs={getNavBreadcrumbsFromPath("/customer-app-cms/videos")}
         actions={
           <Button
             size="lg"

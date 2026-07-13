@@ -23,6 +23,7 @@ import { HubTransferTable } from "@/components/sub-hub/transfers/HubTransferTabl
 import { HubTransferUpdateStatusModal } from "@/components/sub-hub/transfers/HubTransferUpdateStatusModal";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -354,6 +355,7 @@ export function HubTransfersPage() {
       <PageHeader
         title="Hub Transfers"
         subtitle="Operational dispatch tracking for customer deliveries fulfilled from sub-hubs."
+        breadcrumbs={getNavBreadcrumbsFromPath("/sub-hub-network/transfers")}
         actions={
           <Button
             type="button"

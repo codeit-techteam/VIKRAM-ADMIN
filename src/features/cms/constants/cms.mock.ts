@@ -19,7 +19,7 @@ export const CMS_STAT_CARDS: CmsStatCardData[] = [
   {
     label: "ACTIVE OFFERS",
     value: "12",
-    href: `${ROUTES.CUSTOMER_APP_CMS}/catalog`,
+    href: `${ROUTES.CUSTOMER_APP_CMS}/offers`,
   },
   {
     label: "CUSTOMERS",
@@ -60,7 +60,7 @@ export const CMS_QUICK_ACTIONS: QuickActionData[] = [
     label: "Create Offer",
     iconName: "tag",
     circleColor: "green",
-    href: `${ROUTES.CUSTOMER_APP_CMS}/catalog/new`,
+    href: `${ROUTES.CUSTOMER_APP_CMS}/offers/create`,
   },
 ];
 
@@ -96,6 +96,6 @@ export const CONTENT_UPDATES: ContentUpdate[] = [
     status: "Expired",
     updatedBy: "System",
     lastModified: "Yesterday",
-    href: `${ROUTES.CUSTOMER_APP_CMS}/catalog`,
+    href: `${ROUTES.CUSTOMER_APP_CMS}/offers`,
   },
 ];

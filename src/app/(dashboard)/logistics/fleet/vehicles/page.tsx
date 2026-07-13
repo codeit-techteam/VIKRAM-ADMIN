@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/shared/PageHeader";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { FleetVehiclesPage } from "@/features/logistics";
 
 export const metadata: Metadata = {
@@ -13,6 +14,7 @@ export default function FleetVehiclesRoute() {
       <PageHeader
         title="Fleet Management"
         subtitle="Manage vehicles, assignments, and fleet availability across the network."
+        breadcrumbs={getNavBreadcrumbsFromPath("/logistics/fleet/vehicles")}
       />
       <FleetVehiclesPage />
     </div>

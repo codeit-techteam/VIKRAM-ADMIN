@@ -21,6 +21,7 @@ import { DispatchLogTable } from "@/components/sub-hub/dispatch-logs/DispatchLog
 import { DispatchLogUpdateStatusModal } from "@/components/sub-hub/dispatch-logs/DispatchLogUpdateStatusModal";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -325,6 +326,9 @@ export function DispatchLogsPage() {
       <PageHeader
         title="Dispatch Logs"
         subtitle="Manual dispatch tracking and status history for hub-to-customer deliveries."
+        breadcrumbs={getNavBreadcrumbsFromPath(
+          "/sub-hub-network/dispatch-logs",
+        )}
         actions={
           <Button
             type="button"

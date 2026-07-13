@@ -1,9 +1,14 @@
+import {
+  Breadcrumbs,
+  type BreadcrumbItem,
+} from "@/components/shared/Breadcrumbs";
 import { cn } from "@/lib/utils";
 
 interface PageHeaderProps {
   title: string;
   subtitle?: string;
   actions?: React.ReactNode;
+  breadcrumbs?: BreadcrumbItem[];
   className?: string;
   titleClassName?: string;
 }
@@ -12,6 +17,7 @@ export function PageHeader({
   title,
   subtitle,
   actions,
+  breadcrumbs,
   className,
   titleClassName,
 }: PageHeaderProps) {
@@ -22,16 +28,23 @@ export function PageHeader({
         className,
       )}
     >
-      <div>
-        <h1
-          className={cn(
-            "text-2xl font-bold tracking-tight text-[#1A1A1A]",
-            titleClassName,
+      <div className="min-w-0 space-y-2">
+        {breadcrumbs && breadcrumbs.length > 0 ? (
+          <Breadcrumbs items={breadcrumbs} />
+        ) : null}
+        <div>
+          <h1
+            className={cn(
+              "text-2xl font-bold tracking-tight text-[#1A1A1A]",
+              titleClassName,
+            )}
+          >
+            {title}
+          </h1>
+          {subtitle && (
+            <p className="mt-1 text-sm text-[#64748B]">{subtitle}</p>
           )}
-        >
-          {title}
-        </h1>
-        {subtitle && <p className="mt-1 text-sm text-[#64748B]">{subtitle}</p>}
+        </div>
       </div>
       {actions && (
         <div className="flex shrink-0 items-center gap-3">{actions}</div>

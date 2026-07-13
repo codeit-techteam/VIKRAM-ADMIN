@@ -20,6 +20,7 @@ import {
 import { HubRequisitionTable } from "@/components/sub-hub/requisitions/HubRequisitionTable";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -407,6 +408,7 @@ export function HubRequisitionsPage() {
       <PageHeader
         title="Hub Requisitions"
         subtitle="Review, approve, and fulfill material requests raised by sub-hub managers."
+        breadcrumbs={getNavBreadcrumbsFromPath("/sub-hub-network/requisitions")}
         actions={
           <Button
             type="button"

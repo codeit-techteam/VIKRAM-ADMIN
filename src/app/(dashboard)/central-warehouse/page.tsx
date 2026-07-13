@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { WarehouseDashboard } from "@/components/warehouse/WarehouseDashboard";
 import { Button } from "@/components/ui/button";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 
 export const metadata: Metadata = {
   title: "Warehouse Dashboard",
@@ -15,6 +16,7 @@ export default function CentralWarehousePage() {
       <PageHeader
         title="Warehouse Dashboard"
         subtitle="Live monitoring of operations at the Noida Central Hub."
+        breadcrumbs={getNavBreadcrumbsFromPath("/central-warehouse")}
         actions={
           <>
             <Button variant="outline" className="h-10 gap-2 px-4">

@@ -11,6 +11,7 @@ import { HubInventoryStatsCard } from "@/components/sub-hub/inventory/HubInvento
 import { HubInventoryTable } from "@/components/sub-hub/inventory/HubInventoryTable";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { normalizeHubInventory, resolveSubHubs } from "@/store/sub-hub-state";
 import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 import {
@@ -303,6 +304,7 @@ export function HubInventoryOverviewPage() {
       <PageHeader
         title="Hub Inventory Overview"
         subtitle="Monitor real-time stock levels and inventory health across all regional sub-hubs."
+        breadcrumbs={getNavBreadcrumbsFromPath("/sub-hub-network/inventory")}
         actions={
           <>
             <Button

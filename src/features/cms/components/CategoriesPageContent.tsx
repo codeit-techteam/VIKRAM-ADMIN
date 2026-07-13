@@ -15,6 +15,7 @@ import { FilterTabs } from "@/components/shared/FilterTabs";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { cn } from "@/lib/utils";
 import { CategoryTable } from "@/features/cms/components/CategoryTable";
 import {
@@ -50,6 +51,7 @@ export function CategoriesPageContent() {
       <PageHeader
         title="Categories Management"
         subtitle="Organize and prioritize your construction supply hierarchy."
+        breadcrumbs={getNavBreadcrumbsFromPath("/customer-app-cms/categories")}
         actions={
           <>
             <Button variant="outline" size="lg" className="h-10 gap-2 px-4">

@@ -11,11 +11,11 @@ import {
   Warehouse,
 } from "lucide-react";
 
-import { CUSTOMER_EXECUTIVE_NAV_CHILDREN } from "@/constants/customer-executive-navigation.constants";
-import { LOGISTICS_NAV_CHILDREN } from "@/constants/logistics-navigation.constants";
-import { CENTRAL_WAREHOUSE_NAV_CHILDREN } from "@/constants/warehouse-navigation.constants";
-import { SUB_HUB_NETWORK_NAV_CHILDREN } from "@/constants/sub-hub-navigation.constants";
-import { USER_MANAGEMENT_NAV_CHILDREN } from "@/constants/user-management-navigation.constants";
+import { CUSTOMER_EXECUTIVE_NAV_GROUPS } from "@/constants/customer-executive-navigation.constants";
+import { LOGISTICS_NAV_GROUPS } from "@/constants/logistics-navigation.constants";
+import { CENTRAL_WAREHOUSE_NAV_GROUPS } from "@/constants/warehouse-navigation.constants";
+import { SUB_HUB_NETWORK_NAV_GROUPS } from "@/constants/sub-hub-navigation.constants";
+import { USER_MANAGEMENT_NAV_GROUPS } from "@/constants/user-management-navigation.constants";
 
 export interface NavChildItem {
   label: string;
@@ -26,17 +26,53 @@ export interface NavChildItem {
   aliases?: string[];
 }
 
+export interface NavChildGroup {
+  /** Optional group heading shown above child links */
+  label?: string;
+  items: NavChildItem[];
+}
+
 export interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
   hasSubmenu?: boolean;
+  /** Flat child list (used when groups are not needed) */
   children?: NavChildItem[];
+  /** Grouped child lists (preferred for nested IA like Customer App CMS) */
+  childGroups?: NavChildGroup[];
 }
 
 export interface NavSection {
   label?: string;
   items: NavItem[];
+}
+
+export interface NavBreadcrumbItem {
+  label: string;
+  href?: string;
+}
+
+/** Flatten childGroups or children for matching / lookups */
+export function getNavItemChildren(item: NavItem): NavChildItem[] {
+  if (item.childGroups?.length) {
+    return item.childGroups.flatMap((group) => group.items);
+  }
+
+  return item.children ?? [];
+}
+
+/** Normalize an item into renderable groups (flat children become one unlabeled group) */
+export function getNavItemChildGroups(item: NavItem): NavChildGroup[] {
+  if (item.childGroups?.length) {
+    return item.childGroups;
+  }
+
+  if (item.children?.length) {
+    return [{ items: item.children }];
+  }
+
+  return [];
 }
 
 export const NAV_SECTIONS: NavSection[] = [
@@ -51,15 +87,28 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/customer-app-cms",
         icon: Smartphone,
         hasSubmenu: true,
-        children: [
-          { label: "CMS Dashboard", href: "/customer-app-cms" },
-          { label: "Banner Management", href: "/customer-app-cms/banners" },
-          { label: "Video Management", href: "/customer-app-cms/videos" },
-          { label: "Product Catalog", href: "/customer-app-cms/catalog" },
-          { label: "Categories", href: "/customer-app-cms/categories" },
+        childGroups: [
           {
-            label: "Push Notification",
-            href: "/customer-app-cms/push-notifications",
+            items: [{ label: "Dashboard", href: "/customer-app-cms" }],
+          },
+          {
+            label: "Content Management",
+            items: [
+              { label: "Banner Management", href: "/customer-app-cms/banners" },
+              { label: "Offer Management", href: "/customer-app-cms/offers" },
+              { label: "Video Management", href: "/customer-app-cms/videos" },
+              {
+                label: "Push Notifications",
+                href: "/customer-app-cms/push-notifications",
+              },
+            ],
+          },
+          {
+            label: "Catalog Management",
+            items: [
+              { label: "Product Catalog", href: "/customer-app-cms/catalog" },
+              { label: "Categories", href: "/customer-app-cms/categories" },
+            ],
           },
         ],
       },
@@ -73,21 +122,21 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/central-warehouse",
         icon: Warehouse,
         hasSubmenu: true,
-        children: CENTRAL_WAREHOUSE_NAV_CHILDREN,
+        childGroups: CENTRAL_WAREHOUSE_NAV_GROUPS,
       },
       {
         label: "Sub-Hub Network",
         href: "/sub-hub-network",
         icon: Network,
         hasSubmenu: true,
-        children: SUB_HUB_NETWORK_NAV_CHILDREN,
+        childGroups: SUB_HUB_NETWORK_NAV_GROUPS,
       },
       {
         label: "Logistics",
         href: "/logistics",
         icon: Truck,
         hasSubmenu: true,
-        children: LOGISTICS_NAV_CHILDREN,
+        childGroups: LOGISTICS_NAV_GROUPS,
       },
       {
         label: "Finance & Payments",
@@ -104,14 +153,14 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/user-management",
         icon: Users,
         hasSubmenu: true,
-        children: USER_MANAGEMENT_NAV_CHILDREN,
+        childGroups: USER_MANAGEMENT_NAV_GROUPS,
       },
       {
         label: "Customer Executive",
         href: "/customer-executive",
         icon: UserCog,
         hasSubmenu: true,
-        children: CUSTOMER_EXECUTIVE_NAV_CHILDREN,
+        childGroups: CUSTOMER_EXECUTIVE_NAV_GROUPS,
       },
     ],
   },
@@ -124,13 +173,15 @@ export const BOTTOM_NAV_ITEMS: NavItem[] = [
 export const ALL_NAV_ITEMS: NavItem[] = [
   ...NAV_SECTIONS.flatMap((section) =>
     section.items.flatMap((item) => {
-      if (!item.children?.length) {
+      const children = getNavItemChildren(item);
+
+      if (!children.length) {
         return [item];
       }
 
       return [
         item,
-        ...item.children.map((child) => ({
+        ...children.map((child) => ({
           label: child.label,
           href: child.href,
           icon: item.icon,
@@ -167,6 +218,7 @@ export function findActiveChildItem(
     return undefined;
   }
 
+  // Longest href/alias wins so /customer-app-cms does not stay active under /offers
   return matches.reduce((best, current) => {
     const bestLength = Math.max(
       best.href.length,
@@ -180,6 +232,22 @@ export function findActiveChildItem(
   });
 }
 
+export function findActiveNavParent(pathname: string): NavItem | undefined {
+  if (!pathname) return undefined;
+
+  for (const navSection of NAV_SECTIONS) {
+    for (const item of navSection.items) {
+      const children = getNavItemChildren(item);
+
+      if (children.length && findActiveChildItem(children, pathname)) {
+        return item;
+      }
+    }
+  }
+
+  return undefined;
+}
+
 export function getNavContextFromPath(pathname: string): {
   section?: string;
   page: string;
@@ -190,8 +258,10 @@ export function getNavContextFromPath(pathname: string): {
 
   for (const navSection of NAV_SECTIONS) {
     for (const item of navSection.items) {
-      if (item.children?.length) {
-        const child = findActiveChildItem(item.children, pathname);
+      const children = getNavItemChildren(item);
+
+      if (children.length) {
+        const child = findActiveChildItem(children, pathname);
 
         if (child) {
           return { section: item.label, page: child.label };
@@ -214,4 +284,25 @@ export function getNavContextFromPath(pathname: string): {
 
 export function getNavLabelFromPath(pathname: string): string {
   return getNavContextFromPath(pathname).page;
+}
+
+/** Breadcrumbs derived from the active nested nav item (parent > child) */
+export function getNavBreadcrumbsFromPath(
+  pathname: string,
+): NavBreadcrumbItem[] {
+  const parent = findActiveNavParent(pathname);
+
+  if (!parent) {
+    const { page } = getNavContextFromPath(pathname);
+    return [{ label: page }];
+  }
+
+  const child = findActiveChildItem(getNavItemChildren(parent), pathname);
+
+  if (!child) {
+    return [{ label: parent.label, href: parent.href }];
+  }
+
+  // Exact dashboard route: still show parent > Dashboard for consistency
+  return [{ label: parent.label, href: parent.href }, { label: child.label }];
 }

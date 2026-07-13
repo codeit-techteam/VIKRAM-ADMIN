@@ -4,6 +4,7 @@ import { Download, Filter, Plus } from "lucide-react";
 import { FilterToolbar } from "@/components/shared/FilterToolbar";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { BannerModificationsTable } from "@/features/cms/components/BannerModificationsTable";
 import { BannerPreviewTable } from "@/features/cms/components/BannerPreviewTable";
 import {
@@ -21,6 +22,7 @@ export default function BannerManagementPage() {
       <PageHeader
         title="Banner Management"
         subtitle="You have 12 active banners running across all states."
+        breadcrumbs={getNavBreadcrumbsFromPath("/customer-app-cms/banners")}
         actions={
           <Button size="lg" className="h-10 gap-2 px-4">
             <Plus className="size-4" />

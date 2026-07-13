@@ -10,6 +10,7 @@ import { Pagination } from "@/components/shared/Pagination";
 import { StatCard } from "@/components/shared/StatCard";
 import { SubModuleTabs } from "@/components/shared/SubModuleTabs";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { ProductTable } from "@/features/catalog/components/ProductTable";
 import {
   CATALOG_FILTER_OPTIONS,
@@ -107,6 +108,7 @@ export function CatalogPageContent() {
           title="Product Catalog"
           titleClassName="text-primary"
           subtitle="Manage inventory, pricing, and distribution across regional hubs."
+          breadcrumbs={getNavBreadcrumbsFromPath("/customer-app-cms/catalog")}
           actions={
             <>
               <Button variant="outline" size="lg" className="h-10 gap-2 px-4">

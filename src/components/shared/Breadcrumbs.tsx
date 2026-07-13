@@ -14,6 +14,10 @@ interface BreadcrumbsProps {
 }
 
 export function Breadcrumbs({ items, className }: BreadcrumbsProps) {
+  if (items.length === 0) {
+    return null;
+  }
+
   return (
     <nav
       aria-label="Breadcrumb"
@@ -23,7 +27,10 @@ export function Breadcrumbs({ items, className }: BreadcrumbsProps) {
         const isLast = index === items.length - 1;
 
         return (
-          <div key={item.label} className="flex items-center gap-1.5">
+          <div
+            key={`${item.label}-${index}`}
+            className="flex items-center gap-1.5"
+          >
             {index > 0 && (
               <ChevronRight
                 className="size-3.5 shrink-0 text-gray-300"

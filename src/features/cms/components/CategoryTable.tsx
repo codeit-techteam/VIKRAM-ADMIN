@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-table";
 import { GripVertical, Pencil, Trash2 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useMemo } from "react";
 
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -22,26 +23,30 @@ import {
 } from "@/components/ui/table";
 import type {
   Category,
-  CategoryStatus,
+  CategoryVisibility,
 } from "@/features/cms/types/category.types";
 
 interface CategoryTableProps {
   categories: Category[];
+  onDelete: (category: Category) => void;
 }
 
 const columnHelper = createColumnHelper<Category>();
 
-const STATUS_LABELS: Record<CategoryStatus, string> = {
-  ACTIVE: "ACTIVE",
-  PENDING: "PENDING",
-  INACTIVE: "INACTIVE",
+const VISIBILITY_LABELS: Record<CategoryVisibility, string> = {
+  VISIBLE: "Visible",
+  NOT_VISIBLE: "Not Visible",
 };
+
+function getVisibility(isVisible: boolean): CategoryVisibility {
+  return isVisible ? "VISIBLE" : "NOT_VISIBLE";
+}
 
 function formatDisplayOrder(order: number): string {
   return order.toString().padStart(2, "0");
 }
 
-export function CategoryTable({ categories }: CategoryTableProps) {
+export function CategoryTable({ categories, onDelete }: CategoryTableProps) {
   const columns = useMemo(
     () => [
       columnHelper.display({
@@ -93,14 +98,18 @@ export function CategoryTable({ categories }: CategoryTableProps) {
           <span className="text-sm text-[#64748B]">{info.getValue()}</span>
         ),
       }),
-      columnHelper.accessor("status", {
-        header: "STATUS",
-        cell: (info) => (
-          <StatusBadge
-            status={info.getValue()}
-            label={STATUS_LABELS[info.getValue()]}
-          />
-        ),
+      columnHelper.accessor("isVisible", {
+        header: "VISIBILITY",
+        cell: (info) => {
+          const visibility = getVisibility(info.getValue());
+
+          return (
+            <StatusBadge
+              status={visibility}
+              label={VISIBILITY_LABELS[visibility]}
+            />
+          );
+        },
       }),
       columnHelper.accessor("lastUpdated", {
         header: "LAST UPDATED",
@@ -111,29 +120,39 @@ export function CategoryTable({ categories }: CategoryTableProps) {
       columnHelper.display({
         id: "actions",
         header: "ACTIONS",
-        cell: ({ row }) => (
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="size-8 text-gray-400 hover:text-[#1A1A1A]"
-            >
-              <Pencil className="size-4" />
-              <span className="sr-only">Edit {row.original.name}</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="size-8 text-gray-400 hover:text-red-600"
-            >
-              <Trash2 className="size-4" />
-              <span className="sr-only">Delete {row.original.name}</span>
-            </Button>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const category = row.original;
+
+          return (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="size-8 text-gray-400 hover:text-[#1A1A1A]"
+                render={
+                  <Link
+                    href={`/customer-app-cms/categories/${category.id}/edit`}
+                  />
+                }
+              >
+                <Pencil className="size-4" />
+                <span className="sr-only">Edit {category.name}</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="size-8 text-gray-400 hover:text-red-600"
+                onClick={() => onDelete(category)}
+              >
+                <Trash2 className="size-4" />
+                <span className="sr-only">Delete {category.name}</span>
+              </Button>
+            </div>
+          );
+        },
       }),
     ],
-    [],
+    [onDelete],
   );
 
   const table = useReactTable({
@@ -168,18 +187,29 @@ export function CategoryTable({ categories }: CategoryTableProps) {
           ))}
         </TableHeader>
         <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow
-              key={row.id}
-              className="border-b border-gray-100 hover:bg-gray-50"
-            >
-              {row.getVisibleCells().map((cell) => (
-                <TableCell key={cell.id} className="py-4">
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </TableCell>
-              ))}
+          {table.getRowModel().rows.length === 0 ? (
+            <TableRow className="hover:bg-transparent">
+              <TableCell
+                colSpan={columns.length}
+                className="py-10 text-center text-sm text-[#64748B]"
+              >
+                No categories match this filter.
+              </TableCell>
             </TableRow>
-          ))}
+          ) : (
+            table.getRowModel().rows.map((row) => (
+              <TableRow
+                key={row.id}
+                className="border-b border-gray-100 hover:bg-gray-50"
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id} className="py-4">
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
+          )}
         </TableBody>
       </Table>
     </div>

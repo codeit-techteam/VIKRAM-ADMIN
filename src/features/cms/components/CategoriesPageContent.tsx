@@ -1,50 +1,83 @@
 "use client";
 
-import {
-  CheckCircle2,
-  ClipboardList,
-  Download,
-  EyeOff,
-  LayoutGrid,
-  Plus,
-} from "lucide-react";
+import { Download, Eye, EyeOff, LayoutGrid, Package, Plus } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { ConfirmationDialog } from "@/components/allocation/ConfirmationDialog";
 import { FilterTabs } from "@/components/shared/FilterTabs";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
-import { cn } from "@/lib/utils";
 import { CategoryTable } from "@/features/cms/components/CategoryTable";
 import {
-  CATEGORY_DISPLAYED_COUNT,
   CATEGORY_FILTER_TABS,
-  CATEGORY_MOCK_ROWS,
-  CATEGORY_STATS,
-  CATEGORY_TOTAL_COUNT,
   type CategoryFilterValue,
 } from "@/features/cms/constants/category.mock";
+import {
+  deleteCategory,
+  getCategories,
+  getCategoryStats,
+} from "@/features/cms/services/category.mock-api";
+import type {
+  Category,
+  CategoryStats,
+} from "@/features/cms/types/category.types";
+import { cn } from "@/lib/utils";
+
+const EMPTY_STATS: CategoryStats = {
+  totalCategories: 0,
+  totalProducts: 0,
+  visible: 0,
+  notVisible: 0,
+};
 
 export function CategoriesPageContent() {
   const [activeFilter, setActiveFilter] = useState<CategoryFilterValue>("all");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [stats, setStats] = useState<CategoryStats>(EMPTY_STATS);
+  const [isLoading, setIsLoading] = useState(true);
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
+    null,
+  );
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setIsLoading(true);
+    const [nextCategories, nextStats] = await Promise.all([
+      getCategories(),
+      getCategoryStats(),
+    ]);
+    setCategories(nextCategories);
+    setStats(nextStats);
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   const filteredCategories = useMemo(() => {
     if (activeFilter === "all") {
-      return CATEGORY_MOCK_ROWS;
+      return categories;
     }
 
-    if (activeFilter === "active") {
-      return CATEGORY_MOCK_ROWS.filter(
-        (category) => category.status === "ACTIVE",
-      );
+    if (activeFilter === "visible") {
+      return categories.filter((category) => category.isVisible);
     }
 
-    return CATEGORY_MOCK_ROWS.filter(
-      (category) => category.status === "INACTIVE",
-    );
-  }, [activeFilter]);
+    return categories.filter((category) => !category.isVisible);
+  }, [activeFilter, categories]);
+
+  const handleConfirmDelete = async () => {
+    if (!categoryToDelete) return;
+    setIsDeleting(true);
+    await deleteCategory(categoryToDelete.id);
+    setIsDeleting(false);
+    setCategoryToDelete(null);
+    await refresh();
+  };
 
   return (
     <div className="space-y-6">
@@ -72,31 +105,31 @@ export function CategoriesPageContent() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Total Categories"
-          value={CATEGORY_STATS.total}
+          value={isLoading ? "—" : stats.totalCategories}
           icon={LayoutGrid}
           iconContainerClassName="bg-orange-50"
           iconClassName="text-primary"
         />
         <StatCard
-          label="Active"
-          value={CATEGORY_STATS.active}
-          icon={CheckCircle2}
+          label="Total Products"
+          value={isLoading ? "—" : stats.totalProducts}
+          icon={Package}
+          iconContainerClassName="bg-blue-50"
+          iconClassName="text-blue-600"
+        />
+        <StatCard
+          label="Visible"
+          value={isLoading ? "—" : stats.visible}
+          icon={Eye}
           iconContainerClassName="bg-emerald-50"
           iconClassName="text-emerald-600"
         />
         <StatCard
-          label="Hidden"
-          value={CATEGORY_STATS.hidden}
+          label="Not Visible"
+          value={isLoading ? "—" : stats.notVisible}
           icon={EyeOff}
           iconContainerClassName="bg-gray-100"
           iconClassName="text-gray-500"
-        />
-        <StatCard
-          label="Pending"
-          value={CATEGORY_STATS.pending}
-          icon={ClipboardList}
-          iconContainerClassName="bg-amber-50"
-          iconClassName="text-amber-600"
         />
       </div>
 
@@ -108,22 +141,41 @@ export function CategoriesPageContent() {
             onChange={setActiveFilter}
           />
           <p className="text-sm text-gray-500">
-            Showing {CATEGORY_DISPLAYED_COUNT} of {CATEGORY_TOTAL_COUNT}{" "}
+            Showing {filteredCategories.length} of {stats.totalCategories}{" "}
             Categories
           </p>
         </div>
 
         <div className="mt-6">
-          <CategoryTable categories={filteredCategories} />
+          <CategoryTable
+            categories={filteredCategories}
+            onDelete={setCategoryToDelete}
+          />
         </div>
 
         <button
           type="button"
           className="text-primary mt-4 text-sm font-medium hover:underline"
         >
-          View All {CATEGORY_TOTAL_COUNT} Categories
+          View All {stats.totalCategories} Categories
         </button>
       </div>
+
+      <ConfirmationDialog
+        open={Boolean(categoryToDelete)}
+        onOpenChange={(open) => {
+          if (!open) setCategoryToDelete(null);
+        }}
+        title="Delete this category?"
+        message={
+          categoryToDelete
+            ? `"${categoryToDelete.name}" will be removed from the CMS. Products remain in the database and are not deleted.`
+            : undefined
+        }
+        confirmLabel="Delete Category"
+        isSubmitting={isDeleting}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

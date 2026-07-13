@@ -6,7 +6,7 @@ export const categoryFormSchema = z.object({
     .number()
     .int("Display order must be a whole number")
     .min(0, "Display order must be 0 or greater"),
-  isActive: z.boolean(),
+  isVisible: z.boolean(),
   iconFile: z.instanceof(File).optional(),
   heroImageFile: z.instanceof(File).optional(),
 });

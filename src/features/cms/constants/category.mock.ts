@@ -1,4 +1,7 @@
-import type { Category } from "@/features/cms/types/category.types";
+import type {
+  Category,
+  CategoryStats,
+} from "@/features/cms/types/category.types";
 
 export const CATEGORY_MOCK_ROWS: Category[] = [
   {
@@ -7,7 +10,7 @@ export const CATEGORY_MOCK_ROWS: Category[] = [
     name: "Cement",
     displayOrder: 1,
     productCount: 142,
-    status: "ACTIVE",
+    isVisible: true,
     lastUpdated: "24 Oct, 2023",
   },
   {
@@ -16,7 +19,7 @@ export const CATEGORY_MOCK_ROWS: Category[] = [
     name: "Steel",
     displayOrder: 2,
     productCount: 86,
-    status: "ACTIVE",
+    isVisible: true,
     lastUpdated: "22 Oct, 2023",
   },
   {
@@ -25,7 +28,7 @@ export const CATEGORY_MOCK_ROWS: Category[] = [
     name: "Bricks & Masonry",
     displayOrder: 3,
     productCount: 54,
-    status: "ACTIVE",
+    isVisible: true,
     lastUpdated: "18 Oct, 2023",
   },
   {
@@ -34,25 +37,29 @@ export const CATEGORY_MOCK_ROWS: Category[] = [
     name: "Sand",
     displayOrder: 4,
     productCount: 22,
-    status: "PENDING",
+    isVisible: false,
     lastUpdated: "15 Oct, 2023",
   },
 ];
 
-export const CATEGORY_STATS = {
-  total: 24,
-  active: 18,
-  hidden: 4,
-  pending: 2,
-} as const;
+export function computeCategoryStats(categories: Category[]): CategoryStats {
+  return {
+    totalCategories: categories.length,
+    totalProducts: categories.reduce(
+      (sum, category) => sum + category.productCount,
+      0,
+    ),
+    visible: categories.filter((category) => category.isVisible).length,
+    notVisible: categories.filter((category) => !category.isVisible).length,
+  };
+}
 
-export const CATEGORY_TOTAL_COUNT = 24;
-export const CATEGORY_DISPLAYED_COUNT = 8;
+export const CATEGORY_STATS = computeCategoryStats(CATEGORY_MOCK_ROWS);
 
 export const CATEGORY_FILTER_TABS = [
   { label: "All", value: "all" },
-  { label: "Active", value: "active" },
-  { label: "Inactive", value: "inactive" },
+  { label: "Visible", value: "visible" },
+  { label: "Not Visible", value: "not-visible" },
 ] as const;
 
 export type CategoryFilterValue =

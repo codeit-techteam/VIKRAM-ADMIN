@@ -1,4 +1,12 @@
-import { Building2, Package, Truck, Users } from "lucide-react";
+import {
+  Building2,
+  ClipboardList,
+  IndianRupee,
+  Package,
+  Truck,
+  Users,
+  Warehouse,
+} from "lucide-react";
 
 import { NAV_FILTER_PRESETS } from "@/constants/navigation-filters";
 import { ROUTES } from "@/constants/routes";
@@ -169,34 +177,40 @@ export function fetchExecutiveDashboardData(
     ],
     pendingActions: [
       {
-        id: "pending-dispatches",
-        title: "Pending Dispatches",
-        subtitle: "Orders waiting to leave assigned hubs",
-        count: computePendingDispatches(filter),
+        id: "exec-orders",
+        title: "Customer Exec Orders",
+        subtitle: "New orders to review",
+        count: Math.max(1, Math.round(21 * getScale(filter))),
         priority: "medium",
-        href: NAV_FILTER_PRESETS.pendingDispatchLogs(),
-        icon: Package,
-      },
-      {
-        id: "customer-payments",
-        title: "Pending Customer Payments",
-        count: Math.max(1, Math.round(12 * getScale(filter))),
-        priority: "high",
-        href: NAV_FILTER_PRESETS.financePayments(),
+        href: NAV_FILTER_PRESETS.ordersBySourceAlias("customer-executive"),
+        icon: ClipboardList,
       },
       {
         id: "warehouse-requests",
         title: "Warehouse Requests",
+        subtitle: "Awaiting warehouse action",
         count: Math.max(1, Math.round(15 * getScale(filter))),
         priority: "medium",
         href: NAV_FILTER_PRESETS.hubRequisitions(),
+        icon: Warehouse,
       },
       {
-        id: "exec-orders",
-        title: "Customer Exec Orders",
-        count: Math.max(1, Math.round(21 * getScale(filter))),
-        priority: "medium",
-        href: NAV_FILTER_PRESETS.ordersBySourceAlias("customer-executive"),
+        id: "pending-dispatches",
+        title: "Pending Dispatches",
+        subtitle: "Waiting to leave hubs",
+        count: computePendingDispatches(filter),
+        priority: "high",
+        href: NAV_FILTER_PRESETS.pendingDispatchLogs(),
+        icon: Truck,
+      },
+      {
+        id: "customer-payments",
+        title: "Pending Customer Payments",
+        subtitle: "Collections outstanding",
+        count: Math.max(1, Math.round(12 * getScale(filter))),
+        priority: "high",
+        href: NAV_FILTER_PRESETS.financePayments(),
+        icon: IndianRupee,
       },
     ],
     quickActions: [
@@ -220,9 +234,21 @@ export function fetchExecutiveDashboardData(
       },
       {
         id: "register-customer",
-        label: "Register Cust.",
+        label: "Register Customer",
         href: NAV_FILTER_PRESETS.registerCustomer(),
         iconName: "user-check",
+      },
+      {
+        id: "add-product",
+        label: "Add Product",
+        href: NAV_FILTER_PRESETS.addProduct(),
+        iconName: "package",
+      },
+      {
+        id: "assign-dispatch",
+        label: "Assign Dispatch",
+        href: NAV_FILTER_PRESETS.assignDispatch(),
+        iconName: "truck",
       },
     ],
     recentOrders: buildRecentOrders(),

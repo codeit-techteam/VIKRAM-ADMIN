@@ -50,9 +50,7 @@ export function CriticalPendingActions({
               value={action.count}
               href={action.href}
               icon={action.icon}
-              accent={
-                action.id === "pending-dispatches" ? "orange" : action.priority
-              }
+              accent={action.priority}
             />
           ))}
         </div>

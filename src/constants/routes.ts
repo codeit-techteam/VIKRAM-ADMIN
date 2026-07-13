@@ -4,6 +4,7 @@ export const ROUTES = {
   DASHBOARD: "/dashboard",
   CUSTOMER_APP_CMS: "/customer-app-cms",
   CENTRAL_WAREHOUSE: "/central-warehouse",
+  CENTRAL_WAREHOUSE_PRODUCTS: "/central-warehouse/products",
   SUB_HUB_NETWORK: "/sub-hub-network",
   SUB_HUB_ADD: "/sub-hub-network/add",
   HUB_INVENTORY: "/sub-hub-network/inventory",

@@ -22,7 +22,8 @@ export const EMPTY_DISPATCH_LOG_FILTERS: DispatchLogFilters = {
 };
 
 export const DISPATCH_LOG_STATUS_LABELS: Record<DispatchLogStatus, string> = {
-  READY_FOR_DISPATCH: "Ready for Dispatch",
+  READY_FOR_DISPATCH: "Ready",
+  ASSIGNED: "Assigned",
   DISPATCHED: "Dispatched",
   REACHED_AREA: "Reached Area",
   DELIVERED: "Delivered",
@@ -58,8 +59,10 @@ export const DISPATCH_LOG_FILTER_OPTIONS = [
     }),
   ),
   ...DISPATCH_LOG_STATUS_OPTIONS.filter(
-    (option) => option.value !== "READY_FOR_DISPATCH",
+    (option) =>
+      option.value !== "READY_FOR_DISPATCH" && option.value !== "ASSIGNED",
   ),
+  { value: "ASSIGNED" as DispatchLogStatus, label: "Assigned" },
 ];
 
 export function isPendingDispatchLog(item: DispatchLog): boolean {
@@ -191,6 +194,22 @@ const DRIVERS = [
     hub: "Noida Sector 62",
   },
 ] as const;
+
+export const DISPATCH_ASSIGNMENT_VEHICLES = VEHICLES.map((vehicle) => ({
+  id: vehicle.id,
+  label: `${vehicle.number} · ${vehicle.type}`,
+  number: vehicle.number,
+  type: vehicle.type,
+  hub: vehicle.hub,
+}));
+
+export const DISPATCH_ASSIGNMENT_DRIVERS = DRIVERS.map((driver) => ({
+  id: driver.id,
+  label: driver.name,
+  name: driver.name,
+  mobile: driver.mobile,
+  hub: driver.hub,
+}));
 
 function isSameDay(iso: string, ref: Date = now): boolean {
   const d = new Date(iso);
@@ -455,8 +474,23 @@ export const DISPATCH_LOG_LIST: DispatchLog[] = [
   ),
 ];
 
+export function getDispatchAssignmentStatusLabel(
+  item: DispatchLog,
+): "Ready" | "Assigned" {
+  return item.status === "ASSIGNED" ? "Assigned" : "Ready";
+}
+
+export function isAssignableDispatchLog(item: DispatchLog): boolean {
+  return item.status === "READY_FOR_DISPATCH";
+}
+
+export function isAssignedDispatchLog(item: DispatchLog): boolean {
+  return item.status === "ASSIGNED";
+}
+
 const IN_PROGRESS_STATUSES: DispatchLogStatus[] = [
   "READY_FOR_DISPATCH",
+  "ASSIGNED",
   "DISPATCHED",
   "REACHED_AREA",
 ];

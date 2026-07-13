@@ -24,7 +24,16 @@ export {
   CATEGORY_FILTER_TABS,
   CATEGORY_MOCK_ROWS,
   CATEGORY_STATS,
+  computeCategoryStats,
 } from "@/features/cms/constants/category.mock";
+export {
+  createCategory,
+  deleteCategory,
+  getCategories,
+  getCategoryById,
+  getCategoryStats,
+  updateCategory,
+} from "@/features/cms/services/category.mock-api";
 export {
   CMS_QUICK_ACTIONS,
   CMS_STAT_CARDS,
@@ -48,7 +57,8 @@ export type { OfferFormSchema } from "@/features/cms/schema/offer-form.schema";
 export { offerFormSchema } from "@/features/cms/schema/offer-form.schema";
 export type {
   Category,
-  CategoryStatus,
+  CategoryStats,
+  CategoryVisibility,
 } from "@/features/cms/types/category.types";
 export type {
   CmsStatCardData,

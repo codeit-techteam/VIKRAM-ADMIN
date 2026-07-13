@@ -27,7 +27,13 @@ export interface QuickActionItem {
   id: string;
   label: string;
   href: string;
-  iconName: "building" | "user-plus" | "shopping-cart" | "user-check";
+  iconName:
+    | "building"
+    | "user-plus"
+    | "shopping-cart"
+    | "user-check"
+    | "package"
+    | "truck";
 }
 
 export type OrderSource = "App" | "Exec";

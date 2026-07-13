@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function AddNewCategoryPage() {
-  return <CategoryForm />;
+  return <CategoryForm mode="create" />;
 }

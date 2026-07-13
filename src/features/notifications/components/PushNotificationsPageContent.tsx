@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   BellRing,
@@ -77,6 +77,8 @@ export function PushNotificationsPageContent() {
   const historyRef = useRef<HTMLDivElement>(null);
   const [showHistory, setShowHistory] = useState(true);
   const [uploadFile, setUploadFile] = useState<MockUploadFile | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const imagePreviewUrlRef = useRef<string | null>(null);
 
   const { control, handleSubmit, watch, setValue } =
     useForm<PushNotificationSchema>({
@@ -117,8 +119,30 @@ export function PushNotificationsPageContent() {
   };
 
   const handleImageChange = (file: File | null) => {
-    setValue("imageUrl", file?.name);
+    if (imagePreviewUrlRef.current) {
+      URL.revokeObjectURL(imagePreviewUrlRef.current);
+      imagePreviewUrlRef.current = null;
+    }
+
+    if (file) {
+      const previewUrl = URL.createObjectURL(file);
+      imagePreviewUrlRef.current = previewUrl;
+      setImagePreviewUrl(previewUrl);
+      setValue("imageUrl", file.name);
+      return;
+    }
+
+    setImagePreviewUrl(null);
+    setValue("imageUrl", undefined);
   };
+
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrlRef.current) {
+        URL.revokeObjectURL(imagePreviewUrlRef.current);
+      }
+    };
+  }, []);
 
   const onSubmit = (data: PushNotificationSchema) => {
     console.log("Push notification:", data);
@@ -251,12 +275,15 @@ export function PushNotificationsPageContent() {
 
               <div className="space-y-2">
                 <Label className={fieldLabelClassName}>
-                  Notification Image
+                  Notification Image{" "}
+                  <span className="font-normal tracking-normal text-gray-400 normal-case">
+                    (Optional)
+                  </span>
                 </Label>
                 <FileDropzone
                   variant="compact"
                   label="Drop image or click to upload"
-                  helperText="Recommended 1000x500px · JPG, PNG (Max 2MB)"
+                  helperText="1000×500px recommended · JPG, PNG · Max 2MB"
                   accept={{
                     "image/jpeg": [".jpg", ".jpeg"],
                     "image/png": [".png"],
@@ -264,6 +291,7 @@ export function PushNotificationsPageContent() {
                   }}
                   maxSize={2 * 1024 * 1024}
                   selectedFile={uploadFile}
+                  previewUrl={imagePreviewUrl}
                   onFileSelect={setUploadFile}
                   onFileChange={handleImageChange}
                 />

@@ -18,7 +18,6 @@ import type {
 import {
   computeHubInventoryHealth,
   computeHubStockValue,
-  countLowStockMaterials,
   formatHubStockValue,
   getHubInventoryEntries,
   isPendingOrder,

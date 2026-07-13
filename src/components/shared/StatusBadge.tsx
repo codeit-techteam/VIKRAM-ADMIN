@@ -28,7 +28,8 @@ type TableStatus =
   | OfferStatus
   | NotificationStatus
   | AnalyticsStatusLabel
-  | "INACTIVE";
+  | "INACTIVE"
+  | "PENDING";
 
 type AnalyticsStatusLabel = "TOP_PERFORMER" | "STEADY" | "NEEDS_REVIEW";
 

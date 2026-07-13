@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Badge } from "@/components/ui/badge";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { LogisticsDashboardPage } from "@/features/logistics";
 
 export const metadata: Metadata = {
@@ -39,6 +40,7 @@ export default function LogisticsPage() {
       <PageHeader
         title="Logistics Dashboard"
         subtitle="Command center for monitoring warehouse transfers, hub deliveries, fleet, and dispatch operations."
+        breadcrumbs={getNavBreadcrumbsFromPath("/logistics")}
         actions={<NetworkStatusBadge />}
       />
       <LogisticsDashboardPage />

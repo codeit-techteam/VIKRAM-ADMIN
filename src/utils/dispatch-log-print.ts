@@ -49,7 +49,11 @@ export function printDispatchLogSlip(log: DispatchLog): void {
       <div class="field"><label>Customer</label><span>${log.customerName}</span></div>
       <div class="field"><label>Order</label><span>${log.orderId}</span></div>
       <div class="field"><label>Hub</label><span>${log.hubName}</span></div>
-      <div class="field"><label>Status</label><span class="badge">${DISPATCH_LOG_STATUS_LABELS[log.status]}</span></div>
+      <div class="field"><label>Status</label><span class="badge">${
+        log.isDelayed && log.status !== "DELIVERED"
+          ? "Delayed"
+          : DISPATCH_LOG_STATUS_LABELS[log.status]
+      }</span></div>
     </div>
   </section>
 

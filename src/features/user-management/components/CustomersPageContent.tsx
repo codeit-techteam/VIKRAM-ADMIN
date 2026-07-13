@@ -24,6 +24,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { Pagination } from "@/components/shared/Pagination";
 import { StatCard, StatCardSkeleton } from "@/components/shared/StatCard";
 import { Button } from "@/components/ui/button";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import {
   CUSTOMER_PAGE_SIZE,
   EMPTY_CUSTOMER_FILTERS,
@@ -226,6 +227,7 @@ export function CustomersPageContent() {
       <PageHeader
         title="User Management Dashboard"
         subtitle="Comprehensive oversight of all platform stakeholders and permissions."
+        breadcrumbs={getNavBreadcrumbsFromPath("/user-management/customers")}
         actions={
           <>
             <Button variant="outline" size="lg" className="h-10 gap-2 px-4">

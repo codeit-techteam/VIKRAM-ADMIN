@@ -101,9 +101,7 @@ export function HubTransferDetailDrawer({
   }
 
   const canAssignVehicle =
-    transfer.status !== "CANCELLED" &&
-    transfer.status !== "COMPLETED" &&
-    transfer.status !== "DELIVERED";
+    transfer.status !== "CANCELLED" && transfer.status !== "DELIVERED";
 
   const canAssignDriver = canAssignVehicle && Boolean(transfer.vehicleId);
 
@@ -124,7 +122,10 @@ export function HubTransferDetailDrawer({
                 {transfer.transferId} · {transfer.orderId} · {transfer.hubName}
               </SheetDescription>
             </div>
-            <HubTransferStatusBadge status={transfer.status} />
+            <HubTransferStatusBadge
+              status={transfer.status}
+              isDelayed={transfer.isDelayed}
+            />
           </div>
         </SheetHeader>
 

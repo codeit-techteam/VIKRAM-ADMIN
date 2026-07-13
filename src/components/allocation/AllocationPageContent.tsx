@@ -6,6 +6,7 @@ import Link from "next/link";
 import { AllocationPage } from "@/components/allocation/AllocationPage";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { ROUTES } from "@/constants/routes";
 
 export function AllocationPageContent() {
@@ -14,6 +15,7 @@ export function AllocationPageContent() {
       <PageHeader
         title="Material Allocation Center"
         subtitle="Allocate warehouse inventory to approved requisitions before dispatch."
+        breadcrumbs={getNavBreadcrumbsFromPath("/central-warehouse/allocate")}
         actions={
           <Button
             className="h-10 gap-2 px-4"

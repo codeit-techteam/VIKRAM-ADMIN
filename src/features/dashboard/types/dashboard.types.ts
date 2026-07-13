@@ -1,5 +1,14 @@
 import type { LucideIcon } from "lucide-react";
 
+export type DashboardDateRange =
+  "today" | "week" | "month" | "quarter" | "year" | "custom";
+
+export interface DashboardDateFilter {
+  range: DashboardDateRange;
+  customFrom?: string;
+  customTo?: string;
+}
+
 export interface StatCardData {
   label: string;
   value: string;
@@ -27,7 +36,13 @@ export interface QuickActionItem {
   id: string;
   label: string;
   href: string;
-  iconName: "building" | "user-plus" | "shopping-cart" | "user-check";
+  iconName:
+    | "building"
+    | "user-plus"
+    | "shopping-cart"
+    | "user-check"
+    | "package"
+    | "truck";
 }
 
 export type OrderSource = "App" | "Exec";

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, Image as ImageIcon, Info } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
@@ -20,52 +21,83 @@ import {
   categoryFormSchema,
   type CategoryFormSchema,
 } from "@/features/cms/schema/category-form.schema";
+import {
+  createCategory,
+  updateCategory,
+} from "@/features/cms/services/category.mock-api";
+import type { Category } from "@/features/cms/types/category.types";
 import { cn } from "@/lib/utils";
 
 const fieldLabelClassName =
   "text-[11px] font-semibold tracking-wider text-gray-400 uppercase";
 
-export function CategoryForm() {
+interface CategoryFormProps {
+  mode: "create" | "edit";
+  initialCategory?: Category;
+}
+
+function categoryToFormValues(category: Category): CategoryFormSchema {
+  return {
+    name: category.name,
+    displayOrder: category.displayOrder,
+    isVisible: category.isVisible,
+  };
+}
+
+export function CategoryForm({ mode, initialCategory }: CategoryFormProps) {
+  const router = useRouter();
   const [iconUpload, setIconUpload] = useState<MockUploadFile | null>(null);
   const [heroUpload, setHeroUpload] = useState<MockUploadFile | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const { control, handleSubmit, watch } = useForm<CategoryFormSchema>({
     resolver: zodResolver(categoryFormSchema),
-    defaultValues: {
-      name: "",
-      displayOrder: 10,
-      isActive: true,
-    },
+    defaultValues: initialCategory
+      ? categoryToFormValues(initialCategory)
+      : {
+          name: "",
+          displayOrder: 10,
+          isVisible: true,
+        },
   });
 
-  const isActive = watch("isActive");
+  const isVisible = watch("isVisible");
+  const isEdit = mode === "edit";
 
-  const onSaveDraft = (data: CategoryFormSchema) => {
-    console.log("Save category draft:", data);
-  };
-
-  const onPublish = (data: CategoryFormSchema) => {
-    console.log("Publish category:", data);
+  const onSave = async (data: CategoryFormSchema) => {
+    setIsSaving(true);
+    try {
+      if (isEdit && initialCategory) {
+        await updateCategory(initialCategory.id, data);
+      } else {
+        await createCategory(data);
+      }
+      router.push("/customer-app-cms/categories");
+      router.refresh();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
-    <form onSubmit={handleSubmit(onPublish)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSave)} className="space-y-6">
       <Breadcrumbs
         items={[
           { label: "Customer App CMS", href: "/customer-app-cms" },
           { label: "Categories", href: "/customer-app-cms/categories" },
-          { label: "Add New Category" },
+          { label: isEdit ? "Edit Category" : "Add New Category" },
         ]}
       />
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[#1A1A1A]">
-            Add New Category
+            {isEdit ? "Edit Category" : "Add New Category"}
           </h1>
           <p className="mt-1 text-sm text-[#64748B]">
-            Configure global product categories for the Bajriwala customer
-            marketplace.
+            {isEdit
+              ? "Update category details and Customer App visibility."
+              : "Configure global product categories for the Bajriwala customer marketplace."}
           </p>
         </div>
         <Button
@@ -137,18 +169,18 @@ export function CategoryForm() {
 
             <Controller
               control={control}
-              name="isActive"
+              name="isVisible"
               render={({ field }) => (
-                <div className="flex h-full items-end justify-end">
-                  <div className="flex items-center gap-3 pb-2">
+                <div className="flex h-full flex-col items-end justify-end gap-1.5 pb-2">
+                  <div className="flex items-center gap-3">
                     <Label
-                      htmlFor="category-status"
+                      htmlFor="category-visibility"
                       className="text-sm font-medium text-[#1A1A1A]"
                     >
-                      Category Status
+                      Visibility
                     </Label>
                     <Switch
-                      id="category-status"
+                      id="category-visibility"
                       checked={field.value}
                       onCheckedChange={field.onChange}
                       className="data-checked:bg-emerald-500"
@@ -156,12 +188,17 @@ export function CategoryForm() {
                     <span
                       className={cn(
                         "text-sm font-medium",
-                        isActive ? "text-emerald-600" : "text-gray-400",
+                        isVisible ? "text-emerald-600" : "text-gray-400",
                       )}
                     >
-                      {isActive ? "Active" : "Inactive"}
+                      {isVisible ? "Visible" : "Not Visible"}
                     </span>
                   </div>
+                  <p className="max-w-xs text-right text-xs text-gray-400">
+                    {isVisible
+                      ? "Appears in the Customer App (Home, Listing, Search, Filters)."
+                      : "Hidden from the Customer App. Products stay in the database."}
+                  </p>
                 </div>
               )}
             />
@@ -227,12 +264,13 @@ export function CategoryForm() {
           type="button"
           variant="outline"
           className="h-10 px-5"
-          onClick={handleSubmit(onSaveDraft)}
+          render={<Link href="/customer-app-cms/categories" />}
+          disabled={isSaving}
         >
-          Save as Draft
+          Cancel
         </Button>
-        <Button type="submit" className="h-10 px-5">
-          Publish Category
+        <Button type="submit" className="h-10 px-5" disabled={isSaving}>
+          {isSaving ? "Saving..." : isEdit ? "Save Changes" : "Save Category"}
         </Button>
       </div>
     </form>

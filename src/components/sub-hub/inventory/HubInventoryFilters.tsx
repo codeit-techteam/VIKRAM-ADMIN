@@ -23,6 +23,7 @@ interface HubInventoryFiltersProps {
   materialTypes: string[];
   onChange: (next: Partial<HubInventoryOverviewFilters>) => void;
   onClear: () => void;
+  hasStatFilter?: boolean;
   className?: string;
 }
 
@@ -44,9 +45,10 @@ export function HubInventoryFilters({
   materialTypes,
   onChange,
   onClear,
+  hasStatFilter = false,
   className,
 }: HubInventoryFiltersProps) {
-  const active = hasActiveFilters(filters);
+  const active = hasActiveFilters(filters) || hasStatFilter;
 
   return (
     <div

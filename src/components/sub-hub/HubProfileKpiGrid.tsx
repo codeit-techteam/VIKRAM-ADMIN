@@ -1,15 +1,14 @@
 "use client";
 
 import {
-  Activity,
+  ArrowLeftRight,
   ClipboardList,
   Package,
-  Timer,
+  ShoppingCart,
   type LucideIcon,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
-import { ProgressBar } from "@/components/shared/ProgressBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { HubProfileKpiCards } from "@/utils/hub-profile-metrics";
 import { cn } from "@/lib/utils";
@@ -24,18 +23,6 @@ const fadeUp = {
   animate: { opacity: 1, y: 0 },
 };
 
-function healthTone(label: HubProfileKpiCards["inventoryHealthLabel"]) {
-  if (label === "critical") return "text-red-600";
-  if (label === "warning") return "text-orange-500";
-  return "text-green-600";
-}
-
-function slaTone(percent: number) {
-  if (percent < 70) return "text-red-600";
-  if (percent < 90) return "text-orange-500";
-  return "text-green-600";
-}
-
 export function HubProfileKpiGrid({ kpis, isLoading }: HubProfileKpiGridProps) {
   if (isLoading) {
     return (
@@ -47,7 +34,7 @@ export function HubProfileKpiGrid({ kpis, isLoading }: HubProfileKpiGridProps) {
           >
             <Skeleton className="h-3 w-28" />
             <Skeleton className="mt-3 h-8 w-24" />
-            <Skeleton className="mt-3 h-2 w-full" />
+            <Skeleton className="mt-3 h-4 w-36" />
           </div>
         ))}
       </div>
@@ -61,7 +48,6 @@ export function HubProfileKpiGrid({ kpis, isLoading }: HubProfileKpiGridProps) {
     subtitle: string;
     icon: LucideIcon;
     valueClass?: string;
-    progress?: number;
   }[] = [
     {
       id: "inventory-value",
@@ -71,33 +57,29 @@ export function HubProfileKpiGrid({ kpis, isLoading }: HubProfileKpiGridProps) {
       icon: Package,
     },
     {
-      id: "inventory-health",
-      label: "Inventory Health",
-      value: `${kpis.inventoryHealth}%`,
-      subtitle:
-        kpis.inventoryHealthLabel.charAt(0).toUpperCase() +
-        kpis.inventoryHealthLabel.slice(1),
-      icon: Activity,
-      valueClass: healthTone(kpis.inventoryHealthLabel),
-      progress: kpis.inventoryHealth,
-    },
-    {
       id: "orders-pending",
-      label: "Customer Orders Pending",
+      label: "Orders Pending",
       value: String(kpis.customerOrdersPending),
-      subtitle: "Status ≠ Delivered",
-      icon: ClipboardList,
+      subtitle: "Open customer orders",
+      icon: ShoppingCart,
       valueClass:
         kpis.customerOrdersPending > 0 ? "text-orange-500" : "text-[#1A1A1A]",
     },
     {
-      id: "dispatch-sla",
-      label: "Dispatch SLA",
-      value: `${kpis.dispatchSlaPercent}%`,
-      subtitle: `${kpis.onTimeDispatch} / ${kpis.totalDispatch} on time`,
-      icon: Timer,
-      valueClass: slaTone(kpis.dispatchSlaPercent),
-      progress: kpis.dispatchSlaPercent,
+      id: "requisitions-pending",
+      label: "Pending Requisitions",
+      value: String(kpis.pendingRequisitions),
+      subtitle: "Awaiting warehouse action",
+      icon: ClipboardList,
+      valueClass:
+        kpis.pendingRequisitions > 0 ? "text-orange-500" : "text-[#1A1A1A]",
+    },
+    {
+      id: "incoming-transfers",
+      label: "Incoming Transfers",
+      value: String(kpis.incomingTransfers),
+      subtitle: "In transit to this hub",
+      icon: ArrowLeftRight,
     },
   ];
 
@@ -131,11 +113,6 @@ export function HubProfileKpiGrid({ kpis, isLoading }: HubProfileKpiGridProps) {
                 <Icon className="size-5" strokeWidth={1.75} />
               </div>
             </div>
-            {typeof card.progress === "number" ? (
-              <div className="mt-4">
-                <ProgressBar value={card.progress} showLabel={false} />
-              </div>
-            ) : null}
           </motion.div>
         );
       })}

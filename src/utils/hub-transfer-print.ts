@@ -59,7 +59,13 @@ export function printHubTransferDispatchSlip(transfer: HubTransfer): void {
       <div class="field"><label>Name</label><span>${transfer.customerName}</span></div>
       <div class="field"><label>Mobile</label><span>${transfer.customerMobile}</span></div>
       <div class="field"><label>Address</label><span>${transfer.deliveryAddress}, ${transfer.pincode}</span></div>
-      <div class="field"><label>Status</label><span>${HUB_TRANSFER_STATUS_LABELS[transfer.status]}</span></div>
+      <div class="field"><label>Status</label><span>${
+        transfer.isDelayed &&
+        transfer.status !== "DELIVERED" &&
+        transfer.status !== "CANCELLED"
+          ? "Delayed"
+          : HUB_TRANSFER_STATUS_LABELS[transfer.status]
+      }</span></div>
     </div>
   </section>
 

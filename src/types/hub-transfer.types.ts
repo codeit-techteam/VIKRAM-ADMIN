@@ -1,16 +1,11 @@
 export type HubTransferPriority = "low" | "medium" | "high" | "critical";
 
+/** MVP operational statuses for hub customer dispatch. */
 export type HubTransferStatus =
-  | "PENDING_DISPATCH"
-  | "VEHICLE_ASSIGNED"
-  | "DRIVER_ASSIGNED"
-  | "PACKED"
-  | "LOADED"
-  | "DISPATCHED"
-  | "REACHED_CUSTOMER_AREA"
-  | "DELIVERED"
-  | "COMPLETED"
-  | "CANCELLED";
+  "PENDING_DISPATCH" | "ASSIGNED" | "DISPATCHED" | "DELIVERED" | "CANCELLED";
+
+/** Filter-only value for past-expected-delivery deliveries. */
+export type HubTransferOperationalFilter = "delayed";
 
 export type HubTransferTimelineKey =
   | "ORDER_ACCEPTED"
@@ -110,7 +105,7 @@ export interface HubTransferFilters {
   orderId: string;
   driver: string;
   vehicle: string;
-  status: HubTransferStatus | "all";
+  status: HubTransferStatus | HubTransferOperationalFilter | "all";
   dateFrom: string;
   dateTo: string;
   priority: HubTransferPriority | "all";

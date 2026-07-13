@@ -7,10 +7,14 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { HubInventoryAdjustDialog } from "@/components/sub-hub/inventory/HubInventoryAdjustDialog";
 import { HubInventoryDetailSheet } from "@/components/sub-hub/inventory/HubInventoryDetailSheet";
 import { HubInventoryFilters } from "@/components/sub-hub/inventory/HubInventoryFilters";
-import { HubInventoryStatsCard } from "@/components/sub-hub/inventory/HubInventoryStatsCard";
+import {
+  HubInventoryStatsCard,
+  type HubInventoryStatKey,
+} from "@/components/sub-hub/inventory/HubInventoryStatsCard";
 import { HubInventoryTable } from "@/components/sub-hub/inventory/HubInventoryTable";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { normalizeHubInventory, resolveSubHubs } from "@/store/sub-hub-state";
 import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 import {
@@ -31,6 +35,10 @@ import {
   getRaiseRequisitionHref,
   getRaiseTransferHref,
 } from "@/utils/hub-profile-metrics";
+
+function isLowStockRow(row: HubNetworkInventoryRow) {
+  return row.availableQty <= row.reorderLevel;
+}
 
 const DEFAULT_FILTERS: HubInventoryOverviewFilters = {
   hubId: "all",
@@ -106,6 +114,9 @@ export function HubInventoryOverviewPage() {
     ...DEFAULT_FILTERS,
     hubId: hubFromQuery ?? "all",
   }));
+  const [activeStat, setActiveStat] = useState<HubInventoryStatKey | null>(
+    null,
+  );
   const [currentPage, setCurrentPage] = useState(1);
   const [sortKey, setSortKey] = useState<HubInventorySortKey>("hubName");
   const [sortDirection, setSortDirection] =
@@ -162,9 +173,16 @@ export function HubInventoryOverviewPage() {
     [allRows, filters],
   );
 
+  const displayRows = useMemo(() => {
+    if (activeStat === "low-stock") {
+      return filteredRows.filter(isLowStockRow);
+    }
+    return filteredRows;
+  }, [filteredRows, activeStat]);
+
   const sortedRows = useMemo(
-    () => sortNetworkInventoryRows(filteredRows, sortKey, sortDirection),
-    [filteredRows, sortKey, sortDirection],
+    () => sortNetworkInventoryRows(displayRows, sortKey, sortDirection),
+    [displayRows, sortKey, sortDirection],
   );
 
   const stats = useMemo(
@@ -188,10 +206,7 @@ export function HubInventoryOverviewPage() {
     return sortedRows.slice(start, start + HUB_INVENTORY_PAGE_SIZE);
   }, [sortedRows, currentPage]);
 
-  const lowStockRows = useMemo(
-    () => allRows.filter((row) => row.availableQty <= row.reorderLevel),
-    [allRows],
-  );
+  const lowStockRows = useMemo(() => allRows.filter(isLowStockRow), [allRows]);
 
   const selectedHistory = useMemo(() => {
     if (!selectedRow) return [];
@@ -232,12 +247,20 @@ export function HubInventoryOverviewPage() {
   const handleFilterChange = (next: Partial<HubInventoryOverviewFilters>) => {
     startTransition(() => {
       setFilters((prev) => ({ ...prev, ...next }));
+      setActiveStat(null);
       setCurrentPage(1);
     });
   };
 
   const handleClearFilters = () => {
     setFilters(DEFAULT_FILTERS);
+    setActiveStat(null);
+    setCurrentPage(1);
+  };
+
+  const handleStatClick = (statId: HubInventoryStatKey) => {
+    if (statId !== "low-stock") return;
+    setActiveStat((current) => (current === statId ? null : statId));
     setCurrentPage(1);
   };
 
@@ -275,6 +298,13 @@ export function HubInventoryOverviewPage() {
       variant: "default" as const,
     },
     {
+      id: "reserved-inventory" as const,
+      label: "Reserved Inventory",
+      value: stats.reservedInventoryLabel,
+      subtitle: "Held for open orders",
+      variant: "default" as const,
+    },
+    {
       id: "low-stock" as const,
       label: "Low Stock Items",
       value: String(stats.lowStockItems),
@@ -289,13 +319,6 @@ export function HubInventoryOverviewPage() {
       subtitle: "Available × unit price",
       variant: "default" as const,
     },
-    {
-      id: "reserved-inventory" as const,
-      label: "Reserved Inventory",
-      value: stats.reservedInventoryLabel,
-      subtitle: "Held for open orders",
-      variant: "default" as const,
-    },
   ];
 
   return (
@@ -303,6 +326,7 @@ export function HubInventoryOverviewPage() {
       <PageHeader
         title="Hub Inventory Overview"
         subtitle="Monitor real-time stock levels and inventory health across all regional sub-hubs."
+        breadcrumbs={getNavBreadcrumbsFromPath("/sub-hub-network/inventory")}
         actions={
           <>
             <Button
@@ -359,6 +383,12 @@ export function HubInventoryOverviewPage() {
             stat={stat}
             isLoading={isLoading}
             index={index}
+            isActive={activeStat === stat.id}
+            onClick={
+              stat.id === "low-stock"
+                ? () => handleStatClick(stat.id)
+                : undefined
+            }
           />
         ))}
       </div>
@@ -371,6 +401,7 @@ export function HubInventoryOverviewPage() {
         materialTypes={filterOptions.materialTypes}
         onChange={handleFilterChange}
         onClear={handleClearFilters}
+        hasStatFilter={activeStat !== null}
       />
 
       <HubInventoryTable

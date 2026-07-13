@@ -1,20 +1,35 @@
 import { ROUTES } from "@/constants/routes";
-import type { NavChildItem } from "@/constants/navigation.constants";
+import type {
+  NavChildGroup,
+  NavChildItem,
+} from "@/constants/navigation.constants";
 
-export const USER_MANAGEMENT_NAV_CHILDREN: NavChildItem[] = [
+export const USER_MANAGEMENT_NAV_GROUPS: NavChildGroup[] = [
   {
-    label: "Customers",
-    href: `${ROUTES.USER_MANAGEMENT}/customers`,
+    items: [
+      {
+        label: "Customers",
+        href: `${ROUTES.USER_MANAGEMENT}/customers`,
+      },
+    ],
   },
   {
-    label: "Customer Executives",
-    href: ROUTES.USER_MANAGEMENT_CUSTOMER_EXECUTIVES,
-  },
-  {
-    label: "Sub Hub Managers",
-    href: `${ROUTES.USER_MANAGEMENT}/sub-hub-managers`,
+    label: "Team Management",
+    items: [
+      {
+        label: "Customer Executives",
+        href: ROUTES.USER_MANAGEMENT_CUSTOMER_EXECUTIVES,
+      },
+      {
+        label: "Sub Hub Managers",
+        href: `${ROUTES.USER_MANAGEMENT}/sub-hub-managers`,
+      },
+    ],
   },
 ];
+
+export const USER_MANAGEMENT_NAV_CHILDREN: NavChildItem[] =
+  USER_MANAGEMENT_NAV_GROUPS.flatMap((group) => group.items);
 
 export const USER_MANAGEMENT_TABS = [
   {

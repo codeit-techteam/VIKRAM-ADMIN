@@ -1,29 +1,49 @@
 import { ROUTES } from "@/constants/routes";
-import type { NavChildItem } from "@/constants/navigation.constants";
+import type {
+  NavChildGroup,
+  NavChildItem,
+} from "@/constants/navigation.constants";
 
-export const SUB_HUB_NETWORK_NAV_CHILDREN: NavChildItem[] = [
+export const SUB_HUB_NETWORK_NAV_GROUPS: NavChildGroup[] = [
   {
-    label: "All Sub-Hubs",
-    href: ROUTES.SUB_HUB_NETWORK,
+    items: [
+      {
+        label: "All Sub-Hubs",
+        href: ROUTES.SUB_HUB_NETWORK,
+      },
+    ],
   },
   {
-    label: "Hub Inventory",
-    href: ROUTES.HUB_INVENTORY,
+    label: "Hub Operations",
+    items: [
+      {
+        label: "Hub Inventory",
+        href: ROUTES.HUB_INVENTORY,
+      },
+      {
+        label: "Hub Requisitions",
+        href: ROUTES.HUB_REQUISITIONS,
+      },
+      {
+        label: "Hub Transfers",
+        href: ROUTES.HUB_TRANSFERS,
+      },
+      {
+        label: "Dispatch Logs",
+        href: ROUTES.HUB_DISPATCH_LOGS,
+      },
+    ],
   },
   {
-    label: "Hub Requisitions",
-    href: ROUTES.HUB_REQUISITIONS,
-  },
-  {
-    label: "Hub Transfers",
-    href: ROUTES.HUB_TRANSFERS,
-  },
-  {
-    label: "Dispatch Logs",
-    href: ROUTES.HUB_DISPATCH_LOGS,
-  },
-  {
-    label: "Add New Hub",
-    href: ROUTES.SUB_HUB_ADD,
+    label: "Setup",
+    items: [
+      {
+        label: "Add New Hub",
+        href: ROUTES.SUB_HUB_ADD,
+      },
+    ],
   },
 ];
+
+export const SUB_HUB_NETWORK_NAV_CHILDREN: NavChildItem[] =
+  SUB_HUB_NETWORK_NAV_GROUPS.flatMap((group) => group.items);

@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { QuickActionCardFromData } from "@/components/shared/QuickActionCard";
 import { EnterpriseGlobalSearch } from "@/components/layout/global-search";
 import { StatCard } from "@/components/shared/StatCard";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { ContentUpdatesTable } from "@/features/cms/components/ContentUpdatesTable";
 import {
   CMS_QUICK_ACTIONS,
@@ -20,6 +21,7 @@ export function CmsDashboardPage() {
     <div className="space-y-6">
       <PageHeader
         title="Bajriwala Dashboard"
+        breadcrumbs={getNavBreadcrumbsFromPath("/customer-app-cms")}
         actions={<EnterpriseGlobalSearch variant="button" />}
       />
 

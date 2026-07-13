@@ -1,8 +1,25 @@
-import { Building2, Package, Truck, Users } from "lucide-react";
+import {
+  ClipboardList,
+  IndianRupee,
+  Package,
+  Truck,
+  Users,
+  Warehouse,
+} from "lucide-react";
 
 import { NAV_FILTER_PRESETS } from "@/constants/navigation-filters";
 import { ROUTES } from "@/constants/routes";
+import {
+  computeActiveCustomers,
+  computeOrdersInTransit,
+  computeQuarterRevenue,
+  computeTotalOrders,
+  formatCompactRupee,
+  getExecutiveKpiOrderPool,
+} from "@/features/dashboard/utils/executive-kpi-metrics";
 import type {
+  DashboardDateFilter,
+  DashboardDateRange,
   DashboardNotification,
   PendingAction,
   QuickActionItem,
@@ -19,14 +36,10 @@ import {
   DISPATCH_LOG_LIST,
 } from "@/mock/dispatch-logs";
 
-export type DashboardDateRange =
-  "today" | "week" | "month" | "quarter" | "year" | "custom";
-
-export interface DashboardDateFilter {
-  range: DashboardDateRange;
-  customFrom?: string;
-  customTo?: string;
-}
+export type {
+  DashboardDateFilter,
+  DashboardDateRange,
+} from "@/features/dashboard/types/dashboard.types";
 
 const RANGE_SCALE: Record<Exclude<DashboardDateRange, "custom">, number> = {
   today: 0.06,
@@ -47,10 +60,6 @@ function getScale(filter: DashboardDateFilter): number {
     return Math.min(3, Math.max(0.05, days / 90));
   }
   return RANGE_SCALE[filter.range === "custom" ? "quarter" : filter.range];
-}
-
-function scaleValue(base: number, filter: DashboardDateFilter): string {
-  return String(Math.max(1, Math.round(base * getScale(filter))));
 }
 
 function getRangeLabel(filter: DashboardDateFilter): string {
@@ -122,81 +131,87 @@ export interface ExecutiveDashboardData {
 export function fetchExecutiveDashboardData(
   filter: DashboardDateFilter = { range: "quarter" },
 ): ExecutiveDashboardData {
-  const subtext = getRangeLabel(filter);
-  const activeUsers = scaleValue(90, filter);
-  const totalOrders = scaleValue(160, filter);
-  const totalHubs = "48";
-  const ordersInTransit = "38";
+  const kpiOrders = getExecutiveKpiOrderPool();
+  const totalOrders = computeTotalOrders(kpiOrders, filter);
+  const ordersInTransit = computeOrdersInTransit(kpiOrders, filter);
+  const quarterRevenue = computeQuarterRevenue(kpiOrders, filter);
+  const activeCustomers = computeActiveCustomers(kpiOrders, filter);
 
   return {
     statCards: [
       {
-        label: "TOTAL ORDERS",
-        value: totalOrders,
-        subtext,
+        label: "Total Orders",
+        value: String(totalOrders),
+        subtext: getRangeLabel(filter),
         href: NAV_FILTER_PRESETS.ordersAll(),
         icon: Package,
         iconContainerClassName: "bg-blue-50",
         iconClassName: "text-blue-600",
       },
       {
-        label: "ACTIVE USERS",
-        value: activeUsers,
-        subtext: "Growth across contractor profiles.",
-        href: ROUTES.USER_MANAGEMENT,
-        icon: Users,
-        iconContainerClassName: "bg-emerald-50",
-        iconClassName: "text-emerald-600",
-      },
-      {
-        label: "TOTAL HUBS",
-        value: totalHubs,
-        subtext: "8 Central, 40 Regional Sub-hubs.",
-        href: ROUTES.SUB_HUB_NETWORK,
-        icon: Building2,
-        iconContainerClassName: "bg-violet-50",
-        iconClassName: "text-violet-600",
-      },
-      {
-        label: "ORDERS IN TRANSIT",
-        value: ordersInTransit,
+        label: "Orders In Transit",
+        value: String(ordersInTransit),
         subtext: "Orders currently moving to customers",
-        href: NAV_FILTER_PRESETS.ordersInTransitAlias(),
+        href: `${ROUTES.CENTRAL_WAREHOUSE}/transfers`,
         icon: Truck,
         iconContainerClassName: "bg-orange-50",
         iconClassName: "text-primary",
       },
+      {
+        label: "Revenue This Quarter",
+        value: formatCompactRupee(quarterRevenue),
+        subtext: "GMV generated this quarter",
+        href: NAV_FILTER_PRESETS.financePayments(),
+        icon: IndianRupee,
+        iconContainerClassName: "bg-emerald-50",
+        iconClassName: "text-emerald-600",
+      },
+      {
+        label: "Active Customers",
+        value: String(activeCustomers),
+        subtext: "Customers purchasing this quarter",
+        href: ROUTES.CUSTOMER_EXECUTIVE_CUSTOMERS,
+        icon: Users,
+        iconContainerClassName: "bg-emerald-50",
+        iconClassName: "text-emerald-600",
+      },
     ],
     pendingActions: [
       {
-        id: "pending-dispatches",
-        title: "Pending Dispatches",
-        subtitle: "Orders waiting to leave assigned hubs",
-        count: computePendingDispatches(filter),
+        id: "exec-orders",
+        title: "Customer Exec Orders",
+        subtitle: "New orders to review",
+        count: Math.max(1, Math.round(21 * getScale(filter))),
         priority: "medium",
-        href: NAV_FILTER_PRESETS.pendingDispatchLogs(),
-        icon: Package,
-      },
-      {
-        id: "customer-payments",
-        title: "Pending Customer Payments",
-        count: Math.max(1, Math.round(12 * getScale(filter))),
-        priority: "high",
-        href: NAV_FILTER_PRESETS.financePayments(),
+        href: NAV_FILTER_PRESETS.ordersBySourceAlias("customer-executive"),
+        icon: ClipboardList,
       },
       {
         id: "warehouse-requests",
         title: "Warehouse Requests",
+        subtitle: "Awaiting warehouse action",
         count: Math.max(1, Math.round(15 * getScale(filter))),
         priority: "medium",
         href: NAV_FILTER_PRESETS.hubRequisitions(),
+        icon: Warehouse,
       },
       {
-        id: "exec-orders",
-        title: "Customer Exec Orders",
-        count: Math.max(1, Math.round(21 * getScale(filter))),
-        priority: "medium",
-        href: NAV_FILTER_PRESETS.ordersBySourceAlias("customer-executive"),
+        id: "pending-dispatches",
+        title: "Pending Dispatches",
+        subtitle: "Waiting to leave hubs",
+        count: computePendingDispatches(filter),
+        priority: "high",
+        href: NAV_FILTER_PRESETS.pendingDispatchLogs(),
+        icon: Truck,
+      },
+      {
+        id: "customer-payments",
+        title: "Pending Customer Payments",
+        subtitle: "Collections outstanding",
+        count: Math.max(1, Math.round(12 * getScale(filter))),
+        priority: "high",
+        href: NAV_FILTER_PRESETS.financePayments(),
+        icon: IndianRupee,
       },
     ],
     quickActions: [
@@ -220,9 +235,21 @@ export function fetchExecutiveDashboardData(
       },
       {
         id: "register-customer",
-        label: "Register Cust.",
+        label: "Register Customer",
         href: NAV_FILTER_PRESETS.registerCustomer(),
         iconName: "user-check",
+      },
+      {
+        id: "add-product",
+        label: "Add Product",
+        href: NAV_FILTER_PRESETS.addProduct(),
+        iconName: "package",
+      },
+      {
+        id: "assign-dispatch",
+        label: "Assign Dispatch",
+        href: NAV_FILTER_PRESETS.assignDispatch(),
+        iconName: "truck",
       },
     ],
     recentOrders: buildRecentOrders(),

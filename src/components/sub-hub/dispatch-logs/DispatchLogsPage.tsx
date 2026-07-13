@@ -10,6 +10,8 @@ import {
   useTransition,
 } from "react";
 
+import { DispatchAssignmentDrawer } from "@/components/sub-hub/dispatch-logs/DispatchAssignmentDrawer";
+import { DispatchAssignmentTable } from "@/components/sub-hub/dispatch-logs/DispatchAssignmentTable";
 import { DispatchLogDetailDrawer } from "@/components/sub-hub/dispatch-logs/DispatchLogDetailDrawer";
 import { DispatchLogFiltersBar } from "@/components/sub-hub/dispatch-logs/DispatchLogFilters";
 import {
@@ -21,6 +23,7 @@ import { DispatchLogTable } from "@/components/sub-hub/dispatch-logs/DispatchLog
 import { DispatchLogUpdateStatusModal } from "@/components/sub-hub/dispatch-logs/DispatchLogUpdateStatusModal";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -32,14 +35,18 @@ import {
   fetchDispatchLogs,
   filterDispatchLogs,
   formatDispatchLogDateTime,
+  isAssignedDispatchLog,
+  isPendingDispatchLog,
 } from "@/mock/dispatch-logs";
 import { useDispatchLogStore } from "@/store/dispatch-log-store";
 import type {
+  DispatchAssignmentPayload,
   DispatchLog,
   DispatchLogFilters,
   DispatchLogOperationalFilter,
   DispatchLogStatus,
 } from "@/types/dispatch-log.types";
+import { cn } from "@/lib/utils";
 import { printDispatchLogSlip } from "@/utils/dispatch-log-print";
 import { notify } from "@/utils/notify";
 
@@ -47,12 +54,38 @@ const OPERATIONAL_FILTER_VALUES = Object.keys(
   DISPATCH_LOG_OPERATIONAL_FILTER_LABELS,
 ) as DispatchLogOperationalFilter[];
 
+type DispatchViewTab = "all" | "pending-dispatch" | "assigned";
+
+const DISPATCH_VIEW_TABS: Array<{ id: DispatchViewTab; label: string }> = [
+  { id: "all", label: "All Logs" },
+  { id: "pending-dispatch", label: "Pending Dispatch" },
+  { id: "assigned", label: "Assigned" },
+];
+
+function getInitialViewTab(statusParam: string | null): DispatchViewTab {
+  if (!statusParam) return "all";
+
+  const normalized = statusParam.toLowerCase();
+  if (normalized === "pending-dispatch" || normalized === "ready") {
+    return "pending-dispatch";
+  }
+  if (normalized === "assigned") {
+    return "assigned";
+  }
+
+  return "all";
+}
+
 function parseStatusParam(statusParam: string): DispatchLogFilters["status"] {
   const normalized = statusParam.toLowerCase();
 
   // Legacy URL support: old "ready" filter maps to pending dispatch.
   if (normalized === "ready") {
     return "pending-dispatch";
+  }
+
+  if (normalized === "assigned") {
+    return "ASSIGNED";
   }
 
   if (
@@ -104,7 +137,9 @@ function downloadCsv(items: DispatchLog[]) {
       item.vehicleNumber ?? "",
       item.driverName ?? "",
       item.dispatchTime ? formatDispatchLogDateTime(item.dispatchTime) : "",
-      DISPATCH_LOG_STATUS_LABELS[item.status],
+      item.isDelayed && item.status !== "DELIVERED"
+        ? "Delayed"
+        : DISPATCH_LOG_STATUS_LABELS[item.status],
       formatDispatchLogDateTime(item.lastUpdated),
     ]
       .map((cell) => `"${String(cell).replaceAll('"', '""')}"`)
@@ -129,12 +164,14 @@ export function DispatchLogsPage() {
 
   const logs = useDispatchLogStore((state) => state.logs);
   const updateStatus = useDispatchLogStore((state) => state.updateStatus);
+  const assignDispatch = useDispatchLogStore((state) => state.assignDispatch);
   const updateDeliveryNotes = useDispatchLogStore(
     (state) => state.updateDeliveryNotes,
   );
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeView, setActiveView] = useState<DispatchViewTab>("all");
   const [filters, setFilters] = useState<DispatchLogFilters>(
     EMPTY_DISPATCH_LOG_FILTERS,
   );
@@ -142,6 +179,7 @@ export function DispatchLogsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedLog, setSelectedLog] = useState<DispatchLog | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [assignmentDrawerOpen, setAssignmentDrawerOpen] = useState(false);
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [, startTransition] = useTransition();
 
@@ -157,6 +195,7 @@ export function DispatchLogsPage() {
     const statusParam = searchParams.get("status");
     const orderParam = searchParams.get("order");
 
+    setActiveView(getInitialViewTab(statusParam));
     setFilters((current) => ({
       ...current,
       ...(hubParam ? { hubId: hubParam } : {}),
@@ -165,6 +204,18 @@ export function DispatchLogsPage() {
     }));
     setCurrentPage(1);
   }, [searchParams]);
+
+  const assignmentItems = useMemo(() => {
+    let items = filterDispatchLogs(logs, { filters });
+
+    if (activeView === "pending-dispatch") {
+      items = items.filter(isPendingDispatchLog);
+    } else if (activeView === "assigned") {
+      items = items.filter(isAssignedDispatchLog);
+    }
+
+    return items;
+  }, [logs, filters, activeView]);
 
   const queryFilters = useMemo(() => {
     const statFilters = activeStat ? STAT_FILTER_MAP[activeStat] : undefined;
@@ -265,6 +316,55 @@ export function DispatchLogsPage() {
     setCurrentPage(1);
   };
 
+  const openAssignmentDrawer = useCallback((item: DispatchLog) => {
+    setSelectedLog(item);
+    setAssignmentDrawerOpen(true);
+  }, []);
+
+  const handleAssignmentDrawerOpenChange = useCallback((open: boolean) => {
+    setAssignmentDrawerOpen(open);
+    if (!open) setSelectedLog(null);
+  }, []);
+
+  const handleAssignDispatch = useCallback(
+    (payload: DispatchAssignmentPayload) => {
+      if (!selectedLog) return;
+      assignDispatch(selectedLog.id, payload);
+      notify.success(
+        "Dispatch assigned",
+        `${selectedLog.orderId} is now assigned to ${payload.driverName}.`,
+      );
+    },
+    [assignDispatch, selectedLog],
+  );
+
+  const handleViewTabChange = useCallback(
+    (tab: DispatchViewTab) => {
+      setActiveView(tab);
+      setCurrentPage(1);
+      setActiveStat(null);
+
+      const params = new URLSearchParams(searchParams.toString());
+
+      if (tab === "pending-dispatch") {
+        params.set("status", "pending-dispatch");
+      } else if (tab === "assigned") {
+        params.set("status", "assigned");
+      } else {
+        params.delete("status");
+      }
+
+      const query = params.toString();
+      router.replace(
+        query
+          ? `${ROUTES.HUB_DISPATCH_LOGS}?${query}`
+          : ROUTES.HUB_DISPATCH_LOGS,
+        { scroll: false },
+      );
+    },
+    [router, searchParams],
+  );
+
   const openDrawer = useCallback((item: DispatchLog) => {
     setSelectedLog(item);
     setDrawerOpen(true);
@@ -324,7 +424,10 @@ export function DispatchLogsPage() {
     <div className="space-y-5">
       <PageHeader
         title="Dispatch Logs"
-        subtitle="Manual dispatch tracking and status history for hub-to-customer deliveries."
+        subtitle="Manual dispatch tracking, assignment, and status history for hub-to-customer deliveries."
+        breadcrumbs={getNavBreadcrumbsFromPath(
+          "/sub-hub-network/dispatch-logs",
+        )}
         actions={
           <Button
             type="button"
@@ -339,16 +442,17 @@ export function DispatchLogsPage() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {statCards.map((stat, index) => (
-          <DispatchLogStatsCard
-            key={stat.id}
-            stat={stat}
-            isLoading={isLoading}
-            index={index}
-            isActive={activeStat === stat.id}
-            onClick={() => handleStatClick(stat.id)}
-          />
+          <div key={stat.id} className="min-w-0">
+            <DispatchLogStatsCard
+              stat={stat}
+              isLoading={isLoading}
+              index={index}
+              isActive={activeStat === stat.id}
+              onClick={() => handleStatClick(stat.id)}
+            />
+          </div>
         ))}
       </div>
 
@@ -359,18 +463,56 @@ export function DispatchLogsPage() {
         onClear={handleClearFilters}
       />
 
-      <DispatchLogTable
-        items={queryResult.data}
-        isLoading={isLoading}
-        isRefreshing={isRefreshing}
-        currentPage={queryResult.meta.page}
-        totalItems={queryResult.meta.total}
-        pageSize={DISPATCH_LOG_PAGE_SIZE}
-        onPageChange={setCurrentPage}
-        onRefresh={handleRefresh}
-        onRowSelect={openDrawer}
-        onUpdateStatus={openStatusModal}
-        onPrint={handlePrint}
+      <div className="rounded-xl border border-gray-100 bg-white p-1 shadow-sm">
+        <div className="flex flex-wrap gap-1 p-1">
+          {DISPATCH_VIEW_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => handleViewTabChange(tab.id)}
+              className={cn(
+                "cursor-pointer rounded-lg px-4 py-2 text-sm font-medium transition-all duration-150",
+                activeView === tab.id
+                  ? "bg-primary text-white shadow-sm"
+                  : "text-[#64748B] hover:bg-gray-50 hover:text-[#1A1A1A]",
+                "active:scale-[0.98]",
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {activeView === "pending-dispatch" || activeView === "assigned" ? (
+        <DispatchAssignmentTable
+          items={assignmentItems}
+          isLoading={isLoading}
+          onAssign={openAssignmentDrawer}
+          onPrint={handlePrint}
+        />
+      ) : (
+        <DispatchLogTable
+          items={queryResult.data}
+          isLoading={isLoading}
+          isRefreshing={isRefreshing}
+          currentPage={queryResult.meta.page}
+          totalItems={queryResult.meta.total}
+          pageSize={DISPATCH_LOG_PAGE_SIZE}
+          onPageChange={setCurrentPage}
+          onRefresh={handleRefresh}
+          onRowSelect={openDrawer}
+          onUpdateStatus={openStatusModal}
+          onPrint={handlePrint}
+        />
+      )}
+
+      <DispatchAssignmentDrawer
+        open={assignmentDrawerOpen}
+        onOpenChange={handleAssignmentDrawerOpenChange}
+        log={selectedLive}
+        onAssign={handleAssignDispatch}
+        updatedBy={adminName}
       />
 
       <DispatchLogDetailDrawer

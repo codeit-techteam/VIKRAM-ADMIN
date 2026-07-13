@@ -1,7 +1,10 @@
 export {
   fetchExecutiveDashboardData,
   DASHBOARD_DATE_RANGE_LABELS,
-  type DashboardDateFilter,
-  type DashboardDateRange,
   type ExecutiveDashboardData,
 } from "@/mock/executive-dashboard";
+
+export type {
+  DashboardDateFilter,
+  DashboardDateRange,
+} from "@/features/dashboard/types/dashboard.types";

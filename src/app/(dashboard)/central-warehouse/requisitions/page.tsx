@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { RequisitionPage } from "@/components/requisitions/RequisitionPage";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 
 export const metadata: Metadata = {
   title: "Requisition Approval Center",
@@ -21,6 +22,9 @@ export default function RequisitionApprovalPage() {
       <PageHeader
         title="Requisition Approval Center"
         subtitle="Manage and authorize material requests across regional hubs."
+        breadcrumbs={getNavBreadcrumbsFromPath(
+          "/central-warehouse/requisitions",
+        )}
         actions={
           <div className="text-right">
             <p className="text-[10px] font-semibold tracking-[0.12em] text-gray-400 uppercase">

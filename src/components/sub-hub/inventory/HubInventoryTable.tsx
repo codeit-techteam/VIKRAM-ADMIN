@@ -229,7 +229,7 @@ export function HubInventoryTable({
       <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-4">
         <div>
           <h2 className="text-base font-semibold text-[#1A1A1A]">
-            Live Inventory Status
+            Inventory Status
           </h2>
           <p className="mt-0.5 text-sm text-[#64748B]">
             Real-time hub stock powered by transfers, reservations & dispatches

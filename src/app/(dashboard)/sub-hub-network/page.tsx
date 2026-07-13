@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SubHubNetworkDashboard } from "@/components/sub-hub/SubHubNetworkDashboard";
 import { Button } from "@/components/ui/button";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { ROUTES } from "@/constants/routes";
 
 export const metadata: Metadata = {
@@ -17,6 +18,7 @@ export default function SubHubNetworkPage() {
       <PageHeader
         title="All Sub-Hubs"
         subtitle="Operations control tower for warehouse-to-hub-to-customer supply chain visibility."
+        breadcrumbs={getNavBreadcrumbsFromPath("/sub-hub-network")}
         actions={
           <Button
             className="h-10 gap-2 px-4"

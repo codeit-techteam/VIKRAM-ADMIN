@@ -117,4 +117,11 @@ export const NAV_FILTER_PRESETS = {
   raiseOrder: () => ROUTES.CUSTOMER_EXECUTIVE_ORDERS_NEW,
 
   registerCustomer: () => ROUTES.CUSTOMER_EXECUTIVE_CUSTOMERS_NEW,
+
+  addProduct: () => ROUTES.CENTRAL_WAREHOUSE_PRODUCTS,
+
+  assignDispatch: () =>
+    buildFilteredUrl(ROUTES.HUB_DISPATCH_LOGS, {
+      status: "pending-dispatch",
+    }),
 } as const;

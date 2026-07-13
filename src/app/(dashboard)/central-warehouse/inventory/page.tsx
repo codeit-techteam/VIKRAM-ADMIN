@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { InventoryPage } from "@/components/inventory/InventoryPage";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { ROUTES } from "@/constants/routes";
 
 export const metadata: Metadata = {
@@ -16,6 +17,7 @@ export default function InventoryManagementPage() {
     <div className="space-y-5">
       <PageHeader
         title="Inventory Management - Central Warehouse"
+        breadcrumbs={getNavBreadcrumbsFromPath("/central-warehouse/inventory")}
         actions={
           <>
             <Button variant="outline" className="h-10 gap-2 px-4">

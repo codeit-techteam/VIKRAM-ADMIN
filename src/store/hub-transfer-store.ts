@@ -49,20 +49,15 @@ function statusToTimelineKey(
   status: HubTransferStatus,
 ): HubTransferTimelineKey | null {
   const map: Partial<Record<HubTransferStatus, HubTransferTimelineKey>> = {
-    VEHICLE_ASSIGNED: "VEHICLE_ASSIGNED",
-    DRIVER_ASSIGNED: "DRIVER_ASSIGNED",
-    PACKED: "PACKED",
-    LOADED: "LOADED",
+    ASSIGNED: "DRIVER_ASSIGNED",
     DISPATCHED: "DISPATCHED",
-    REACHED_CUSTOMER_AREA: "REACHED_CUSTOMER_AREA",
     DELIVERED: "DELIVERED",
-    COMPLETED: "COMPLETED",
   };
   return map[status] ?? null;
 }
 
 function computeDelayed(item: HubTransfer): boolean {
-  if (item.status === "DELIVERED" || item.status === "COMPLETED") {
+  if (item.status === "DELIVERED" || item.status === "CANCELLED") {
     return false;
   }
   return new Date(item.expectedDelivery).getTime() < Date.now();
@@ -86,23 +81,18 @@ export const useHubTransferStore = create<HubTransferStore>((set, get) => ({
     if (!vehicle || !transfer) return;
 
     const now = new Date().toISOString();
-    const timelineKey = statusToTimelineKey("VEHICLE_ASSIGNED");
-    const nextTimeline = timelineKey
-      ? appendTimeline(transfer.timeline, {
-          id: `evt-${now}`,
-          key: timelineKey,
-          title: HUB_TRANSFER_STATUS_LABELS.VEHICLE_ASSIGNED,
-          updatedBy,
-          timestamp: now,
-          remarks: `${vehicle.vehicleNumber} assigned for delivery.`,
-          completed: true,
-        })
-      : transfer.timeline;
+    const nextTimeline = appendTimeline(transfer.timeline, {
+      id: `evt-${now}`,
+      key: "VEHICLE_ASSIGNED",
+      title: "Vehicle Assigned",
+      updatedBy,
+      timestamp: now,
+      remarks: `${vehicle.vehicleNumber} assigned for delivery.`,
+      completed: true,
+    });
 
     const nextStatus: HubTransferStatus =
-      transfer.status === "PENDING_DISPATCH"
-        ? "VEHICLE_ASSIGNED"
-        : transfer.status;
+      transfer.status === "PENDING_DISPATCH" ? "ASSIGNED" : transfer.status;
 
     set({
       transfers: state.transfers.map((item) =>
@@ -144,23 +134,19 @@ export const useHubTransferStore = create<HubTransferStore>((set, get) => ({
     if (!driver || !transfer) return;
 
     const now = new Date().toISOString();
-    const timelineKey = statusToTimelineKey("DRIVER_ASSIGNED");
-    const nextTimeline = timelineKey
-      ? appendTimeline(transfer.timeline, {
-          id: `evt-${now}`,
-          key: timelineKey,
-          title: HUB_TRANSFER_STATUS_LABELS.DRIVER_ASSIGNED,
-          updatedBy,
-          timestamp: now,
-          remarks: `${driver.name} assigned. License ${driver.licenseStatus}.`,
-          completed: true,
-        })
-      : transfer.timeline;
+    const nextTimeline = appendTimeline(transfer.timeline, {
+      id: `evt-${now}`,
+      key: "DRIVER_ASSIGNED",
+      title: "Driver Assigned",
+      updatedBy,
+      timestamp: now,
+      remarks: `${driver.name} assigned. License ${driver.licenseStatus}.`,
+      completed: true,
+    });
 
     const nextStatus: HubTransferStatus =
-      transfer.status === "VEHICLE_ASSIGNED" ||
-      transfer.status === "PENDING_DISPATCH"
-        ? "DRIVER_ASSIGNED"
+      transfer.status === "PENDING_DISPATCH" || transfer.status === "ASSIGNED"
+        ? "ASSIGNED"
         : transfer.status;
 
     set({

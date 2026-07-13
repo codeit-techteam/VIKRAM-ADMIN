@@ -210,7 +210,10 @@ export function DispatchLogTable({
                         : "—"}
                     </TableCell>
                     <TableCell>
-                      <DispatchLogStatusBadge status={item.status} />
+                      <DispatchLogStatusBadge
+                        status={item.status}
+                        isDelayed={item.isDelayed}
+                      />
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-[#64748B]">
                       {formatDispatchLogDateTime(item.lastUpdated)}

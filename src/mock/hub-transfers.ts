@@ -470,7 +470,7 @@ export const HUB_TRANSFER_LIST: HubTransfer[] = [
   buildTransfer(3, {
     transferId: "HT-2603",
     orderId: "ORD-88403",
-    status: "VEHICLE_ASSIGNED",
+    status: "ASSIGNED",
     vehicleId: "hfv-002",
     vehicleNumber: "DL-01-AB-4421",
     vehicleType: "8-Ton Truck",
@@ -490,7 +490,7 @@ export const HUB_TRANSFER_LIST: HubTransfer[] = [
   buildTransfer(4, {
     transferId: "HT-2604",
     orderId: "ORD-88404",
-    status: "DRIVER_ASSIGNED",
+    status: "ASSIGNED",
     vehicleId: "hfv-006",
     vehicleNumber: "DL-05-NP-6677",
     vehicleType: "6-Ton LCV",
@@ -521,7 +521,7 @@ export const HUB_TRANSFER_LIST: HubTransfer[] = [
   buildTransfer(5, {
     transferId: "HT-2605",
     orderId: "ORD-88405",
-    status: "PACKED",
+    status: "ASSIGNED",
     vehicleId: "hfv-004",
     vehicleNumber: "UP-16-CD-3309",
     vehicleType: "6-Ton LCV",
@@ -559,7 +559,7 @@ export const HUB_TRANSFER_LIST: HubTransfer[] = [
   buildTransfer(6, {
     transferId: "HT-2606",
     orderId: "ORD-88406",
-    status: "LOADED",
+    status: "ASSIGNED",
     vehicleId: "hfv-003",
     vehicleNumber: "HR-26-BK-7783",
     vehicleType: "12-Ton Flatbed",
@@ -633,7 +633,7 @@ export const HUB_TRANSFER_LIST: HubTransfer[] = [
   buildTransfer(8, {
     transferId: "HT-2608",
     orderId: "ORD-88408",
-    status: "REACHED_CUSTOMER_AREA",
+    status: "DISPATCHED",
     dispatchTime: hoursAgo(4),
     vehicleId: "hfv-005",
     vehicleNumber: "HR-12-EF-5512",
@@ -687,7 +687,7 @@ export const HUB_TRANSFER_LIST: HubTransfer[] = [
   buildTransfer(10, {
     transferId: "HT-2610",
     orderId: "ORD-88410",
-    status: "COMPLETED",
+    status: "DELIVERED",
     dispatchTime: hoursAgo(12),
     vehicleId: "hfv-002",
     vehicleNumber: "DL-01-AB-4421",
@@ -760,7 +760,7 @@ export const HUB_TRANSFER_LIST: HubTransfer[] = [
     buildTransfer(13 + i, {
       transferId: `HT-${2613 + i}`,
       orderId: `ORD-${88413 + i}`,
-      status: i % 2 === 0 ? "PENDING_DISPATCH" : "VEHICLE_ASSIGNED",
+      status: i % 2 === 0 ? "PENDING_DISPATCH" : "ASSIGNED",
       vehicleId: i % 2 === 1 ? "hfv-002" : null,
       vehicleNumber: i % 2 === 1 ? "DL-01-AB-4421" : null,
       vehicleType: i % 2 === 1 ? "8-Ton Truck" : null,
@@ -771,55 +771,53 @@ export const HUB_TRANSFER_LIST: HubTransfer[] = [
 
 export const HUB_TRANSFER_STATUS_LABELS: Record<HubTransferStatus, string> = {
   PENDING_DISPATCH: "Pending Dispatch",
-  VEHICLE_ASSIGNED: "Vehicle Assigned",
-  DRIVER_ASSIGNED: "Driver Assigned",
-  PACKED: "Packed",
-  LOADED: "Loaded",
+  ASSIGNED: "Assigned",
   DISPATCHED: "Dispatched",
-  REACHED_CUSTOMER_AREA: "Reached Customer Area",
   DELIVERED: "Delivered",
-  COMPLETED: "Completed",
   CANCELLED: "Cancelled",
 };
 
-export const HUB_TRANSFER_STATUS_OPTIONS = Object.entries(
-  HUB_TRANSFER_STATUS_LABELS,
-).map(([value, label]) => ({
-  value: value as HubTransferStatus,
-  label,
-}));
+/** Entity status options for the Update Status modal. */
+export const HUB_TRANSFER_STATUS_OPTIONS = (
+  Object.entries(HUB_TRANSFER_STATUS_LABELS) as Array<
+    [HubTransferStatus, string]
+  >
+).map(([value, label]) => ({ value, label }));
+
+/** Filter options including Delayed operational filter. */
+export const HUB_TRANSFER_FILTER_OPTIONS = [
+  ...HUB_TRANSFER_STATUS_OPTIONS,
+  { value: "delayed" as const, label: "Delayed" },
+];
 
 export function computeHubTransferStats(
   items: HubTransfer[],
   referenceDate: Date = now,
 ): HubTransferStats {
-  const inTransitStatuses: HubTransferStatus[] = [
-    "DISPATCHED",
-    "REACHED_CUSTOMER_AREA",
-  ];
-
   return {
     todaysDispatches: items.filter(
       (item) =>
         item.dispatchTime && isSameDay(item.dispatchTime, referenceDate),
     ).length,
     pendingVehicleAssignment: items.filter(
-      (item) =>
-        item.status === "PENDING_DISPATCH" ||
-        (item.status === "PACKED" && !item.vehicleId),
+      (item) => item.status === "PENDING_DISPATCH",
     ).length,
-    inTransit: items.filter((item) => inTransitStatuses.includes(item.status))
-      .length,
+    inTransit: items.filter((item) => item.status === "DISPATCHED").length,
     deliveredToday: items.filter(
       (item) =>
-        (item.status === "DELIVERED" || item.status === "COMPLETED") &&
+        item.status === "DELIVERED" &&
         item.timeline.some(
           (event) =>
             (event.key === "DELIVERED" || event.key === "COMPLETED") &&
             isSameDay(event.timestamp, referenceDate),
         ),
     ).length,
-    delayedDeliveries: items.filter((item) => item.isDelayed).length,
+    delayedDeliveries: items.filter(
+      (item) =>
+        item.isDelayed &&
+        item.status !== "DELIVERED" &&
+        item.status !== "CANCELLED",
+    ).length,
   };
 }
 
@@ -864,7 +862,17 @@ function matchesFilters(
   }
 
   if (filters.status && filters.status !== "all") {
-    if (item.status !== filters.status) return false;
+    if (filters.status === "delayed") {
+      if (
+        !item.isDelayed ||
+        item.status === "DELIVERED" ||
+        item.status === "CANCELLED"
+      ) {
+        return false;
+      }
+    } else if (item.status !== filters.status) {
+      return false;
+    }
   }
 
   if (filters.priority && filters.priority !== "all") {

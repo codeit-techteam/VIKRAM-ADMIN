@@ -18,6 +18,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Pagination } from "@/components/shared/Pagination";
 import { StatCard } from "@/components/shared/StatCard";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { CeConfirmationDialog } from "@/features/customer-executive/components/shared/CeConfirmationDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -198,6 +199,7 @@ export function FinancePaymentsPage() {
       <PageHeader
         title="Finance & Payments"
         subtitle="Track invoices, verify payments, and manage the complete payment lifecycle."
+        breadcrumbs={getNavBreadcrumbsFromPath("/finance-payments")}
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

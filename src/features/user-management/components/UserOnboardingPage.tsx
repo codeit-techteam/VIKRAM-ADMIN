@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { PageHeader } from "@/components/shared/PageHeader";
 import { ROUTES } from "@/constants/routes";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 
 const ONBOARDING_OPTIONS = [
   {
@@ -51,6 +52,7 @@ export function UserOnboardingPage() {
       <PageHeader
         title="User Onboarding"
         subtitle="Select the onboarding workflow for customers, executives, managers, or hubs."
+        breadcrumbs={getNavBreadcrumbsFromPath("/user-management/onboarding")}
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

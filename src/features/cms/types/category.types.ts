@@ -1,4 +1,4 @@
-export type CategoryStatus = "ACTIVE" | "PENDING" | "INACTIVE";
+export type CategoryVisibility = "VISIBLE" | "NOT_VISIBLE";
 
 export interface Category {
   id: string;
@@ -6,6 +6,13 @@ export interface Category {
   name: string;
   displayOrder: number;
   productCount: number;
-  status: CategoryStatus;
+  isVisible: boolean;
   lastUpdated: string;
+}
+
+export interface CategoryStats {
+  totalCategories: number;
+  totalProducts: number;
+  visible: number;
+  notVisible: number;
 }

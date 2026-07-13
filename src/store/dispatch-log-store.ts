@@ -5,6 +5,7 @@ import {
   DISPATCH_LOG_STATUS_LABELS,
 } from "@/mock/dispatch-logs";
 import type {
+  DispatchAssignmentPayload,
   DispatchLog,
   DispatchLogStatus,
   DispatchLogStatusUpdatePayload,
@@ -16,6 +17,10 @@ interface DispatchLogStore {
   updateStatus: (
     dispatchId: string,
     payload: DispatchLogStatusUpdatePayload,
+  ) => void;
+  assignDispatch: (
+    dispatchId: string,
+    payload: DispatchAssignmentPayload,
   ) => void;
   updateDeliveryNotes: (dispatchId: string, notes: string) => void;
   getLogById: (id: string) => DispatchLog | undefined;
@@ -75,6 +80,51 @@ export const useDispatchLogStore = create<DispatchLogStore>((set, get) => ({
               isDelayed: computeDelayed({
                 ...item,
                 status: payload.status,
+              }),
+            }
+          : item,
+      ),
+    });
+  },
+
+  assignDispatch: (dispatchId, payload) => {
+    const now = new Date().toISOString();
+    const state = get();
+    const log = state.logs.find(
+      (item) => item.id === dispatchId || item.dispatchId === dispatchId,
+    );
+    if (!log || log.status !== "READY_FOR_DISPATCH") return;
+
+    const event: DispatchLogTimelineEvent = {
+      id: `tl-assign-${now}`,
+      status: "ASSIGNED",
+      title: DISPATCH_LOG_STATUS_LABELS.ASSIGNED,
+      updatedBy: payload.updatedBy,
+      timestamp: now,
+      remarks: payload.remarks,
+      isManual: true,
+    };
+
+    set({
+      logs: state.logs.map((item) =>
+        item.id === log.id
+          ? {
+              ...item,
+              status: "ASSIGNED",
+              vehicleId: payload.vehicleId,
+              vehicleNumber: payload.vehicleNumber,
+              vehicleType: payload.vehicleType,
+              driverId: payload.driverId,
+              driverName: payload.driverName,
+              driverMobile: payload.driverMobile,
+              dispatchTime: payload.expectedDispatchTime,
+              lastUpdated: now,
+              deliveryNotes: payload.remarks || item.deliveryNotes,
+              timeline: appendTimeline(item.timeline, event),
+              isDelayed: computeDelayed({
+                ...item,
+                status: "ASSIGNED",
+                dispatchTime: payload.expectedDispatchTime,
               }),
             }
           : item,

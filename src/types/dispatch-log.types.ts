@@ -1,5 +1,9 @@
 export type DispatchLogStatus =
-  "READY_FOR_DISPATCH" | "DISPATCHED" | "REACHED_AREA" | "DELIVERED";
+  | "READY_FOR_DISPATCH"
+  | "ASSIGNED"
+  | "DISPATCHED"
+  | "REACHED_AREA"
+  | "DELIVERED";
 
 export type DispatchLogOperationalFilter =
   "pending-dispatch" | "vehicle-pending" | "driver-pending";
@@ -76,6 +80,18 @@ export interface DispatchLogQueryParams {
 
 export interface DispatchLogStatusUpdatePayload {
   status: DispatchLogStatus;
+  remarks: string;
+  updatedBy: string;
+}
+
+export interface DispatchAssignmentPayload {
+  vehicleId: string;
+  vehicleNumber: string;
+  vehicleType: string;
+  driverId: string;
+  driverName: string;
+  driverMobile: string;
+  expectedDispatchTime: string;
   remarks: string;
   updatedBy: string;
 }

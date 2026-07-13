@@ -59,7 +59,7 @@ export function HubTransferStatsCard({
 
   if (isLoading) {
     return (
-      <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+      <div className="h-full rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
         <Skeleton className="h-3 w-28" />
         <Skeleton className="mt-3 h-8 w-16" />
         <Skeleton className="mt-2 h-3 w-24" />
@@ -73,7 +73,7 @@ export function HubTransferStatsCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28, delay: index * 0.05 }}
       className={cn(
-        "rounded-xl border p-6 shadow-sm transition-all duration-200",
+        "h-full rounded-xl border p-6 shadow-sm transition-all duration-200",
         onClick && "cursor-pointer hover:scale-[1.02] hover:shadow-md",
         isActive
           ? "border-primary bg-primary/5 ring-primary/20 ring-2"
@@ -87,9 +87,9 @@ export function HubTransferStatsCard({
               : "bg-white",
       )}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium tracking-wide text-gray-400 uppercase">
+      <div className="flex h-full items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="min-h-8 text-xs leading-4 font-medium tracking-wide text-gray-400 uppercase">
             {stat.label}
           </p>
           <p
@@ -130,7 +130,11 @@ export function HubTransferStatsCard({
 
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className="w-full text-left">
+      <button
+        type="button"
+        onClick={onClick}
+        className="h-full w-full text-left"
+      >
         {content}
       </button>
     );
@@ -151,7 +155,7 @@ export function buildHubTransferStatCards(
     },
     {
       id: "pending-vehicle",
-      label: "Pending Vehicle Assignment",
+      label: "Pending Allocation",
       value: String(stats.pendingVehicleAssignment).padStart(2, "0"),
       subtitle: "Awaiting fleet allocation",
       variant: stats.pendingVehicleAssignment > 0 ? "warning" : "default",

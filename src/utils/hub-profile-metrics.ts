@@ -91,20 +91,14 @@ export interface HubPerformanceKpis {
   todaysDispatches: number;
   incomingTransfers: number;
   pendingRequisitions: number;
-  lowStockAlerts: number;
-  inventoryHealth: number;
-  inventoryHealthLabel: SubHubOperationalStatus;
 }
 
 export interface HubProfileKpiCards {
   inventoryValue: number;
   inventoryValueLabel: string;
-  inventoryHealth: number;
-  inventoryHealthLabel: SubHubOperationalStatus;
   customerOrdersPending: number;
-  dispatchSlaPercent: number;
-  onTimeDispatch: number;
-  totalDispatch: number;
+  pendingRequisitions: number;
+  incomingTransfers: number;
 }
 
 export interface HubHealthBreakdown {
@@ -519,35 +513,32 @@ export function computeHubProfileKpis(
   hubInventory: HubInventoryEntry[],
   transfers: TransferListItem[],
   requisitions: RequisitionListItem[],
-  reference = new Date(),
 ): HubProfileKpiCards {
   const inventoryValue = computeHubStockValue(hubInventory, hubId);
-  const inventoryHealth = computeHubInventoryHealth(hubInventory, hubId);
-  const sla = computeDispatchSla(transfers, hubId, reference);
 
   return {
     inventoryValue,
     inventoryValueLabel: formatHubStockValue(inventoryValue),
-    inventoryHealth,
-    inventoryHealthLabel: inventoryHealthLabel(inventoryHealth),
     customerOrdersPending: requisitions.filter(
       (item) => item.hubId === hubId && isOpenCustomerOrder(item),
     ).length,
-    dispatchSlaPercent: sla.percent,
-    onTimeDispatch: sla.onTime,
-    totalDispatch: sla.total,
+    pendingRequisitions: requisitions.filter(
+      (item) => item.hubId === hubId && isPendingRequisition(item),
+    ).length,
+    incomingTransfers: transfers.filter((transfer) => {
+      const status = normalizeTransferStatus(transfer.status);
+      return transfer.destinationHubId === hubId && ACTIVE_INCOMING.has(status);
+    }).length,
   };
 }
 
 export function computeHubPerformanceKpis(
   hub: SubHub,
-  hubInventory: HubInventoryEntry[],
+  _hubInventory: HubInventoryEntry[],
   transfers: TransferListItem[],
   requisitions: RequisitionListItem[],
   reference = new Date(),
 ): HubPerformanceKpis {
-  const inventoryHealth = computeHubInventoryHealth(hubInventory, hub.id);
-
   return {
     todaysOrders: requisitions.filter(
       (item) => item.hubId === hub.id && isSameDay(item.createdAt, reference),
@@ -568,9 +559,6 @@ export function computeHubPerformanceKpis(
     pendingRequisitions: requisitions.filter(
       (item) => item.hubId === hub.id && isPendingRequisition(item),
     ).length,
-    lowStockAlerts: countLowStockMaterials(hubInventory, hub.id),
-    inventoryHealth,
-    inventoryHealthLabel: inventoryHealthLabel(inventoryHealth),
   };
 }
 

@@ -23,6 +23,7 @@ import { HubTransferTable } from "@/components/sub-hub/transfers/HubTransferTabl
 import { HubTransferUpdateStatusModal } from "@/components/sub-hub/transfers/HubTransferUpdateStatusModal";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -34,6 +35,7 @@ import {
   getAvailableVehiclesForHub,
   HUB_TRANSFER_HUB_OPTIONS,
   HUB_TRANSFER_PAGE_SIZE,
+  HUB_TRANSFER_STATUS_LABELS,
 } from "@/mock/hub-transfers";
 import { useHubTransferStore } from "@/store/hub-transfer-store";
 import type {
@@ -47,12 +49,49 @@ import {
 } from "@/utils/hub-transfer-print";
 import { notify } from "@/utils/notify";
 
+const MVP_STATUSES = new Set<HubTransferStatus>([
+  "PENDING_DISPATCH",
+  "ASSIGNED",
+  "DISPATCHED",
+  "DELIVERED",
+  "CANCELLED",
+]);
+
+function parseStatusParam(
+  value: string | null,
+): HubTransferFilters["status"] | undefined {
+  if (!value) return undefined;
+  const upper = value.toUpperCase();
+  const lower = value.toLowerCase();
+
+  if (lower === "delayed") return "delayed";
+
+  // Legacy granular statuses → MVP
+  if (
+    upper === "VEHICLE_ASSIGNED" ||
+    upper === "DRIVER_ASSIGNED" ||
+    upper === "PACKED" ||
+    upper === "LOADED"
+  ) {
+    return "ASSIGNED";
+  }
+  if (upper === "REACHED_CUSTOMER_AREA") return "DISPATCHED";
+  if (upper === "COMPLETED") return "DELIVERED";
+
+  if (MVP_STATUSES.has(upper as HubTransferStatus)) {
+    return upper as HubTransferStatus;
+  }
+
+  return undefined;
+}
+
 const STAT_FILTER_MAP: Partial<
   Record<HubTransferStatKey, Partial<HubTransferFilters>>
 > = {
   "pending-vehicle": { status: "PENDING_DISPATCH" },
   "in-transit": { status: "DISPATCHED" },
-  delayed: { status: "all" },
+  "delivered-today": { status: "DELIVERED" },
+  delayed: { status: "delayed" },
 };
 
 function downloadCsv(items: HubTransfer[]) {
@@ -83,7 +122,11 @@ function downloadCsv(items: HubTransfer[]) {
       item.vehicleNumber ?? "",
       item.dispatchTime ? formatHubTransferDateTime(item.dispatchTime) : "",
       formatHubTransferDateTime(item.expectedDelivery),
-      item.status,
+      item.isDelayed &&
+      item.status !== "DELIVERED" &&
+      item.status !== "CANCELLED"
+        ? "Delayed"
+        : HUB_TRANSFER_STATUS_LABELS[item.status],
       item.priority,
     ]
       .map((cell) => `"${String(cell).replaceAll('"', '""')}"`)
@@ -140,36 +183,29 @@ export function HubTransfersPage() {
     const hubParam = searchParams.get("hub");
     const statusParam = searchParams.get("status");
     const orderParam = searchParams.get("order");
+    const parsedStatus = parseStatusParam(statusParam);
 
     setFilters((current) => ({
       ...current,
       ...(hubParam ? { hubId: hubParam } : {}),
-      ...(statusParam
-        ? { status: statusParam.toUpperCase() as HubTransferStatus }
-        : {}),
+      ...(parsedStatus ? { status: parsedStatus } : {}),
       ...(orderParam ? { orderId: orderParam } : {}),
     }));
+    if (parsedStatus === "delayed") {
+      setActiveStat("delayed");
+    }
     setCurrentPage(1);
   }, [searchParams]);
 
   const queryFilters = useMemo(() => {
     const statFilters = activeStat ? STAT_FILTER_MAP[activeStat] : undefined;
-    if (activeStat === "delayed") {
-      return { ...filters, ...statFilters };
-    }
     return { ...filters, ...statFilters };
   }, [filters, activeStat]);
 
-  const delayedOnly = activeStat === "delayed";
-
   const queryResult = useMemo(() => {
-    let filtered = filterHubTransfers(transfers, {
+    const filtered = filterHubTransfers(transfers, {
       filters: queryFilters,
     });
-
-    if (delayedOnly) {
-      filtered = filtered.filter((item) => item.isDelayed);
-    }
 
     const paginated = fetchHubTransfers(filtered, {
       page: currentPage,
@@ -180,15 +216,11 @@ export function HubTransfersPage() {
       ...paginated,
       stats: fetchHubTransfers(transfers).stats,
     };
-  }, [transfers, queryFilters, currentPage, delayedOnly]);
+  }, [transfers, queryFilters, currentPage]);
 
   const allFilteredForExport = useMemo(() => {
-    let items = filterHubTransfers(transfers, { filters: queryFilters });
-    if (delayedOnly) {
-      items = items.filter((item) => item.isDelayed);
-    }
-    return items;
-  }, [transfers, queryFilters, delayedOnly]);
+    return filterHubTransfers(transfers, { filters: queryFilters });
+  }, [transfers, queryFilters]);
 
   const statCards = useMemo(
     () => buildHubTransferStatCards(queryResult.stats),
@@ -225,7 +257,7 @@ export function HubTransfersPage() {
   const handleFilterChange = (next: Partial<HubTransferFilters>) => {
     startTransition(() => {
       setFilters((prev) => ({ ...prev, ...next }));
-      setActiveStat(null);
+      setActiveStat(next.status === "delayed" ? "delayed" : null);
       setCurrentPage(1);
     });
   };
@@ -237,7 +269,16 @@ export function HubTransfersPage() {
   };
 
   const handleStatClick = (statId: HubTransferStatKey) => {
-    setActiveStat((current) => (current === statId ? null : statId));
+    setActiveStat((current) => {
+      const next = current === statId ? null : statId;
+      const mapped = next ? STAT_FILTER_MAP[next] : undefined;
+      if (mapped?.status) {
+        setFilters((prev) => ({ ...prev, status: mapped.status! }));
+      } else if (current === statId) {
+        setFilters((prev) => ({ ...prev, status: "all" }));
+      }
+      return next;
+    });
     setCurrentPage(1);
   };
 
@@ -354,6 +395,7 @@ export function HubTransfersPage() {
       <PageHeader
         title="Hub Transfers"
         subtitle="Operational dispatch tracking for customer deliveries fulfilled from sub-hubs."
+        breadcrumbs={getNavBreadcrumbsFromPath("/sub-hub-network/transfers")}
         actions={
           <Button
             type="button"
@@ -368,7 +410,7 @@ export function HubTransfersPage() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {statCards.map((stat, index) => (
           <HubTransferStatsCard
             key={stat.id}

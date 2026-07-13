@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { TransferPage } from "@/components/transfers/TransferPage";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 
 export const metadata: Metadata = {
   title: "Transfer Management",
@@ -21,6 +22,7 @@ export default function TransferManagementPage() {
       <PageHeader
         title="Transfer Management"
         subtitle="Monitor inter-warehouse and hub-to-hub stock transfers across the network."
+        breadcrumbs={getNavBreadcrumbsFromPath("/central-warehouse/transfers")}
         actions={
           <div className="text-right">
             <p className="text-[10px] font-semibold tracking-[0.12em] text-gray-400 uppercase">

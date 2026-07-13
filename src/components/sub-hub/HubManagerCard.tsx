@@ -3,7 +3,6 @@
 import { Clock, Mail, Phone, UserRound } from "lucide-react";
 
 import { DashboardCard } from "@/components/shared/DashboardCard";
-import { HubHealthScoreBar } from "@/components/sub-hub/HubHealthScoreBar";
 import { ProgressBar } from "@/components/shared/ProgressBar";
 import type { HubManagerProfile } from "@/utils/hub-profile-metrics";
 
@@ -60,13 +59,6 @@ export function HubManagerCard({ profile }: HubManagerCardProps) {
           </span>
         </div>
         <ProgressBar value={profile.storageUtilization} showLabel={false} />
-      </div>
-
-      <div>
-        <div className="mb-2 flex items-center justify-between text-sm">
-          <span className="text-[#64748B]">Performance Score</span>
-        </div>
-        <HubHealthScoreBar score={profile.performanceScore} />
       </div>
     </DashboardCard>
   );

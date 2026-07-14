@@ -4,19 +4,18 @@ import { useEffect, useMemo, useState } from "react";
 
 import { CriticalRequisitionTable } from "@/components/warehouse/CriticalRequisitionTable";
 import { InventoryActivityTable } from "@/components/warehouse/InventoryActivityTable";
-import { LowStockAlertCard } from "@/components/warehouse/LowStockAlertCard";
 import { QuickActions } from "@/components/warehouse/QuickActions";
 import { WarehouseStatsCard } from "@/components/warehouse/WarehouseStatsCard";
 import { getAvailableStock } from "@/mock/inventory";
-import { alerts, quickActions } from "@/mock/warehouse-dashboard";
+import { quickActions } from "@/mock/warehouse-dashboard";
 import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
+import type { LowStockItem } from "@/types/warehouse.types";
 
 export function WarehouseDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const requisitions = useWarehouseErpStore((state) => state.requisitions);
   const transfers = useWarehouseErpStore((state) => state.transfers);
   const inventory = useWarehouseErpStore((state) => state.inventory);
-  const activityLogs = useWarehouseErpStore((state) => state.activityLogs);
 
   const stats = useMemo(
     () => useWarehouseErpStore.getState().getDashboardStats(),
@@ -25,7 +24,7 @@ export function WarehouseDashboard() {
 
   const activities = useMemo(
     () => useWarehouseErpStore.getState().getInventoryActivities(),
-    [activityLogs],
+    [transfers],
   );
 
   const criticalRequisitions = useMemo(
@@ -33,18 +32,29 @@ export function WarehouseDashboard() {
     [requisitions],
   );
 
+  const lowStockAlerts = useMemo((): LowStockItem[] => {
+    return inventory
+      .filter((item) => getAvailableStock(item) <= item.minimumStock)
+      .map((item) => {
+        const available = getAvailableStock(item);
+        const isCritical =
+          available === 0 || available <= item.minimumStock * 0.5;
+
+        return {
+          id: item.id,
+          productName: item.productName,
+          currentStock: `${available} ${item.unit}`,
+          minimumStock: `${item.minimumStock} ${item.unit}`,
+          severity: isCritical ? ("critical" as const) : ("warning" as const),
+        };
+      });
+  }, [inventory]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => setIsLoading(false), 600);
 
     return () => window.clearTimeout(timer);
   }, []);
-
-  const lowStockCount = useMemo(
-    () =>
-      inventory.filter((item) => getAvailableStock(item) <= item.minimumStock)
-        .length,
-    [inventory],
-  );
 
   return (
     <div className="space-y-5">
@@ -59,17 +69,14 @@ export function WarehouseDashboard() {
           requisitions={criticalRequisitions}
           isLoading={isLoading}
         />
-        <QuickActions actions={quickActions} isLoading={isLoading} />
-      </div>
-
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]">
-        <InventoryActivityTable activities={activities} isLoading={isLoading} />
-        <LowStockAlertCard
-          alerts={alerts}
-          totalCount={lowStockCount}
+        <QuickActions
+          actions={quickActions}
+          alerts={lowStockAlerts}
           isLoading={isLoading}
         />
       </div>
+
+      <InventoryActivityTable activities={activities} isLoading={isLoading} />
     </div>
   );
 }

@@ -73,6 +73,7 @@ export type RequisitionFilterChip =
   | "all"
   | "critical"
   | "pending"
+  | "awaiting-allocation"
   | "approved"
   | "rejected"
   | "today"
@@ -164,6 +165,9 @@ export interface InventoryActivity {
   quantityChange: QuantityChangeType;
   by: string;
   status: InventoryActivityStatus;
+  transferId?: string;
+  destinationHub?: string;
+  sourceWarehouse?: string;
 }
 
 export type LowStockSeverity = "critical" | "warning";
@@ -182,13 +186,16 @@ export type WarehouseQuickActionIcon =
   | "allocate-inventory"
   | "create-transfer"
   | "inventory-management"
-  | "dispatch-control";
+  | "dispatch-control"
+  | "view-alerts"
+  | "hub-receiving";
 
 export interface WarehouseQuickAction {
   id: string;
   label: string;
   icon: WarehouseQuickActionIcon;
-  href: string;
+  /** Omit for dialog/actions handled in-place (e.g. View Alerts). */
+  href?: string;
 }
 
 export type WarehouseIconMap<T extends string> = Record<T, LucideIcon>;
@@ -222,6 +229,12 @@ export interface AllocationStats {
   outOfStock: number;
 }
 
+export type AllocationStatFilter =
+  | "pending-allocation"
+  | "critical-allocation"
+  | "allocated-today"
+  | "out-of-stock";
+
 export interface WarehouseSource {
   id: string;
   label: string;
@@ -233,6 +246,8 @@ export interface AllocationQueryParams {
   search?: string;
   priority?: RequisitionPriority | "all";
   status?: MaterialAllocationStatus | "all";
+  /** Summary card filter driving the allocation table */
+  statFilter?: AllocationStatFilter;
 }
 
 export interface AllocationFormValues {

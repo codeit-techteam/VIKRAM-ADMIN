@@ -43,6 +43,8 @@ interface MaterialAllocationTableProps {
   currentPage: number;
   totalItems: number;
   pageSize: number;
+  title?: string;
+  subtitle?: string;
   onPageChange: (page: number) => void;
   onFilter?: () => void;
   onExport?: () => void;
@@ -117,6 +119,8 @@ export function MaterialAllocationTable({
   currentPage,
   totalItems,
   pageSize,
+  title = "Pending Material Allocation",
+  subtitle = "Review and allocate inventory to approved requisitions.",
   onPageChange,
   onFilter,
   onExport,
@@ -237,12 +241,8 @@ export function MaterialAllocationTable({
     <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
       <div className="flex flex-col gap-4 border-b border-gray-100 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-base font-bold text-[#1A1A1A]">
-            Pending Material Allocation
-          </h2>
-          <p className="mt-0.5 text-sm text-[#64748B]">
-            Review and allocate inventory to approved requisitions.
-          </p>
+          <h2 className="text-base font-bold text-[#1A1A1A]">{title}</h2>
+          <p className="mt-0.5 text-sm text-[#64748B]">{subtitle}</p>
         </div>
         <FilterBar onFilter={onFilter} onExport={onExport} />
       </div>
@@ -283,7 +283,7 @@ export function MaterialAllocationTable({
                     colSpan={columns.length}
                     className="py-12 text-center text-sm text-[#64748B]"
                   >
-                    No pending allocations match the current filters.
+                    No allocations match the current filters.
                   </TableCell>
                 </TableRow>
               ) : (

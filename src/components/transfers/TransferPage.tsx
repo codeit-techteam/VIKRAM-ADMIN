@@ -33,6 +33,16 @@ import { setActiveAllocationForTransfer } from "@/utils/allocation-transfer-brid
 import type { TransferRowAction } from "@/utils/transfer-actions";
 import { notify } from "@/utils/notify";
 
+const STAT_STATUS_MAP = {
+  "pending-dispatch": "TRANSFER_CREATED",
+  "in-transit": "IN_TRANSIT",
+  "delivered-today": "REACHED_HUB",
+  "delayed-transfers": "delayed",
+} as const satisfies Record<
+  TransferStatCardData["id"],
+  TransferFilters["status"]
+>;
+
 export function TransferPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -299,11 +309,34 @@ export function TransferPage() {
     );
   }, [selectedTransfer, transfers]);
 
+  const handleStatCardClick = useCallback(
+    (statId: TransferStatCardData["id"]) => {
+      const nextStatus = STAT_STATUS_MAP[statId];
+      setFilters((current) => ({
+        ...current,
+        status: current.status === nextStatus ? "all" : nextStatus,
+      }));
+      setCurrentPage(1);
+    },
+    [],
+  );
+
+  const handleFiltersChange = useCallback((next: TransferFilters) => {
+    setFilters(next);
+    setCurrentPage(1);
+  }, []);
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {statCards.map((stat) => (
-          <TransferStatsCard key={stat.id} stat={stat} isLoading={isLoading} />
+          <TransferStatsCard
+            key={stat.id}
+            stat={stat}
+            isLoading={isLoading}
+            isActive={filters.status === STAT_STATUS_MAP[stat.id]}
+            onClick={() => handleStatCardClick(stat.id)}
+          />
         ))}
       </div>
 
@@ -314,7 +347,7 @@ export function TransferPage() {
         totalItems={queryResult.meta.total}
         pageSize={TRANSFER_PAGE_SIZE}
         filters={filters}
-        onFiltersChange={setFilters}
+        onFiltersChange={handleFiltersChange}
         onPageChange={setCurrentPage}
         onView={handleView}
         onAction={handleAction}

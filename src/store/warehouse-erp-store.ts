@@ -8,6 +8,7 @@ import { getAvailableStock } from "@/mock/inventory";
 import {
   allocationToWorkflowResult,
   erpAllocationToMaterialItem,
+  buildOutboundTransferActivities,
   erpLogToInventoryActivity,
   generateAllocationId,
   generateId,
@@ -1219,7 +1220,7 @@ export const useWarehouseErpStore = create<WarehouseErpState>((set, get) => ({
     ),
 
   getInventoryActivities: () =>
-    get().activityLogs.slice(0, 20).map(erpLogToInventoryActivity),
+    buildOutboundTransferActivities(get().transfers, 8),
 
   getCriticalRequisitions: () =>
     get()
@@ -1236,21 +1237,17 @@ export const useWarehouseErpStore = create<WarehouseErpState>((set, get) => ({
     const lowStock = state.inventory.filter(
       (item) => getAvailableStock(item) <= item.minimumStock,
     ).length;
-    const totalValue = state.inventory.reduce(
-      (sum, item) => sum + item.currentStock * item.purchasePrice,
-      0,
-    );
-    const crores = totalValue / 10_000_000;
+    const totalProducts = state.inventory.length;
 
     return [
       {
-        id: "total-inventory-value",
-        label: "Total Inventory Value",
-        value: `₹${crores.toFixed(2)} Cr`,
-        subtitle: "Current warehouse stock value",
+        id: "total-products",
+        label: "Total Products",
+        value: String(totalProducts).padStart(2, "0"),
+        subtitle: "Products in warehouse catalog",
         icon: "inventory" as const,
         variant: "default" as const,
-        href: "/central-warehouse/inventory",
+        href: "/central-warehouse/products",
       },
       {
         id: "pending-requisitions",

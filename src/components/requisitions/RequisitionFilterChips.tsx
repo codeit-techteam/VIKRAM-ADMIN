@@ -7,6 +7,7 @@ const STATUS_CHIPS: Array<{ label: string; value: RequisitionFilterChip }> = [
   { label: "All", value: "all" },
   { label: "Critical", value: "critical" },
   { label: "Pending", value: "pending" },
+  { label: "Awaiting Allocation", value: "awaiting-allocation" },
   { label: "Approved", value: "approved" },
   { label: "Rejected", value: "rejected" },
 ];

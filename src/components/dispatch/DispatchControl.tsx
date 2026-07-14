@@ -27,6 +27,7 @@ import {
 import { ROUTES } from "@/constants/routes";
 import {
   computeDispatchStats,
+  isDispatchedToday,
   TRANSFER_WAREHOUSE_OPTIONS,
 } from "@/mock/transfers";
 import { useTransferListStore } from "@/store/transfer-list-store";
@@ -41,14 +42,25 @@ import {
 import { cn } from "@/lib/utils";
 import { notify } from "@/utils/notify";
 
-type DispatchFilterStatus = TransferStatus | "all";
+type DispatchFilterStatus = TransferStatus | "all" | "dispatched-today";
+
+type DispatchStatKey =
+  "pending-dispatch" | "loading" | "ready-to-dispatch" | "dispatched-today";
+
+const DISPATCH_STAT_FILTER_MAP = {
+  "pending-dispatch": "TRANSFER_CREATED",
+  loading: "LOADING",
+  "ready-to-dispatch": "READY_FOR_DISPATCH",
+  "dispatched-today": "dispatched-today",
+} as const satisfies Record<DispatchStatKey, DispatchFilterStatus>;
 
 const DISPATCH_STATUS_OPTIONS = [
   { value: "all", label: "All Status" },
   { value: "TRANSFER_CREATED", label: "Pending Dispatch" },
   { value: "LOADING", label: "Loading" },
-  { value: "READY_FOR_DISPATCH", label: "Ready For Dispatch" },
+  { value: "READY_FOR_DISPATCH", label: "Ready to Dispatch" },
   { value: "IN_TRANSIT", label: "In Transit" },
+  { value: "dispatched-today", label: "Dispatched Today" },
 ] as const;
 
 function DispatchStatCard({
@@ -57,12 +69,16 @@ function DispatchStatCard({
   icon: Icon,
   variant = "default",
   isLoading,
+  isActive = false,
+  onClick,
 }: {
   label: string;
   value: string;
   icon: React.ElementType;
   variant?: "default" | "warning";
   isLoading?: boolean;
+  isActive?: boolean;
+  onClick?: () => void;
 }) {
   if (isLoading) {
     return (
@@ -73,11 +89,16 @@ function DispatchStatCard({
     );
   }
 
-  return (
+  const content = (
     <div
       className={cn(
-        "rounded-xl border border-gray-100 p-5 shadow-sm",
-        variant === "warning" ? "bg-orange-50/60" : "bg-white",
+        "rounded-xl border p-5 shadow-sm transition-all duration-200",
+        onClick && "cursor-pointer hover:scale-[1.01] hover:shadow-md",
+        isActive
+          ? "border-primary bg-primary/5 ring-primary/20 ring-2"
+          : "border-gray-100",
+        !isActive && variant === "warning" ? "bg-orange-50/60" : null,
+        !isActive && variant !== "warning" ? "bg-white" : null,
       )}
     >
       <div className="flex items-start justify-between gap-4">
@@ -100,6 +121,22 @@ function DispatchStatCard({
       </div>
     </div>
   );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={isActive}
+        aria-label={`Filter by ${label}`}
+        className="w-full text-left"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return content;
 }
 
 function getDispatchActionHref(
@@ -141,7 +178,11 @@ export function DispatchControl() {
     return transfers
       .filter((t) => DISPATCH_QUEUE_STATUSES.includes(t.status))
       .filter((t) => {
-        if (statusFilter !== "all" && t.status !== statusFilter) return false;
+        if (statusFilter === "dispatched-today") {
+          if (t.status !== "IN_TRANSIT" || !isDispatchedToday(t)) return false;
+        } else if (statusFilter !== "all" && t.status !== statusFilter) {
+          return false;
+        }
         if (
           warehouseFilter !== "all" &&
           t.sourceWarehouseId !== warehouseFilter
@@ -168,6 +209,11 @@ export function DispatchControl() {
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
   }, [transfers, statusFilter, warehouseFilter, priorityFilter, search]);
+
+  const handleStatCardClick = useCallback((statId: DispatchStatKey) => {
+    const nextStatus = DISPATCH_STAT_FILTER_MAP[statId];
+    setStatusFilter((current) => (current === nextStatus ? "all" : nextStatus));
+  }, []);
 
   const handleRowAction = useCallback(
     (transfer: TransferListItem) => {
@@ -207,24 +253,38 @@ export function DispatchControl() {
           icon={Clock}
           variant="warning"
           isLoading={isLoading}
+          isActive={
+            statusFilter === DISPATCH_STAT_FILTER_MAP["pending-dispatch"]
+          }
+          onClick={() => handleStatCardClick("pending-dispatch")}
         />
         <DispatchStatCard
           label="Loading"
           value={String(stats.loading).padStart(2, "0")}
           icon={Truck}
           isLoading={isLoading}
+          isActive={statusFilter === DISPATCH_STAT_FILTER_MAP.loading}
+          onClick={() => handleStatCardClick("loading")}
         />
         <DispatchStatCard
           label="Ready to Dispatch"
           value={String(stats.readyForDispatch).padStart(2, "0")}
           icon={Box}
           isLoading={isLoading}
+          isActive={
+            statusFilter === DISPATCH_STAT_FILTER_MAP["ready-to-dispatch"]
+          }
+          onClick={() => handleStatCardClick("ready-to-dispatch")}
         />
         <DispatchStatCard
           label="Dispatched Today"
           value={String(stats.dispatchedToday).padStart(2, "0")}
           icon={CheckCircle2}
           isLoading={isLoading}
+          isActive={
+            statusFilter === DISPATCH_STAT_FILTER_MAP["dispatched-today"]
+          }
+          onClick={() => handleStatCardClick("dispatched-today")}
         />
       </div>
 
@@ -386,7 +446,12 @@ export function DispatchControl() {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <TransferStatusBadge transfer={transfer} />
+                        <TransferStatusBadge
+                          transfer={transfer}
+                          forceDispatchedToday={
+                            statusFilter === "dispatched-today"
+                          }
+                        />
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">

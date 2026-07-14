@@ -19,12 +19,11 @@ export const offerFormSchema = z
       .int()
       .min(1, "Priority must be at least 1")
       .max(10, "Priority must be at most 10"),
-    offerType: z.enum(["product", "brand", "category", "combo"]),
+    offerType: z.enum(["home-carousel", "featured"]),
     productIds: z.array(z.string()).min(1, "Select at least one product"),
     ctaLabel: z.enum(["Shop Now", "Buy Now", "Explore", "View Offer"]),
     startDate: z.string().min(1, "Start date is required"),
     endDate: z.string().min(1, "End date is required"),
-    visibility: z.enum(["home-carousel", "featured", "both"]),
     desktopBanner: z.string().optional(),
     mobileBanner: z.string().optional(),
   })

@@ -692,7 +692,7 @@ export function computeTransferStats(
   reference = new Date(),
 ): TransferStats {
   return {
-    pendingDispatch: transfers.filter((t) => t.status === "READY_FOR_DISPATCH")
+    pendingDispatch: transfers.filter((t) => t.status === "TRANSFER_CREATED")
       .length,
     loading: transfers.filter((t) => t.status === "LOADING").length,
     readyForDispatch: transfers.filter((t) => t.status === "READY_FOR_DISPATCH")

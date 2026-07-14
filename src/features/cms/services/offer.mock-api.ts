@@ -48,7 +48,6 @@ function formToOffer(
     offerType: data.offerType,
     products: resolveProducts(data.productIds),
     priority: data.priority,
-    visibility: data.visibility,
     status: data.status,
     startDate: data.startDate,
     endDate: data.endDate,
@@ -78,8 +77,18 @@ export async function getPublishedCarouselOffers(): Promise<Offer[]> {
     offersStore
       .filter(
         (offer) =>
-          offer.status === "ACTIVE" &&
-          (offer.visibility === "home-carousel" || offer.visibility === "both"),
+          offer.status === "ACTIVE" && offer.offerType === "home-carousel",
+      )
+      .sort((a, b) => b.priority - a.priority),
+  );
+}
+
+export async function getPublishedFeaturedOffers(): Promise<Offer[]> {
+  await delay();
+  return structuredClone(
+    offersStore
+      .filter(
+        (offer) => offer.status === "ACTIVE" && offer.offerType === "featured",
       )
       .sort((a, b) => b.priority - a.priority),
   );
@@ -107,10 +116,6 @@ export function queryOffers(
 
   if (filters.offerType !== "all") {
     rows = rows.filter((offer) => offer.offerType === filters.offerType);
-  }
-
-  if (filters.visibility !== "all") {
-    rows = rows.filter((offer) => offer.visibility === filters.visibility);
   }
 
   rows.sort((a, b) =>

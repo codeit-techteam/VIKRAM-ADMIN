@@ -29,9 +29,16 @@ const iconMap: Record<TransferStatKey, LucideIcon> = {
 interface TransferStatsCardProps {
   stat: TransferStatCardData;
   isLoading?: boolean;
+  isActive?: boolean;
+  onClick?: () => void;
 }
 
-export function TransferStatsCard({ stat, isLoading }: TransferStatsCardProps) {
+export function TransferStatsCard({
+  stat,
+  isLoading,
+  isActive = false,
+  onClick,
+}: TransferStatsCardProps) {
   const Icon = iconMap[stat.id];
   const isWarning = stat.variant === "warning";
   const isCritical = stat.variant === "critical";
@@ -45,11 +52,16 @@ export function TransferStatsCard({ stat, isLoading }: TransferStatsCardProps) {
     );
   }
 
-  return (
+  const content = (
     <div
       className={cn(
-        "rounded-xl border border-gray-100 p-5 shadow-sm transition-all duration-200 hover:shadow-md",
-        isWarning || isCritical ? "bg-orange-50/60" : "bg-white",
+        "rounded-xl border p-5 shadow-sm transition-all duration-200",
+        onClick && "cursor-pointer hover:scale-[1.01] hover:shadow-md",
+        isActive
+          ? "border-primary bg-primary/5 ring-primary/20 ring-2"
+          : "border-gray-100",
+        !isActive && (isWarning || isCritical) ? "bg-orange-50/60" : null,
+        !isActive && !isWarning && !isCritical ? "bg-white" : null,
       )}
     >
       <div className="flex items-start justify-between gap-4">
@@ -87,4 +99,20 @@ export function TransferStatsCard({ stat, isLoading }: TransferStatsCardProps) {
       </div>
     </div>
   );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={isActive}
+        aria-label={`Filter by ${stat.label}`}
+        className="w-full text-left"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return content;
 }

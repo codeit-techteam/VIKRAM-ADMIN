@@ -195,7 +195,7 @@ export function InventoryTable({
         ),
       }),
       columnHelper.accessor("committedStock", {
-        header: "Committed",
+        header: "Reserved",
         cell: ({ row }) => (
           <span className="text-sm text-[#64748B]">
             {formatStockQuantity(

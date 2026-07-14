@@ -10,12 +10,122 @@ import type {
 import type {
   AllocationWorkflowResult,
   InventoryActivity,
+  InventoryActivityStatus,
   MaterialAllocationItem,
   MaterialAllocationStatus,
   Requisition,
   RequisitionListItem,
   TransferListItem,
+  TransferStatus,
 } from "@/types/warehouse.types";
+
+const TRANSFER_STATUS_LABELS: Record<TransferStatus, string> = {
+  DRAFT: "Draft",
+  TRANSFER_CREATED: "Pending Dispatch",
+  LOADING: "Loading",
+  READY_FOR_DISPATCH: "Ready to Dispatch",
+  IN_TRANSIT: "In Transit",
+  REACHED_HUB: "Reached Hub",
+  DELIVERED: "Delivered",
+  CANCELLED: "Cancelled",
+};
+
+const OUTBOUND_ACTIVITY_LABELS: Partial<Record<TransferStatus, string>> = {
+  TRANSFER_CREATED: "Pending Dispatch",
+  LOADING: "Loading at Warehouse",
+  READY_FOR_DISPATCH: "Ready to Dispatch",
+  IN_TRANSIT: "In Transit to Hub",
+  REACHED_HUB: "Reached Sub-Hub",
+  DELIVERED: "Delivered to Hub",
+};
+
+function getTransferActivityStatus(
+  transfer: TransferListItem,
+): InventoryActivityStatus {
+  if (transfer.status === "DELIVERED" || transfer.status === "REACHED_HUB") {
+    return "completed";
+  }
+  if (transfer.status === "IN_TRANSIT" || transfer.status === "LOADING") {
+    return "processing";
+  }
+  if (transfer.status === "TRANSFER_CREATED") {
+    return "pending";
+  }
+  return "verified";
+}
+
+function getTransferActivityTime(transfer: TransferListItem): string {
+  const timestamp =
+    transfer.hubReceivedAt ??
+    transfer.reachedHubAt ??
+    transfer.dispatchAt ??
+    transfer.loadingStartedAt ??
+    transfer.createdAt;
+
+  return new Date(timestamp).toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function getTransferMaterialLabel(transfer: TransferListItem): string {
+  if (transfer.material) return transfer.material;
+  const primary = transfer.materials[0];
+  if (!primary) return "Mixed Materials";
+  return primary.split(" x")[0]?.trim() ?? primary;
+}
+
+function getTransferQuantityLabel(transfer: TransferListItem): string {
+  if (transfer.quantity && transfer.quantityUnit) {
+    return `${transfer.quantity.toLocaleString("en-IN")} ${transfer.quantityUnit}`;
+  }
+
+  const match = transfer.materials[0]?.match(/x([\d,]+)/i);
+  if (match?.[1]) {
+    return `${match[1]} units`;
+  }
+
+  return "—";
+}
+
+export function transferToInventoryActivity(
+  transfer: TransferListItem,
+): InventoryActivity {
+  return {
+    id: transfer.id,
+    time: getTransferActivityTime(transfer),
+    activity:
+      OUTBOUND_ACTIVITY_LABELS[transfer.status] ??
+      TRANSFER_STATUS_LABELS[transfer.status],
+    material: getTransferMaterialLabel(transfer),
+    quantity: getTransferQuantityLabel(transfer),
+    quantityChange: "negative",
+    by: transfer.assignedDriver?.name ?? "Dispatch Ops",
+    status: getTransferActivityStatus(transfer),
+    transferId: transfer.transferId,
+    destinationHub: transfer.destinationHub,
+    sourceWarehouse: transfer.sourceWarehouse,
+  };
+}
+
+export function buildOutboundTransferActivities(
+  transfers: TransferListItem[],
+  limit = 8,
+): InventoryActivity[] {
+  return transfers
+    .filter(
+      (transfer) =>
+        transfer.status !== "DRAFT" && transfer.status !== "CANCELLED",
+    )
+    .sort(
+      (left, right) =>
+        new Date(right.dispatchAt ?? right.createdAt).getTime() -
+        new Date(left.dispatchAt ?? left.createdAt).getTime(),
+    )
+    .slice(0, limit)
+    .map(transferToInventoryActivity);
+}
 
 export function generateId(prefix: string): string {
   return `${prefix}-${Date.now().toString().slice(-8)}`;

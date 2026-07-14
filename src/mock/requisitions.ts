@@ -552,9 +552,11 @@ function matchesChip(
     case "all":
       return true;
     case "critical":
-      return item.priority === "critical";
+      return item.status === "PENDING" && item.priority === "critical";
     case "pending":
       return item.status === "PENDING";
+    case "awaiting-allocation":
+      return item.status === "APPROVED" && item.allocationStatus === "PENDING";
     case "approved":
       return item.status === "APPROVED";
     case "rejected":

@@ -7,14 +7,13 @@ import {
 } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import type { AllocationStats } from "@/types/warehouse.types";
+import type {
+  AllocationStatFilter,
+  AllocationStats,
+} from "@/types/warehouse.types";
 import { cn } from "@/lib/utils";
 
-type AllocationStatKey =
-  | "pending-allocation"
-  | "critical-allocation"
-  | "allocated-today"
-  | "out-of-stock";
+export type AllocationStatKey = AllocationStatFilter;
 
 export interface AllocationSummaryCardData {
   id: AllocationStatKey;
@@ -33,11 +32,15 @@ const iconMap: Record<AllocationStatKey, LucideIcon> = {
 interface AllocationSummaryCardProps {
   stat: AllocationSummaryCardData;
   isLoading?: boolean;
+  isActive?: boolean;
+  onClick?: () => void;
 }
 
 export function AllocationSummaryCard({
   stat,
   isLoading,
+  isActive = false,
+  onClick,
 }: AllocationSummaryCardProps) {
   const Icon = iconMap[stat.id];
   const variant = stat.variant ?? "default";
@@ -51,13 +54,21 @@ export function AllocationSummaryCard({
     );
   }
 
-  return (
+  const content = (
     <div
       className={cn(
-        "rounded-xl border border-gray-100 p-5 shadow-sm transition-all duration-200 hover:shadow-md",
-        variant === "warning" || variant === "critical"
+        "rounded-xl border p-5 shadow-sm transition-all duration-200",
+        onClick && "cursor-pointer hover:scale-[1.01] hover:shadow-md",
+        isActive
+          ? "border-primary bg-primary/5 ring-primary/20 ring-2"
+          : "border-gray-100",
+        !isActive && (variant === "warning" || variant === "critical")
           ? "bg-orange-50/60"
-          : "bg-white",
+          : null,
+        !isActive &&
+          variant !== "warning" &&
+          variant !== "critical" &&
+          "bg-white",
       )}
     >
       <div className="flex items-start justify-between gap-4">
@@ -109,6 +120,22 @@ export function AllocationSummaryCard({
       </div>
     </div>
   );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={isActive}
+        aria-label={`Filter by ${stat.label}`}
+        className="w-full text-left"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return content;
 }
 
 export function buildAllocationSummaryCards(

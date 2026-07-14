@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 interface VideoCardProps {
   video: Video;
   layout?: "grid" | "list";
+  onClick?: (video: Video) => void;
 }
 
 const VIDEO_STATUS_OVERLAY: Record<VideoStatus, string> = {
@@ -35,14 +36,38 @@ function formatCount(value: number): string {
   return value.toLocaleString();
 }
 
-export function VideoCard({ video, layout = "grid" }: VideoCardProps) {
+export function VideoCard({ video, layout = "grid", onClick }: VideoCardProps) {
   const isList = layout === "list";
+  const isInteractive = Boolean(onClick);
+
+  const handleCardClick = () => {
+    onClick?.(video);
+  };
+
+  const handleActionClick = (event: React.MouseEvent) => {
+    event.stopPropagation();
+  };
 
   return (
     <article
+      role={isInteractive ? "button" : undefined}
+      tabIndex={isInteractive ? 0 : undefined}
+      onClick={isInteractive ? handleCardClick : undefined}
+      onKeyDown={
+        isInteractive
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                handleCardClick();
+              }
+            }
+          : undefined
+      }
       className={cn(
-        "overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm",
+        "overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all duration-200",
         isList && "flex gap-4 p-4",
+        isInteractive &&
+          "hover:border-primary/30 cursor-pointer hover:-translate-y-0.5 hover:shadow-md",
       )}
     >
       <div
@@ -93,7 +118,7 @@ export function VideoCard({ video, layout = "grid" }: VideoCardProps) {
         <div className="mt-3 flex items-center justify-between gap-3">
           <VideoMeta video={video} />
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1" onClick={handleActionClick}>
             <Button
               variant="ghost"
               size="icon"

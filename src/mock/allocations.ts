@@ -319,20 +319,60 @@ function matchesFilters(
   return matchesSearch(item, params.search);
 }
 
+function isPendingAllocation(item: MaterialAllocationItem): boolean {
+  return (
+    item.status === "NOT_ALLOCATED" || item.status === "PARTIALLY_ALLOCATED"
+  );
+}
+
+function isAllocatedToday(
+  item: MaterialAllocationItem,
+  referenceDate: Date = new Date(),
+): boolean {
+  return (
+    item.status === "ALLOCATED" &&
+    Boolean(item.allocatedAt) &&
+    isSameDay(new Date(item.allocatedAt!), referenceDate)
+  );
+}
+
+function isOutOfStockAllocation(item: MaterialAllocationItem): boolean {
+  const stock = getMaterialAvailableForAllocation(
+    item.materialId,
+    undefined,
+    item.id,
+  );
+  return !stock || stock.available === 0;
+}
+
+function matchesStatFilter(
+  item: MaterialAllocationItem,
+  params: AllocationQueryParams,
+  referenceDate: Date = new Date(),
+): boolean {
+  const statFilter = params.statFilter ?? "pending-allocation";
+
+  switch (statFilter) {
+    case "critical-allocation":
+      return isPendingAllocation(item) && item.priority === "critical";
+    case "allocated-today":
+      return isAllocatedToday(item, referenceDate);
+    case "out-of-stock":
+      return isPendingAllocation(item) && isOutOfStockAllocation(item);
+    case "pending-allocation":
+    default:
+      return isPendingAllocation(item);
+  }
+}
+
 export function computeAllocationStats(
   items: MaterialAllocationItem[],
   referenceDate: Date = new Date(),
 ): AllocationStats {
-  const pendingItems = items.filter(
-    (item) =>
-      item.status === "NOT_ALLOCATED" || item.status === "PARTIALLY_ALLOCATED",
-  );
+  const pendingItems = items.filter(isPendingAllocation);
 
-  const allocatedToday = items.filter(
-    (item) =>
-      item.status === "ALLOCATED" &&
-      item.allocatedAt &&
-      isSameDay(new Date(item.allocatedAt), referenceDate),
+  const allocatedToday = items.filter((item) =>
+    isAllocatedToday(item, referenceDate),
   ).length;
 
   return {
@@ -341,27 +381,17 @@ export function computeAllocationStats(
       (item) => item.priority === "critical",
     ).length,
     allocatedToday,
-    outOfStock: pendingItems.filter((item) => {
-      const stock = getMaterialAvailableForAllocation(
-        item.materialId,
-        undefined,
-        item.id,
-      );
-      return !stock || stock.available === 0;
-    }).length,
+    outOfStock: pendingItems.filter(isOutOfStockAllocation).length,
   };
 }
 
 export function filterAllocations(
   items: MaterialAllocationItem[],
   params: AllocationQueryParams,
+  referenceDate: Date = new Date(),
 ): MaterialAllocationItem[] {
   return items
-    .filter(
-      (item) =>
-        item.status === "NOT_ALLOCATED" ||
-        item.status === "PARTIALLY_ALLOCATED",
-    )
+    .filter((item) => matchesStatFilter(item, params, referenceDate))
     .filter((item) => matchesFilters(item, params))
     .sort((a, b) => {
       const priorityOrder: Record<RequisitionPriority, number> = {

@@ -1,3 +1,5 @@
+"use client";
+
 import {
   AlertTriangle,
   CircleAlert,
@@ -9,13 +11,13 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-type InventoryStatKey =
-  | "total-stock-value"
+export type InventoryStatKey =
+  | "inventory-items"
   | "low-stock-alerts"
   | "out-of-stock-items"
-  | "inventory-items";
+  | "total-stock-value";
 
-interface InventoryStatCardData {
+export interface InventoryStatCardData {
   id: InventoryStatKey;
   label: string;
   value: string;
@@ -24,37 +26,45 @@ interface InventoryStatCardData {
 }
 
 const iconMap: Record<InventoryStatKey, LucideIcon> = {
-  "total-stock-value": IndianRupee,
+  "inventory-items": Package,
   "low-stock-alerts": AlertTriangle,
   "out-of-stock-items": CircleAlert,
-  "inventory-items": Package,
+  "total-stock-value": IndianRupee,
 };
 
 interface InventoryStatsCardProps {
   stat: InventoryStatCardData;
   isLoading?: boolean;
+  isActive?: boolean;
+  onClick?: () => void;
 }
 
 export function InventoryStatsCard({
   stat,
   isLoading,
+  isActive = false,
+  onClick,
 }: InventoryStatsCardProps) {
   const Icon = iconMap[stat.id];
   const isWarning = stat.variant === "warning";
 
   if (isLoading) {
     return (
-      <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+      <div className="h-full rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
         <Skeleton className="h-3 w-28" />
         <Skeleton className="mt-3 h-8 w-20" />
       </div>
     );
   }
 
-  return (
+  const content = (
     <div
       className={cn(
-        "rounded-xl border border-gray-100 p-6 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-md",
+        "h-full rounded-xl border p-6 shadow-sm transition-all duration-200",
+        onClick && "cursor-pointer hover:scale-[1.02] hover:shadow-md",
+        isActive
+          ? "border-primary bg-primary/5 ring-primary/20 ring-2"
+          : "border-gray-100",
         isWarning ? "bg-orange-50/60" : "bg-white",
       )}
     >
@@ -86,4 +96,18 @@ export function InventoryStatsCard({
       </div>
     </div>
   );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="h-full w-full text-left"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return content;
 }

@@ -248,9 +248,11 @@ export function computeInventoryStats(
   return {
     totalStockValue: formatStockValueInCrores(totalRupees),
     lowStockAlerts: items.filter(
-      (item) => item.currentStock <= item.minimumStock,
+      (item) => getInventoryStockStatus(item) === "low-stock",
     ).length,
-    outOfStockItems: items.filter((item) => item.currentStock === 0).length,
+    outOfStockItems: items.filter(
+      (item) => getInventoryStockStatus(item) === "out-of-stock",
+    ).length,
     inventoryItems: totalInventoryItems,
   };
 }

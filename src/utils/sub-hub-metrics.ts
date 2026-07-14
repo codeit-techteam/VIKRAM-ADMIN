@@ -36,12 +36,12 @@ const INCOMING_TRANSFER_STATUSES = new Set([
 
 const HUB_TIMELINE_LABELS: Partial<Record<TransferTimelineEventType, string>> =
   {
-    TRANSFER_CREATED: "Transfer Created",
+    TRANSFER_CREATED: "Pending Dispatch",
     VEHICLE_ASSIGNED: "Vehicle Assigned",
     DRIVER_ASSIGNED: "Driver Assigned",
     LOADING_STARTED: "Loading Started",
     LOADING_COMPLETED: "Loading Completed",
-    READY_FOR_DISPATCH: "Ready For Dispatch",
+    READY_FOR_DISPATCH: "Ready to Dispatch",
     DISPATCH_STARTED: "Dispatch Started",
     IN_TRANSIT: "In Transit",
     REACHED_HUB: "Reached Hub",

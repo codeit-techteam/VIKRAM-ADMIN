@@ -82,9 +82,9 @@ const columnHelper = createColumnHelper<TransferListItem>();
 const STATUS_OPTIONS = [
   { value: "all", label: "All Statuses" },
   { value: "DRAFT", label: "Draft" },
-  { value: "TRANSFER_CREATED", label: "Transfer Created" },
+  { value: "TRANSFER_CREATED", label: "Pending Dispatch" },
   { value: "LOADING", label: "Loading" },
-  { value: "READY_FOR_DISPATCH", label: "Ready For Dispatch" },
+  { value: "READY_FOR_DISPATCH", label: "Ready to Dispatch" },
   { value: "IN_TRANSIT", label: "In Transit" },
   { value: "REACHED_HUB", label: "Reached Hub" },
   { value: "DELIVERED", label: "Delivered" },

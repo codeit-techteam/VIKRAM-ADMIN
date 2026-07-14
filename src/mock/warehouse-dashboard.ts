@@ -10,10 +10,10 @@ import type {
 // TODO: Replace with warehouse dashboard stats API
 export const stats: WarehouseStat[] = [
   {
-    id: "total-inventory-value",
-    label: "Total Inventory Value",
-    value: "₹4.82 Cr",
-    subtitle: "Current warehouse stock value",
+    id: "total-products",
+    label: "Total Products",
+    value: "48",
+    subtitle: "Products in warehouse catalog",
     icon: "inventory",
     variant: "default",
   },
@@ -232,5 +232,16 @@ export const quickActions: WarehouseQuickAction[] = [
     label: "Dispatch Control",
     icon: "dispatch-control",
     href: `${ROUTES.CENTRAL_WAREHOUSE}/dispatch`,
+  },
+  {
+    id: "view-alerts",
+    label: "View Alerts",
+    icon: "view-alerts",
+  },
+  {
+    id: "hub-receiving",
+    label: "Hub Receiving",
+    icon: "hub-receiving",
+    href: `${ROUTES.CENTRAL_WAREHOUSE}/hub-receiving`,
   },
 ];

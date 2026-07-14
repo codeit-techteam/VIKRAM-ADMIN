@@ -5,7 +5,6 @@ import type {
   OfferStats,
   OfferStatus,
   OfferType,
-  OfferVisibility,
 } from "@/features/cms/types/offer.types";
 
 export const OFFER_PRODUCT_CATALOG: OfferProduct[] = [
@@ -106,10 +105,9 @@ export const INITIAL_OFFERS: Offer[] = [
       "Stock up on premium cement brands before the monsoon construction rush. Limited-time contractor pricing.",
     desktopBanner: "https://picsum.photos/seed/offer-cement-desk/1200/400",
     mobileBanner: "https://picsum.photos/seed/offer-cement-mob/800/600",
-    offerType: "category",
+    offerType: "home-carousel",
     products: productsByIds(["prod-001", "prod-003", "prod-005", "prod-008"]),
     priority: 9,
-    visibility: "both",
     status: "ACTIVE",
     startDate: "2026-06-01",
     endDate: "2026-08-31",
@@ -123,10 +121,9 @@ export const INITIAL_OFFERS: Offer[] = [
       "Exclusive brand offer on TATA Tiscon TMT bars for bulk procurement orders above 5 tons.",
     desktopBanner: "https://picsum.photos/seed/offer-tata-desk/1200/400",
     mobileBanner: "https://picsum.photos/seed/offer-tata-mob/800/600",
-    offerType: "brand",
+    offerType: "home-carousel",
     products: productsByIds(["prod-002"]),
     priority: 8,
-    visibility: "home-carousel",
     status: "ACTIVE",
     startDate: "2026-07-01",
     endDate: "2026-07-31",
@@ -140,10 +137,9 @@ export const INITIAL_OFFERS: Offer[] = [
       "Cement + sand + aggregate combo priced for foundation pours. Ideal for residential projects.",
     desktopBanner: "https://picsum.photos/seed/offer-combo-desk/1200/400",
     mobileBanner: "https://picsum.photos/seed/offer-combo-mob/800/600",
-    offerType: "combo",
+    offerType: "featured",
     products: productsByIds(["prod-001", "prod-004", "prod-007"]),
     priority: 7,
-    visibility: "featured",
     status: "SCHEDULED",
     startDate: "2026-08-01",
     endDate: "2026-09-15",
@@ -157,10 +153,9 @@ export const INITIAL_OFFERS: Offer[] = [
       "Flash deal on JSW NeoSteel for verified B2B accounts. Valid while stock lasts.",
     desktopBanner: "https://picsum.photos/seed/offer-jsw-desk/1200/400",
     mobileBanner: "https://picsum.photos/seed/offer-jsw-mob/800/600",
-    offerType: "product",
+    offerType: "home-carousel",
     products: productsByIds(["prod-006"]),
     priority: 10,
-    visibility: "both",
     status: "SCHEDULED",
     startDate: "2026-07-20",
     endDate: "2026-07-25",
@@ -174,10 +169,9 @@ export const INITIAL_OFFERS: Offer[] = [
       "Clearance pricing on fine sand and crushed stone for off-season stocking.",
     desktopBanner: "https://picsum.photos/seed/offer-agg-desk/1200/400",
     mobileBanner: "https://picsum.photos/seed/offer-agg-mob/800/600",
-    offerType: "category",
+    offerType: "featured",
     products: productsByIds(["prod-004", "prod-007"]),
     priority: 4,
-    visibility: "featured",
     status: "EXPIRED",
     startDate: "2025-12-01",
     endDate: "2026-02-28",
@@ -191,10 +185,9 @@ export const INITIAL_OFFERS: Offer[] = [
       "Draft promo for Ambuja Kawach waterproof cement. Pending brand creative approval.",
     desktopBanner: "https://picsum.photos/seed/offer-ambuja-desk/1200/400",
     mobileBanner: "https://picsum.photos/seed/offer-ambuja-mob/800/600",
-    offerType: "product",
+    offerType: "home-carousel",
     products: productsByIds(["prod-003"]),
     priority: 5,
-    visibility: "home-carousel",
     status: "DRAFT",
     startDate: "2026-08-10",
     endDate: "2026-09-10",
@@ -208,10 +201,9 @@ export const INITIAL_OFFERS: Offer[] = [
       "UltraTech cement paired with TATA Tiscon for complete site essentials procurement.",
     desktopBanner: "https://picsum.photos/seed/offer-duo-desk/1200/400",
     mobileBanner: "https://picsum.photos/seed/offer-duo-mob/800/600",
-    offerType: "combo",
+    offerType: "featured",
     products: productsByIds(["prod-001", "prod-002"]),
     priority: 6,
-    visibility: "both",
     status: "ACTIVE",
     startDate: "2026-06-15",
     endDate: "2026-09-30",
@@ -225,10 +217,9 @@ export const INITIAL_OFFERS: Offer[] = [
       "Special contractor rates on ACC Gold Cement for registered Bajriwala partners.",
     desktopBanner: "https://picsum.photos/seed/offer-acc-desk/1200/400",
     mobileBanner: "https://picsum.photos/seed/offer-acc-mob/800/600",
-    offerType: "brand",
+    offerType: "featured",
     products: productsByIds(["prod-005"]),
     priority: 3,
-    visibility: "featured",
     status: "EXPIRED",
     startDate: "2026-03-01",
     endDate: "2026-05-31",
@@ -237,16 +228,8 @@ export const INITIAL_OFFERS: Offer[] = [
 ];
 
 export const OFFER_TYPE_LABELS: Record<OfferType, string> = {
-  product: "Product Offer",
-  brand: "Brand Offer",
-  category: "Category Offer",
-  combo: "Combo Offer",
-};
-
-export const OFFER_VISIBILITY_LABELS: Record<OfferVisibility, string> = {
   "home-carousel": "Home Carousel",
-  featured: "Featured Offers",
-  both: "Both",
+  featured: "Featured",
 };
 
 export const OFFER_STATUS_LABELS: Record<OfferStatus, string> = {
@@ -264,19 +247,8 @@ export const OFFER_CTA_OPTIONS: OfferCtaLabel[] = [
 ];
 
 export const OFFER_TYPE_OPTIONS: { value: OfferType; label: string }[] = [
-  { value: "product", label: "Product Offer" },
-  { value: "brand", label: "Brand Offer" },
-  { value: "category", label: "Category Offer" },
-  { value: "combo", label: "Combo Offer" },
-];
-
-export const OFFER_VISIBILITY_OPTIONS: {
-  value: OfferVisibility;
-  label: string;
-}[] = [
   { value: "home-carousel", label: "Home Carousel" },
-  { value: "featured", label: "Featured Offers" },
-  { value: "both", label: "Both" },
+  { value: "featured", label: "Featured" },
 ];
 
 export const OFFER_STATUS_OPTIONS: {

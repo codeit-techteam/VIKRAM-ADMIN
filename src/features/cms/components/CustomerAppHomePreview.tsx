@@ -135,10 +135,7 @@ export function CustomerAppHomePreview() {
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
                       <div className="absolute top-2 left-2 rounded bg-[#ff3f6c] px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white uppercase">
-                        {OFFER_TYPE_LABELS[offer.offerType].replace(
-                          " Offer",
-                          "",
-                        )}
+                        {OFFER_TYPE_LABELS[offer.offerType]}
                       </div>
                       <div className="absolute inset-x-0 bottom-0 p-2.5">
                         <p className="line-clamp-2 text-xs font-bold text-white">

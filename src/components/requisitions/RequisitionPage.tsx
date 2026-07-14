@@ -24,6 +24,13 @@ import type {
 } from "@/types/warehouse.types";
 import { notify } from "@/utils/notify";
 
+const STAT_CHIP_MAP = {
+  "pending-requests": "pending",
+  "critical-requests": "critical",
+  "awaiting-allocation": "awaiting-allocation",
+  "todays-requests": "today",
+} as const satisfies Record<string, RequisitionFilterChip>;
+
 export function RequisitionPage() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
@@ -126,6 +133,15 @@ export function RequisitionPage() {
     setActiveChip(chip);
     setCurrentPage(1);
   }, []);
+
+  const handleStatCardClick = useCallback(
+    (statId: keyof typeof STAT_CHIP_MAP) => {
+      const chip = STAT_CHIP_MAP[statId];
+      setActiveChip((current) => (current === chip ? "all" : chip));
+      setCurrentPage(1);
+    },
+    [],
+  );
 
   const handleAdvancedFilterApply = useCallback(
     (filters: RequisitionAdvancedFilters) => {
@@ -245,6 +261,8 @@ export function RequisitionPage() {
             key={stat.id}
             stat={stat}
             isLoading={isLoading}
+            isActive={activeChip === STAT_CHIP_MAP[stat.id]}
+            onClick={() => handleStatCardClick(stat.id)}
           />
         ))}
       </div>

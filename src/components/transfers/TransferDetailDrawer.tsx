@@ -48,9 +48,9 @@ interface TransferDetailDrawerProps {
 
 const WORKFLOW_STEPS: Array<{ status: TransferStatus; label: string }> = [
   { status: "DRAFT", label: "Transfer Draft" },
-  { status: "TRANSFER_CREATED", label: "Transfer Created" },
+  { status: "TRANSFER_CREATED", label: "Pending Dispatch" },
   { status: "LOADING", label: "Loading" },
-  { status: "READY_FOR_DISPATCH", label: "Ready For Dispatch" },
+  { status: "READY_FOR_DISPATCH", label: "Ready to Dispatch" },
   { status: "IN_TRANSIT", label: "In Transit" },
   { status: "REACHED_HUB", label: "Reached Hub" },
   { status: "DELIVERED", label: "Delivered" },

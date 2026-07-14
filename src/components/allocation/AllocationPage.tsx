@@ -6,12 +6,36 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AllocationSummaryCard,
   buildAllocationSummaryCards,
+  type AllocationStatKey,
 } from "@/components/allocation/AllocationSummaryCard";
 import { MaterialAllocationTable } from "@/components/allocation/MaterialAllocationTable";
 import { ALLOCATION_PAGE_SIZE, fetchAllocations } from "@/mock/allocations";
 import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 import type { MaterialAllocationItem } from "@/types/warehouse.types";
 import { ROUTES } from "@/constants/routes";
+
+const TABLE_COPY: Record<
+  AllocationStatKey,
+  { title: string; subtitle: string }
+> = {
+  "pending-allocation": {
+    title: "Pending Material Allocation",
+    subtitle: "Review and allocate inventory to approved requisitions.",
+  },
+  "critical-allocation": {
+    title: "Critical Material Allocation",
+    subtitle:
+      "Prioritize high-urgency requisitions that still need allocation.",
+  },
+  "allocated-today": {
+    title: "Allocated Today",
+    subtitle: "Material reservations completed today.",
+  },
+  "out-of-stock": {
+    title: "Out of Stock Allocations",
+    subtitle: "Pending requisitions blocked by zero available stock.",
+  },
+};
 
 export function AllocationPage() {
   const router = useRouter();
@@ -27,6 +51,8 @@ export function AllocationPage() {
   );
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [activeStat, setActiveStat] =
+    useState<AllocationStatKey>("pending-allocation");
 
   useEffect(() => {
     const timer = window.setTimeout(() => setIsLoading(false), 600);
@@ -38,8 +64,9 @@ export function AllocationPage() {
       fetchAllocations(allocations, {
         page: currentPage,
         limit: ALLOCATION_PAGE_SIZE,
+        statFilter: activeStat,
       }),
-    [allocations, currentPage],
+    [allocations, currentPage, activeStat],
   );
 
   useEffect(() => {
@@ -56,6 +83,13 @@ export function AllocationPage() {
     [queryResult.stats],
   );
 
+  const handleStatClick = useCallback((statId: AllocationStatKey) => {
+    setActiveStat((current) =>
+      current === statId ? "pending-allocation" : statId,
+    );
+    setCurrentPage(1);
+  }, []);
+
   const handleStartWorkflow = useCallback(
     (item: MaterialAllocationItem) => {
       if (item.status === "ALLOCATED") return;
@@ -66,6 +100,8 @@ export function AllocationPage() {
     [router],
   );
 
+  const tableCopy = TABLE_COPY[activeStat];
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -74,6 +110,8 @@ export function AllocationPage() {
             key={stat.id}
             stat={stat}
             isLoading={isLoading}
+            isActive={activeStat === stat.id}
+            onClick={() => handleStatClick(stat.id)}
           />
         ))}
       </div>
@@ -84,6 +122,8 @@ export function AllocationPage() {
         currentPage={queryResult.meta.page}
         totalItems={queryResult.meta.total}
         pageSize={ALLOCATION_PAGE_SIZE}
+        title={tableCopy.title}
+        subtitle={tableCopy.subtitle}
         onPageChange={setCurrentPage}
         onStartWorkflow={handleStartWorkflow}
       />

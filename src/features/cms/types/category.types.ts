@@ -12,7 +12,7 @@ export interface Category {
 
 export interface CategoryStats {
   totalCategories: number;
-  totalProducts: number;
+  empty: number;
   visible: number;
   notVisible: number;
 }

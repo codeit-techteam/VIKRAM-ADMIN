@@ -39,9 +39,9 @@ import {
 import {
   formatOfferDate,
   OFFER_TYPE_LABELS,
-  OFFER_VISIBILITY_LABELS,
 } from "@/features/cms/constants/offer.mock";
-import type { Offer } from "@/features/cms/types/offer.types";
+import type { Offer, OfferType } from "@/features/cms/types/offer.types";
+import { cn } from "@/lib/utils";
 
 interface OfferTableProps {
   offers: Offer[];
@@ -52,6 +52,24 @@ interface OfferTableProps {
 }
 
 const columnHelper = createColumnHelper<Offer>();
+
+const placementStyles: Record<OfferType, string> = {
+  "home-carousel": "bg-orange-50 text-orange-700 ring-orange-100",
+  featured: "bg-indigo-50 text-indigo-700 ring-indigo-100",
+};
+
+function PlacementBadge({ type }: { type: OfferType }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset",
+        placementStyles[type],
+      )}
+    >
+      {OFFER_TYPE_LABELS[type]}
+    </span>
+  );
+}
 
 export function OfferTable({
   offers,
@@ -90,12 +108,8 @@ export function OfferTable({
         },
       }),
       columnHelper.accessor("offerType", {
-        header: "Offer Type",
-        cell: (info) => (
-          <span className="text-sm text-[#64748B]">
-            {OFFER_TYPE_LABELS[info.getValue()]}
-          </span>
-        ),
+        header: "Placement",
+        cell: (info) => <PlacementBadge type={info.getValue()} />,
       }),
       columnHelper.display({
         id: "productsCount",
@@ -111,14 +125,6 @@ export function OfferTable({
         cell: (info) => (
           <span className="bg-primary/10 text-primary inline-flex size-7 items-center justify-center rounded-full text-xs font-bold">
             {info.getValue()}
-          </span>
-        ),
-      }),
-      columnHelper.accessor("visibility", {
-        header: "Visibility",
-        cell: (info) => (
-          <span className="text-sm text-[#64748B]">
-            {OFFER_VISIBILITY_LABELS[info.getValue()]}
           </span>
         ),
       }),

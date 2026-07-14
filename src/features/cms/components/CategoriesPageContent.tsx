@@ -1,6 +1,13 @@
 "use client";
 
-import { Download, Eye, EyeOff, LayoutGrid, Package, Plus } from "lucide-react";
+import {
+  Download,
+  Eye,
+  EyeOff,
+  LayoutGrid,
+  FolderOpen,
+  Plus,
+} from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -28,7 +35,7 @@ import { cn } from "@/lib/utils";
 
 const EMPTY_STATS: CategoryStats = {
   totalCategories: 0,
-  totalProducts: 0,
+  empty: 0,
   visible: 0,
   notVisible: 0,
 };
@@ -59,16 +66,21 @@ export function CategoriesPageContent() {
   }, [refresh]);
 
   const filteredCategories = useMemo(() => {
-    if (activeFilter === "all") {
-      return categories;
+    switch (activeFilter) {
+      case "empty":
+        return categories.filter((category) => category.productCount === 0);
+      case "visible":
+        return categories.filter((category) => category.isVisible);
+      case "not-visible":
+        return categories.filter((category) => !category.isVisible);
+      default:
+        return categories;
     }
-
-    if (activeFilter === "visible") {
-      return categories.filter((category) => category.isVisible);
-    }
-
-    return categories.filter((category) => !category.isVisible);
   }, [activeFilter, categories]);
+
+  const handleStatCardClick = (filter: CategoryFilterValue) => {
+    setActiveFilter((current) => (current === filter ? "all" : filter));
+  };
 
   const handleConfirmDelete = async () => {
     if (!categoryToDelete) return;
@@ -109,13 +121,19 @@ export function CategoriesPageContent() {
           icon={LayoutGrid}
           iconContainerClassName="bg-orange-50"
           iconClassName="text-primary"
+          isLoading={isLoading}
+          isActive={activeFilter === "all"}
+          onClick={() => handleStatCardClick("all")}
         />
         <StatCard
-          label="Total Products"
-          value={isLoading ? "—" : stats.totalProducts}
-          icon={Package}
+          label="Empty Categories"
+          value={isLoading ? "—" : stats.empty}
+          icon={FolderOpen}
           iconContainerClassName="bg-blue-50"
           iconClassName="text-blue-600"
+          isLoading={isLoading}
+          isActive={activeFilter === "empty"}
+          onClick={() => handleStatCardClick("empty")}
         />
         <StatCard
           label="Visible"
@@ -123,6 +141,9 @@ export function CategoriesPageContent() {
           icon={Eye}
           iconContainerClassName="bg-emerald-50"
           iconClassName="text-emerald-600"
+          isLoading={isLoading}
+          isActive={activeFilter === "visible"}
+          onClick={() => handleStatCardClick("visible")}
         />
         <StatCard
           label="Not Visible"
@@ -130,6 +151,9 @@ export function CategoriesPageContent() {
           icon={EyeOff}
           iconContainerClassName="bg-gray-100"
           iconClassName="text-gray-500"
+          isLoading={isLoading}
+          isActive={activeFilter === "not-visible"}
+          onClick={() => handleStatCardClick("not-visible")}
         />
       </div>
 
@@ -156,6 +180,7 @@ export function CategoriesPageContent() {
         <button
           type="button"
           className="text-primary mt-4 text-sm font-medium hover:underline"
+          onClick={() => setActiveFilter("all")}
         >
           View All {stats.totalCategories} Categories
         </button>

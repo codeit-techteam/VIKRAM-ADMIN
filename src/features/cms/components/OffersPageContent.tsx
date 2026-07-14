@@ -30,7 +30,6 @@ import { OfferTable } from "@/features/cms/components/OfferTable";
 import {
   OFFER_STATUS_OPTIONS,
   OFFER_TYPE_OPTIONS,
-  OFFER_VISIBILITY_OPTIONS,
 } from "@/features/cms/constants/offer.mock";
 import {
   deleteOffer,
@@ -47,17 +46,24 @@ import type {
   OfferStats,
   OfferStatus,
   OfferType,
-  OfferVisibility,
 } from "@/features/cms/types/offer.types";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 5;
 
+type OfferStatKey = "total" | "active" | "scheduled" | "expired";
+
+const STAT_STATUS_MAP: Record<OfferStatKey, OfferStatus | "all"> = {
+  total: "all",
+  active: "ACTIVE",
+  scheduled: "SCHEDULED",
+  expired: "EXPIRED",
+};
+
 const DEFAULT_FILTERS: OfferListFilters = {
   search: "",
   status: "all",
   offerType: "all",
-  visibility: "all",
   sortByPriority: "desc",
   page: 1,
   pageSize: PAGE_SIZE,
@@ -106,6 +112,15 @@ export function OffersPageContent() {
       ...prev,
       [key]: value,
       page: key === "page" ? (value as number) : 1,
+    }));
+  };
+
+  const handleStatCardClick = (statId: OfferStatKey) => {
+    const nextStatus = STAT_STATUS_MAP[statId];
+    setFilters((prev) => ({
+      ...prev,
+      status: prev.status === nextStatus ? "all" : nextStatus,
+      page: 1,
     }));
   };
 
@@ -169,6 +184,9 @@ export function OffersPageContent() {
           icon={Tag}
           iconContainerClassName="bg-orange-50"
           iconClassName="text-primary"
+          isLoading={isLoading}
+          isActive={filters.status === "all"}
+          onClick={() => handleStatCardClick("total")}
         />
         <StatCard
           label="Active Offers"
@@ -176,6 +194,9 @@ export function OffersPageContent() {
           icon={CheckCircle2}
           iconContainerClassName="bg-emerald-50"
           iconClassName="text-emerald-600"
+          isLoading={isLoading}
+          isActive={filters.status === "ACTIVE"}
+          onClick={() => handleStatCardClick("active")}
         />
         <StatCard
           label="Scheduled Offers"
@@ -183,6 +204,9 @@ export function OffersPageContent() {
           icon={CalendarClock}
           iconContainerClassName="bg-amber-50"
           iconClassName="text-amber-600"
+          isLoading={isLoading}
+          isActive={filters.status === "SCHEDULED"}
+          onClick={() => handleStatCardClick("scheduled")}
         />
         <StatCard
           label="Expired Offers"
@@ -190,6 +214,9 @@ export function OffersPageContent() {
           icon={TimerOff}
           iconContainerClassName="bg-red-50"
           iconClassName="text-red-600"
+          isLoading={isLoading}
+          isActive={filters.status === "EXPIRED"}
+          onClick={() => handleStatCardClick("expired")}
         />
       </div>
 
@@ -237,34 +264,12 @@ export function OffersPageContent() {
               }}
             >
               <SelectTrigger className="h-9 w-full border-gray-200 sm:w-[180px]">
-                <span className="text-gray-500">Type:</span>
+                <span className="text-gray-500">Placement:</span>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="all">All Placements</SelectItem>
                 {OFFER_TYPE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={filters.visibility}
-              onValueChange={(value) => {
-                if (value) {
-                  updateFilter("visibility", value as OfferVisibility | "all");
-                }
-              }}
-            >
-              <SelectTrigger className="h-9 w-full border-gray-200 sm:w-[190px]">
-                <span className="text-gray-500">Visibility:</span>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Visibility</SelectItem>
-                {OFFER_VISIBILITY_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>

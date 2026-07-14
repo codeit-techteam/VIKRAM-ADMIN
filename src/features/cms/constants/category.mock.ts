@@ -36,7 +36,7 @@ export const CATEGORY_MOCK_ROWS: Category[] = [
     thumbnailUrl: "https://picsum.photos/seed/sand-category/80/80",
     name: "Sand",
     displayOrder: 4,
-    productCount: 22,
+    productCount: 0,
     isVisible: false,
     lastUpdated: "15 Oct, 2023",
   },
@@ -45,10 +45,7 @@ export const CATEGORY_MOCK_ROWS: Category[] = [
 export function computeCategoryStats(categories: Category[]): CategoryStats {
   return {
     totalCategories: categories.length,
-    totalProducts: categories.reduce(
-      (sum, category) => sum + category.productCount,
-      0,
-    ),
+    empty: categories.filter((category) => category.productCount === 0).length,
     visible: categories.filter((category) => category.isVisible).length,
     notVisible: categories.filter((category) => !category.isVisible).length,
   };
@@ -58,6 +55,7 @@ export const CATEGORY_STATS = computeCategoryStats(CATEGORY_MOCK_ROWS);
 
 export const CATEGORY_FILTER_TABS = [
   { label: "All", value: "all" },
+  { label: "Empty", value: "empty" },
   { label: "Visible", value: "visible" },
   { label: "Not Visible", value: "not-visible" },
 ] as const;

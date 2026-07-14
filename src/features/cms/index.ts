@@ -15,6 +15,7 @@ export { OffersPageContent } from "@/features/cms/components/OffersPageContent";
 export { VideoCard } from "@/features/cms/components/VideoCard";
 export { VideoCtaTable } from "@/features/cms/components/VideoCtaTable";
 export { VideoLibrarySection } from "@/features/cms/components/VideoLibrarySection";
+export { VideoManagementPageContent } from "@/features/cms/components/VideoManagementPageContent";
 export {
   BANNER_MODIFICATIONS,
   BANNERS,
@@ -72,7 +73,7 @@ export type {
   OfferProduct,
   OfferStatus,
   OfferType,
-  OfferVisibility,
+  OfferType,
 } from "@/features/cms/types/offer.types";
 export type {
   CtaDestinationType,

@@ -7,7 +7,6 @@ import {
   Eye,
   FileText,
   Image as ImageIcon,
-  LayoutGrid,
   MousePointerClick,
   Package,
   Tag,
@@ -41,7 +40,6 @@ import {
   OFFER_CTA_OPTIONS,
   OFFER_PRODUCT_CATALOG,
   OFFER_TYPE_OPTIONS,
-  OFFER_VISIBILITY_OPTIONS,
   slugifyOfferName,
 } from "@/features/cms/constants/offer.mock";
 import {
@@ -74,7 +72,6 @@ function offerToFormValues(offer: Offer): OfferFormSchema {
     ctaLabel: offer.ctaLabel,
     startDate: offer.startDate,
     endDate: offer.endDate,
-    visibility: offer.visibility,
     desktopBanner: offer.desktopBanner,
     mobileBanner: offer.mobileBanner,
   };
@@ -86,12 +83,11 @@ const CREATE_DEFAULTS: OfferFormSchema = {
   description: "",
   status: "DRAFT",
   priority: 5,
-  offerType: "product",
+  offerType: "home-carousel",
   productIds: [],
   ctaLabel: "Shop Now",
   startDate: "",
   endDate: "",
-  visibility: "both",
   desktopBanner: "",
   mobileBanner: "",
 };
@@ -459,13 +455,15 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
             </div>
           </FormSectionCard>
 
-          <FormSectionCard icon={Tag} title="Offer Type">
+          <FormSectionCard icon={Tag} title="Offer Placement">
             <Controller
               control={control}
               name="offerType"
               render={({ field }) => (
                 <div className="space-y-2">
-                  <Label className={fieldLabelClassName}>Offer Type</Label>
+                  <Label className={fieldLabelClassName}>
+                    Where should this offer appear?
+                  </Label>
                   <Select
                     value={field.value}
                     onValueChange={(value) => {
@@ -483,6 +481,10 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-[#64748B]">
+                    Home Carousel shows in the app&apos;s offer slider. Featured
+                    appears in the highlighted offers section.
+                  </p>
                 </div>
               )}
             />
@@ -578,37 +580,6 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
                 )}
               />
             </div>
-          </FormSectionCard>
-
-          <FormSectionCard icon={LayoutGrid} title="Visibility">
-            <Controller
-              control={control}
-              name="visibility"
-              render={({ field }) => (
-                <div className="space-y-2">
-                  <Label className={fieldLabelClassName}>
-                    Where should this offer appear?
-                  </Label>
-                  <Select
-                    value={field.value}
-                    onValueChange={(value) => {
-                      if (value) field.onChange(value);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 max-w-md border-gray-200">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {OFFER_VISIBILITY_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            />
           </FormSectionCard>
         </div>
 

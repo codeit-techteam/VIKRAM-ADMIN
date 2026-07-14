@@ -14,6 +14,8 @@ interface StatCardProps {
   iconClassName?: string;
   href?: string;
   isLoading?: boolean;
+  isActive?: boolean;
+  onClick?: () => void;
   className?: string;
 }
 
@@ -81,46 +83,60 @@ export function StatCard({
   iconClassName,
   href,
   isLoading,
+  isActive = false,
+  onClick,
   className,
 }: StatCardProps) {
   const cardClassName = cn(
-    "rounded-xl border border-gray-100 bg-white p-6 shadow-sm",
+    "rounded-xl border p-6 shadow-sm transition-all duration-200",
+    isActive
+      ? "border-primary bg-primary/5 ring-primary/20 ring-2"
+      : "border-gray-100 bg-white",
     href &&
       !isLoading &&
-      "cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-primary hover:shadow-md",
+      "cursor-pointer hover:-translate-y-0.5 hover:border-primary hover:shadow-md",
+    onClick &&
+      !isLoading &&
+      "cursor-pointer hover:scale-[1.01] hover:shadow-md",
     className,
+  );
+
+  const content = (
+    <StatCardContent
+      label={label}
+      value={value}
+      subtext={subtext}
+      valueVariant={valueVariant}
+      icon={icon}
+      iconContainerClassName={iconContainerClassName}
+      iconClassName={iconClassName}
+      isLoading={isLoading}
+    />
   );
 
   if (href && !isLoading) {
     return (
       <Link href={href} className={cn(cardClassName, "block")}>
-        <StatCardContent
-          label={label}
-          value={value}
-          subtext={subtext}
-          valueVariant={valueVariant}
-          icon={icon}
-          iconContainerClassName={iconContainerClassName}
-          iconClassName={iconClassName}
-        />
+        {content}
       </Link>
     );
   }
 
-  return (
-    <div className={cardClassName}>
-      <StatCardContent
-        label={label}
-        value={value}
-        subtext={subtext}
-        valueVariant={valueVariant}
-        icon={icon}
-        iconContainerClassName={iconContainerClassName}
-        iconClassName={iconClassName}
-        isLoading={isLoading}
-      />
-    </div>
-  );
+  if (onClick && !isLoading) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={isActive}
+        aria-label={`Filter by ${label}`}
+        className={cn(cardClassName, "h-full w-full text-left")}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return <div className={cardClassName}>{content}</div>;
 }
 
 export function StatCardSkeleton() {

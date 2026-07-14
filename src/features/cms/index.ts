@@ -73,7 +73,6 @@ export type {
   OfferProduct,
   OfferStatus,
   OfferType,
-  OfferType,
 } from "@/features/cms/types/offer.types";
 export type {
   CtaDestinationType,

@@ -32,6 +32,7 @@ import {
 } from "@/components/warehouse/products/product-form.schema";
 import type { WarehouseProduct } from "@/mock/warehouse-products";
 import { notify } from "@/utils/notify";
+import type { z } from "zod";
 
 interface CreateProductDialogProps {
   open: boolean;
@@ -51,7 +52,7 @@ export function CreateProductDialog({
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<ProductFormSchema>({
+  } = useForm<z.input<typeof productFormSchema>, unknown, ProductFormSchema>({
     resolver: zodResolver(productFormSchema),
     defaultValues: PRODUCT_FORM_DEFAULT_VALUES,
   });
@@ -240,8 +241,10 @@ export function CreateProductDialog({
                     min={0}
                     step={1}
                     placeholder="0"
-                    value={field.value}
-                    onChange={(event) => field.onChange(event.target.value)}
+                    value={typeof field.value === "number" ? field.value : 0}
+                    onChange={(event) =>
+                      field.onChange(Number(event.target.value))
+                    }
                     onBlur={field.onBlur}
                     name={field.name}
                     ref={field.ref}

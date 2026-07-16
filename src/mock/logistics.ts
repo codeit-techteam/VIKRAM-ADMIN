@@ -79,6 +79,7 @@ export const EMPTY_DISPATCH_FILTERS: DispatchFilters = {
   search: "",
   status: "all",
   source: "all",
+  assignment: "all",
 };
 
 export const EMPTY_MAINTENANCE_FILTERS: MaintenanceFilters = {
@@ -120,14 +121,14 @@ export const SEED_VEHICLES: LogisticsVehicle[] = [
     capacityKg: 8000,
     assignedWarehouse: "Noida Central Warehouse",
     assignedHub: "Noida Sector 62 Hub",
-    assignedDriverId: null,
-    assignedDriverName: null,
-    currentShipmentId: null,
+    assignedDriverId: "ld-002",
+    assignedDriverName: "Mohit Verma",
+    currentShipmentId: "DSP-2026-0295",
     fuelType: "Diesel",
     registrationDate: "2021-08-20",
     insuranceExpiry: daysFromNow(200),
     fitnessExpiry: daysFromNow(150),
-    status: "available",
+    status: "running",
   },
   {
     id: "lv-003",
@@ -239,7 +240,7 @@ export const SEED_VEHICLES: LogisticsVehicle[] = [
     registrationDate: "2022-12-01",
     insuranceExpiry: daysFromNow(220),
     fitnessExpiry: daysFromNow(190),
-    status: "in_transit" as LogisticsVehicle["status"],
+    status: "running",
   },
   {
     id: "lv-010",
@@ -258,9 +259,6 @@ export const SEED_VEHICLES: LogisticsVehicle[] = [
     status: "available",
   },
 ];
-
-// Fix lv-009 status - use running instead of invalid in_transit
-SEED_VEHICLES[8]!.status = "running";
 
 export const SEED_DRIVERS: LogisticsDriver[] = [
   {
@@ -288,10 +286,10 @@ export const SEED_DRIVERS: LogisticsDriver[] = [
     licenseExpiry: daysFromNow(200),
     assignedHub: "Noida Sector 62 Hub",
     assignedWarehouse: "Noida Central Warehouse",
-    assignedVehicleId: null,
-    assignedVehicleNumber: null,
-    tripsToday: 0,
-    status: "available",
+    assignedVehicleId: "lv-002",
+    assignedVehicleNumber: "DL-01-AB-4421",
+    tripsToday: 1,
+    status: "driving",
   },
   {
     id: "ld-003",
@@ -1025,8 +1023,13 @@ export function queryWarehouseShipments(
       return false;
     if (filters.priority !== "all" && item.priority !== filters.priority)
       return false;
-    if (filters.status !== "all" && item.status !== filters.status)
-      return false;
+    if (filters.status !== "all") {
+      if (filters.status === "delayed") {
+        if (item.status !== "delayed" && !item.isDelayed) return false;
+      } else if (item.status !== filters.status) {
+        return false;
+      }
+    }
     return true;
   });
   return paginate(filtered, page, limit);
@@ -1138,6 +1141,18 @@ export function queryDispatches(
       return false;
     if (filters.source !== "all" && item.source !== filters.source)
       return false;
+    if (filters.assignment === "needs_vehicle") {
+      const needsVehicle =
+        (item.status === "pending" || item.status === "assigned") &&
+        !item.vehicleId;
+      if (!needsVehicle) return false;
+    }
+    if (filters.assignment === "needs_driver") {
+      const needsDriver =
+        (item.status === "pending" || item.status === "assigned") &&
+        !item.driverId;
+      if (!needsDriver) return false;
+    }
     return true;
   });
   return paginate(filtered, page, limit);
@@ -1368,13 +1383,16 @@ export function getDriverStats(drivers: LogisticsDriver[]) {
   };
 }
 
-export function getDispatchStats(dispatches: DispatchRecord[]) {
+export function getDispatchStats(
+  dispatches: DispatchRecord[],
+  drivers: LogisticsDriver[] = SEED_DRIVERS,
+  vehicles: LogisticsVehicle[] = SEED_VEHICLES,
+) {
   return {
     pending: dispatches.filter((d) => d.status === "pending").length,
     todaysDispatches: dispatches.length,
-    driversWaiting: SEED_DRIVERS.filter((d) => d.status === "available").length,
-    vehiclesWaiting: SEED_VEHICLES.filter((v) => v.status === "available")
-      .length,
+    driversWaiting: drivers.filter((d) => d.status === "available").length,
+    vehiclesWaiting: vehicles.filter((v) => v.status === "available").length,
   };
 }
 

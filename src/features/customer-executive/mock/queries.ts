@@ -67,6 +67,17 @@ export function queryCustomers(
     result = result.filter((c) => c.customerType === filters.customerType);
   }
 
+  if (filters.activeThisMonth) {
+    const now = new Date();
+    result = result.filter((c) => {
+      if (!c.lastOrderAt) return false;
+      const d = new Date(c.lastOrderAt);
+      return (
+        d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+      );
+    });
+  }
+
   if (sortBy) {
     result.sort((a, b) => {
       const aVal = String(a[sortBy as keyof CeCustomer] ?? "");

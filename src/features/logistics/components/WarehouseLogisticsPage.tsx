@@ -36,6 +36,7 @@ import {
   type LogisticsMetricCardData,
 } from "@/features/logistics/components/LogisticsMetricCard";
 import { LogisticsStatusBadge } from "@/features/logistics/components/LogisticsStatusBadge";
+import { WarehouseShipmentDetailDrawer } from "@/features/logistics/components/WarehouseShipmentDetailDrawer";
 import { useLogisticsLoading } from "@/features/logistics/hooks/use-logistics-loading";
 import {
   EMPTY_WAREHOUSE_FILTERS,
@@ -53,6 +54,23 @@ import type {
 } from "@/types/logistics.types";
 import { notify } from "@/utils/notify";
 
+type WarehouseStatKey =
+  | "transfers-today"
+  | "pending"
+  | "loading"
+  | "in-transit"
+  | "delayed"
+  | "completed";
+
+const STAT_STATUS_MAP: Record<WarehouseStatKey, string> = {
+  "transfers-today": "all",
+  pending: "pending",
+  loading: "loading",
+  "in-transit": "in_transit",
+  delayed: "delayed",
+  completed: "completed",
+};
+
 export function WarehouseLogisticsPage() {
   const { isLoading } = useLogisticsLoading();
   const warehouseShipments = useLogisticsStore((s) => s.warehouseShipments);
@@ -63,6 +81,9 @@ export function WarehouseLogisticsPage() {
   const [assignVehicleOpen, setAssignVehicleOpen] = useState(false);
   const [assignDriverOpen, setAssignDriverOpen] = useState(false);
   const [assignTargetId, setAssignTargetId] = useState("");
+  const [selectedShipment, setSelectedShipment] =
+    useState<WarehouseShipment | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const stats = useMemo(
     () => getWarehouseStats(warehouseShipments),
@@ -159,7 +180,10 @@ export function WarehouseLogisticsPage() {
     {
       label: "Status",
       value: filters.status,
-      onChange: (v: string) => setFilters((f) => ({ ...f, status: v })),
+      onChange: (v: string) => {
+        setFilters((f) => ({ ...f, status: v }));
+        setCurrentPage(1);
+      },
       options: [
         { value: "all", label: "All Statuses" },
         { value: "pending", label: "Pending" },
@@ -174,6 +198,20 @@ export function WarehouseLogisticsPage() {
     },
   ];
 
+  const handleStatCardClick = (statId: WarehouseStatKey) => {
+    const nextStatus = STAT_STATUS_MAP[statId];
+    setFilters((prev) => ({
+      ...prev,
+      status: prev.status === nextStatus ? "all" : nextStatus,
+    }));
+    setCurrentPage(1);
+  };
+
+  const openShipmentDetail = (item: WarehouseShipment) => {
+    setSelectedShipment(item);
+    setDetailOpen(true);
+  };
+
   const handleAction = (action: string, item: WarehouseShipment) => {
     if (action === "assign-vehicle") {
       setAssignTargetId(item.shipmentId);
@@ -187,12 +225,13 @@ export function WarehouseLogisticsPage() {
         `Opening tracker for ${item.shipmentId}`,
       );
     } else if (action === "view") {
-      notify.info(
-        "Shipment Details",
-        `${item.shipmentId}: ${item.warehouse} → ${item.destinationHub}`,
-      );
+      openShipmentDetail(item);
     }
   };
+
+  const activeStatId = (
+    Object.entries(STAT_STATUS_MAP) as [WarehouseStatKey, string][]
+  ).find(([, status]) => status === filters.status)?.[0];
 
   return (
     <div className="space-y-5">
@@ -202,6 +241,8 @@ export function WarehouseLogisticsPage() {
             key={stat.id}
             stat={stat}
             isLoading={isLoading}
+            isActive={activeStatId === stat.id}
+            onClick={() => handleStatCardClick(stat.id as WarehouseStatKey)}
           />
         ))}
       </div>
@@ -310,6 +351,7 @@ export function WarehouseLogisticsPage() {
                           size="icon-sm"
                           variant="ghost"
                           className="size-8"
+                          aria-label={`View ${item.shipmentId}`}
                           onClick={() => handleAction("view", item)}
                         >
                           <Eye className="size-4" />
@@ -380,6 +422,27 @@ export function WarehouseLogisticsPage() {
         onOpenChange={setAssignDriverOpen}
         targetId={assignTargetId}
         targetType="warehouse"
+      />
+      <WarehouseShipmentDetailDrawer
+        shipment={selectedShipment}
+        open={detailOpen}
+        onOpenChange={(open) => {
+          setDetailOpen(open);
+          if (!open) setSelectedShipment(null);
+        }}
+        onAssignVehicle={(shipmentId) => {
+          setDetailOpen(false);
+          setAssignTargetId(shipmentId);
+          setAssignVehicleOpen(true);
+        }}
+        onAssignDriver={(shipmentId) => {
+          setDetailOpen(false);
+          setAssignTargetId(shipmentId);
+          setAssignDriverOpen(true);
+        }}
+        onTrack={(shipmentId) => {
+          notify.info("Tracking Shipment", `Opening tracker for ${shipmentId}`);
+        }}
       />
     </div>
   );

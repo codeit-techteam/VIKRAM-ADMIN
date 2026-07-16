@@ -31,6 +31,7 @@ import type { BannerModification } from "@/features/cms/types/banner.types";
 
 interface BannerModificationsTableProps {
   modifications: BannerModification[];
+  isLoading?: boolean;
 }
 
 const columnHelper = createColumnHelper<BannerModification>();
@@ -46,6 +47,7 @@ function getInitials(name: string): string {
 
 export function BannerModificationsTable({
   modifications,
+  isLoading = false,
 }: BannerModificationsTableProps) {
   const columns = useMemo(
     () => [
@@ -144,6 +146,22 @@ export function BannerModificationsTable({
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
+
+  if (isLoading) {
+    return (
+      <div className="flex h-40 items-center justify-center text-sm text-[#64748B]">
+        Loading modifications...
+      </div>
+    );
+  }
+
+  if (modifications.length === 0) {
+    return (
+      <div className="flex h-40 items-center justify-center text-sm text-[#64748B]">
+        No modifications match your filters.
+      </div>
+    );
+  }
 
   return (
     <div className="overflow-x-auto">

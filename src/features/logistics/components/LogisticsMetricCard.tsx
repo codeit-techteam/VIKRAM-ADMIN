@@ -20,6 +20,8 @@ interface LogisticsMetricCardProps {
   stat: LogisticsMetricCardData;
   isLoading?: boolean;
   size?: "default" | "compact";
+  isActive?: boolean;
+  onClick?: () => void;
 }
 
 const variantAccent = {
@@ -33,6 +35,8 @@ export function LogisticsMetricCard({
   stat,
   isLoading,
   size = "default",
+  isActive = false,
+  onClick,
 }: LogisticsMetricCardProps) {
   const Icon = stat.icon;
   const variant = stat.variant ?? "default";
@@ -40,6 +44,7 @@ export function LogisticsMetricCard({
   const isCritical = variant === "critical";
   const isSuccess = variant === "success";
   const isCompact = size === "compact";
+  const isInteractive = Boolean(stat.href || onClick);
 
   if (isLoading) {
     return (
@@ -57,14 +62,18 @@ export function LogisticsMetricCard({
   }
 
   const cardClassName = cn(
-    "group relative overflow-hidden rounded-xl border border-gray-100 shadow-sm transition-all duration-200",
+    "group relative overflow-hidden rounded-xl border shadow-sm transition-all duration-200",
     "border-l-[3px]",
     variantAccent[variant],
-    isWarning || isCritical ? "bg-orange-50/40" : "bg-white",
+    isActive
+      ? "border-primary bg-primary/5 ring-primary/20 ring-2"
+      : isWarning || isCritical
+        ? "border-gray-100 bg-orange-50/40"
+        : "border-gray-100 bg-white",
     isCompact ? "p-4" : "p-5",
-    stat.href &&
+    isInteractive &&
       "cursor-pointer hover:border-primary/25 hover:shadow-md hover:ring-1 hover:ring-primary/10",
-    !stat.href && "hover:shadow-md",
+    !isInteractive && "hover:shadow-md",
   );
 
   const content = (
@@ -138,9 +147,9 @@ export function LogisticsMetricCard({
           </div>
         ) : null}
       </div>
-      {stat.href ? (
+      {isInteractive ? (
         <p className="text-primary mt-3 text-[11px] font-medium opacity-0 transition-opacity group-hover:opacity-100">
-          View details →
+          {onClick ? "Filter table →" : "View details →"}
         </p>
       ) : null}
     </>
@@ -151,6 +160,20 @@ export function LogisticsMetricCard({
       <Link href={stat.href} className={cardClassName}>
         {content}
       </Link>
+    );
+  }
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={isActive}
+        aria-label={`Filter by ${stat.label}`}
+        className={cn(cardClassName, "h-full w-full text-left")}
+      >
+        {content}
+      </button>
     );
   }
 

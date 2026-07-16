@@ -239,6 +239,14 @@ function matchesExecutiveFilters(
     return false;
   }
 
+  if (filters.activity === "orders-today" && executive.todayOrders <= 0) {
+    return false;
+  }
+
+  if (filters.activity === "calls-assisted" && executive.todayCalls <= 0) {
+    return false;
+  }
+
   if (filters.search.trim()) {
     const query = filters.search.trim().toLowerCase();
     const matches =

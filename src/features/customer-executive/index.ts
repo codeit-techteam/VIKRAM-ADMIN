@@ -3,6 +3,7 @@ export { CeCustomersPage } from "@/features/customer-executive/components/custom
 export { CeCustomerProfilePage } from "@/features/customer-executive/components/customer-profile/CeCustomerProfilePage";
 export { CeNewCustomerPage } from "@/features/customer-executive/components/new-customer/CeNewCustomerPage";
 export { CeOrdersPage } from "@/features/customer-executive/components/orders/CeOrdersPage";
+export { CeOrderDetailSheet } from "@/features/customer-executive/components/orders/CeOrderDetailSheet";
 export { CeNewOrderPage } from "@/features/customer-executive/components/new-order/CeNewOrderPage";
 export { CePaymentsPage } from "@/features/customer-executive/components/payments/CePaymentsPage";
 export { CeTrackingPage } from "@/features/customer-executive/components/tracking/CeTrackingPage";

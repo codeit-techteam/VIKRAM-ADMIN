@@ -15,6 +15,8 @@ interface CeMetricCardProps {
   iconClassName?: string;
   href?: string;
   isLoading?: boolean;
+  isActive?: boolean;
+  onClick?: () => void;
   className?: string;
   index?: number;
   valueVariant?: "default" | "warning";

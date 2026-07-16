@@ -36,6 +36,70 @@ import { getFilterOptions } from "@/mock/customer-service";
 import { useCustomerStore } from "@/store/customer-store";
 import { notify } from "@/utils/notify";
 
+type CustomerStatKey = "total" | "active" | "pending" | "blocked" | "newToday";
+
+function formatDateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getTodayDateInputValue(): string {
+  return formatDateInputValue(new Date());
+}
+
+function isNewTodayFilter(filters: CustomerFilters): boolean {
+  const today = getTodayDateInputValue();
+  return (
+    filters.registrationDateFrom === today &&
+    filters.registrationDateTo === today
+  );
+}
+
+function getActiveStatKey(filters: CustomerFilters): CustomerStatKey | null {
+  if (isNewTodayFilter(filters) && filters.status === "all") {
+    return "newToday";
+  }
+
+  if (filters.status === "ACTIVE") return "active";
+  if (filters.status === "PENDING_VERIFICATION") return "pending";
+  if (filters.status === "BLOCKED") return "blocked";
+
+  if (
+    filters.status === "all" &&
+    !filters.registrationDateFrom &&
+    !filters.registrationDateTo
+  ) {
+    return "total";
+  }
+
+  return null;
+}
+
+function buildStatCardFilters(statId: CustomerStatKey): CustomerFilters {
+  if (statId === "newToday") {
+    const today = getTodayDateInputValue();
+    return {
+      ...EMPTY_CUSTOMER_FILTERS,
+      registrationDateFrom: today,
+      registrationDateTo: today,
+    };
+  }
+
+  const statusByStat: Record<Exclude<CustomerStatKey, "newToday">, string> = {
+    total: "all",
+    active: "ACTIVE",
+    pending: "PENDING_VERIFICATION",
+    blocked: "BLOCKED",
+  };
+
+  return {
+    ...EMPTY_CUSTOMER_FILTERS,
+    status: statusByStat[statId],
+  };
+}
+
 export function CustomersPageContent() {
   const searchParams = useSearchParams();
   const queryCustomers = useCustomerStore((state) => state.queryCustomers);
@@ -143,6 +207,22 @@ export function CustomersPageContent() {
     setAppliedFilters(EMPTY_CUSTOMER_FILTERS);
     setCurrentPage(1);
   }, []);
+
+  const activeStatKey = getActiveStatKey(appliedFilters);
+
+  const handleStatCardClick = useCallback(
+    (statId: CustomerStatKey) => {
+      const nextFilters =
+        activeStatKey === statId && statId !== "total"
+          ? EMPTY_CUSTOMER_FILTERS
+          : buildStatCardFilters(statId);
+
+      setDraftFilters(nextFilters);
+      setAppliedFilters(nextFilters);
+      setCurrentPage(1);
+    },
+    [activeStatKey],
+  );
 
   const handleSelectAll = useCallback(
     (checked: boolean) => {
@@ -255,6 +335,8 @@ export function CustomersPageContent() {
               icon={Users}
               iconContainerClassName="bg-blue-50"
               iconClassName="text-blue-600"
+              isActive={activeStatKey === "total"}
+              onClick={() => handleStatCardClick("total")}
             />
             <StatCard
               label="Active Customers"
@@ -262,6 +344,8 @@ export function CustomersPageContent() {
               icon={CheckCircle2}
               iconContainerClassName="bg-emerald-50"
               iconClassName="text-emerald-600"
+              isActive={activeStatKey === "active"}
+              onClick={() => handleStatCardClick("active")}
             />
             <StatCard
               label="Pending Verification"
@@ -271,6 +355,8 @@ export function CustomersPageContent() {
               icon={Clock}
               iconContainerClassName="bg-amber-50"
               iconClassName="text-amber-600"
+              isActive={activeStatKey === "pending"}
+              onClick={() => handleStatCardClick("pending")}
             />
             <StatCard
               label="Blocked Customers"
@@ -278,6 +364,8 @@ export function CustomersPageContent() {
               icon={Ban}
               iconContainerClassName="bg-red-50"
               iconClassName="text-red-600"
+              isActive={activeStatKey === "blocked"}
+              onClick={() => handleStatCardClick("blocked")}
             />
             <StatCard
               label="New Customers Today"
@@ -285,6 +373,8 @@ export function CustomersPageContent() {
               icon={UserPlus}
               iconContainerClassName="bg-orange-50"
               iconClassName="text-primary"
+              isActive={activeStatKey === "newToday"}
+              onClick={() => handleStatCardClick("newToday")}
             />
           </>
         )}

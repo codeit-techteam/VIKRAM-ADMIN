@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/table";
 import { ROUTES } from "@/constants/routes";
 import { NAV_FILTER_PRESETS } from "@/constants/navigation-filters";
+import { CeOrderDetailSheet } from "@/features/customer-executive/components/orders/CeOrderDetailSheet";
 import { CeMetricCard } from "@/features/customer-executive/components/shared/CeMetricCard";
 import { CePageShell } from "@/features/customer-executive/components/shared/CePageShell";
 import { CeSearchFilter } from "@/features/customer-executive/components/shared/CeSearchFilter";
@@ -57,12 +58,35 @@ export function CeOrdersPage() {
   const { isLoading } = useCeLoading();
   const queryOrders = useCustomerExecutiveStore((s) => s.queryOrders);
   const orders = useCustomerExecutiveStore((s) => s.orders);
+  const getOrder = useCustomerExecutiveStore((s) => s.getOrder);
 
   const [draftFilters, setDraftFilters] =
     useState<CeOrderFilters>(EMPTY_ORDER_FILTERS);
   const [appliedFilters, setAppliedFilters] =
     useState<CeOrderFilters>(EMPTY_ORDER_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const selectedOrder = useMemo(
+    () => (selectedOrderId ? (getOrder(selectedOrderId) ?? null) : null),
+    [selectedOrderId, getOrder],
+  );
+
+  const openOrderDetail = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    setDetailOpen(true);
+  };
+
+  const handleDetailOpenChange = (open: boolean) => {
+    setDetailOpen(open);
+    if (!open) {
+      setSelectedOrderId(null);
+      if (searchParams.get("order")) {
+        router.replace(ROUTES.CUSTOMER_EXECUTIVE_ORDERS);
+      }
+    }
+  };
 
   useEffect(() => {
     const orderParam = searchParams.get("order");
@@ -97,8 +121,22 @@ export function CeOrdersPage() {
       setDraftFilters(filters);
       setAppliedFilters(filters);
       setCurrentPage(1);
+
+      if (orderParam) {
+        const matchedOrder =
+          getOrder(orderParam) ??
+          orders.find(
+            (order) =>
+              order.id === orderParam ||
+              order.orderNumber.toLowerCase() === orderParam.toLowerCase(),
+          );
+
+        if (matchedOrder) {
+          openOrderDetail(matchedOrder.id);
+        }
+      }
     }
-  }, [searchParams]);
+  }, [searchParams, getOrder, orders]);
 
   const queryResult = useMemo(
     () =>
@@ -162,6 +200,7 @@ export function CeOrdersPage() {
           label="Cancelled"
           value={stats.cancelled}
           isLoading={isLoading}
+          href={NAV_FILTER_PRESETS.ordersByStatus("CANCELLED")}
         />
       </div>
 
@@ -243,7 +282,11 @@ export function CeOrdersPage() {
             </TableHeader>
             <TableBody>
               {queryResult.items.map((order) => (
-                <TableRow key={order.id}>
+                <TableRow
+                  key={order.id}
+                  className="cursor-pointer hover:bg-orange-50/30"
+                  onClick={() => openOrderDetail(order.id)}
+                >
                   <TableCell className="text-primary font-medium">
                     #
                     <HighlightText
@@ -270,7 +313,7 @@ export function CeOrdersPage() {
                   <TableCell className="text-sm text-[#64748B]">
                     {order.eta ?? "—"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(event) => event.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={
@@ -281,11 +324,7 @@ export function CeOrdersPage() {
                       />
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
-                          onClick={() =>
-                            router.push(
-                              `${ROUTES.CUSTOMER_EXECUTIVE}/tracking?order=${order.orderNumber}`,
-                            )
-                          }
+                          onClick={() => openOrderDetail(order.id)}
                         >
                           <Eye className="size-4" />
                           View
@@ -337,6 +376,12 @@ export function CeOrdersPage() {
           />
         </div>
       )}
+
+      <CeOrderDetailSheet
+        open={detailOpen}
+        onOpenChange={handleDetailOpenChange}
+        order={selectedOrder}
+      />
 
       <Button
         size="icon-lg"

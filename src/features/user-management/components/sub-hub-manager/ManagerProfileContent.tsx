@@ -36,8 +36,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ROUTES } from "@/constants/routes";
+import { useLogisticsStore } from "@/store/logistics-store";
 import { useSubHubManagerStore } from "@/store/sub-hub-manager-store";
+import { normalizeHubInventory } from "@/store/sub-hub-state";
+import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 import { formatDate } from "@/utils/format-date";
+import { enrichManagersWithOps } from "@/utils/manager-ops-metrics";
 import { notify } from "@/utils/notify";
 import { cn } from "@/lib/utils";
 
@@ -160,6 +164,11 @@ export function ManagerProfileContent({
   );
   const managers = useSubHubManagerStore((state) => state.managers);
 
+  const hubInventory = useWarehouseErpStore((state) => state.hubInventory);
+  const requisitions = useWarehouseErpStore((state) => state.requisitions);
+  const transfers = useWarehouseErpStore((state) => state.transfers);
+  const drivers = useLogisticsStore((state) => state.drivers);
+
   const [isLoading, setIsLoading] = useState(true);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
 
@@ -168,10 +177,38 @@ export function ManagerProfileContent({
     return () => window.clearTimeout(timer);
   }, [managerId]);
 
-  const profile = useMemo(
-    () => getManagerProfile(managerId),
-    [getManagerProfile, managerId, managers],
-  );
+  const profile = useMemo(() => {
+    const base = getManagerProfile(managerId);
+    if (!base) return null;
+
+    const [enriched] = enrichManagersWithOps([base], {
+      hubInventory: normalizeHubInventory(hubInventory),
+      requisitions,
+      transfers,
+      drivers,
+    });
+
+    return {
+      ...base,
+      ...enriched,
+      hub: {
+        ...base.hub,
+        pendingRequisitions: enriched.pendingRequisitions,
+        pendingDispatches: enriched.pendingDispatches,
+        todayOrders: enriched.todayOrders,
+        lowStockItems: enriched.lowStockItems,
+        drivers: enriched.totalDrivers,
+      },
+    };
+  }, [
+    getManagerProfile,
+    managerId,
+    managers,
+    hubInventory,
+    requisitions,
+    transfers,
+    drivers,
+  ]);
 
   if (isLoading) {
     return <ProfileSkeleton />;

@@ -76,9 +76,3 @@ export const CATALOG_FILTER_OPTIONS = {
     { value: "out-of-stock", label: "Out of Stock" },
   ],
 } as const;
-
-export const CATALOG_SUB_MODULE_TABS = [
-  { id: "inventory", label: "Inventory" },
-  { id: "orders", label: "Orders" },
-  { id: "logistics", label: "Logistics" },
-] as const;

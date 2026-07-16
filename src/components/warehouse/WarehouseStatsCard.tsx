@@ -41,9 +41,10 @@ export function WarehouseStatsCard({
   }
 
   const cardClassName = cn(
-    "rounded-xl border border-gray-100 p-6 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-lg",
+    "rounded-xl border border-gray-100 p-5 shadow-sm transition-all duration-200",
     isWarning ? "bg-orange-50/60" : "bg-white",
-    stat.href && "cursor-pointer hover:border-primary/20",
+    stat.href &&
+      "hover:border-primary/20 hover:shadow-md focus-visible:ring-primary/25 cursor-pointer focus-visible:ring-2 focus-visible:outline-none",
   );
 
   const content = (

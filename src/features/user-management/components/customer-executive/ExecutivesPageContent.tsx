@@ -33,6 +33,53 @@ import { ROUTES } from "@/constants/routes";
 import { useCustomerStore } from "@/store/customer-store";
 import { notify } from "@/utils/notify";
 
+type ExecutiveStatKey = "total" | "available" | "ordersToday" | "callsAssisted";
+
+function getActiveStatKey(filters: ExecutiveFilters): ExecutiveStatKey | null {
+  if (filters.activity === "orders-today" && filters.status === "all") {
+    return "ordersToday";
+  }
+
+  if (filters.activity === "calls-assisted" && filters.status === "all") {
+    return "callsAssisted";
+  }
+
+  if (filters.status === "AVAILABLE" && filters.activity === "all") {
+    return "available";
+  }
+
+  if (filters.status === "all" && filters.activity === "all") {
+    return "total";
+  }
+
+  return null;
+}
+
+function buildStatCardFilters(statId: ExecutiveStatKey): ExecutiveFilters {
+  if (statId === "available") {
+    return {
+      ...EMPTY_EXECUTIVE_FILTERS,
+      status: "AVAILABLE",
+    };
+  }
+
+  if (statId === "ordersToday") {
+    return {
+      ...EMPTY_EXECUTIVE_FILTERS,
+      activity: "orders-today",
+    };
+  }
+
+  if (statId === "callsAssisted") {
+    return {
+      ...EMPTY_EXECUTIVE_FILTERS,
+      activity: "calls-assisted",
+    };
+  }
+
+  return { ...EMPTY_EXECUTIVE_FILTERS };
+}
+
 export function ExecutivesPageContent() {
   const searchParams = useSearchParams();
   const queryExecutives = useCustomerStore((state) => state.queryExecutives);
@@ -98,6 +145,22 @@ export function ExecutivesPageContent() {
     setAppliedFilters(EMPTY_EXECUTIVE_FILTERS);
     setCurrentPage(1);
   }, []);
+
+  const activeStatKey = getActiveStatKey(appliedFilters);
+
+  const handleStatCardClick = useCallback(
+    (statId: ExecutiveStatKey) => {
+      const nextFilters =
+        activeStatKey === statId && statId !== "total"
+          ? EMPTY_EXECUTIVE_FILTERS
+          : buildStatCardFilters(statId);
+
+      setDraftFilters(nextFilters);
+      setAppliedFilters(nextFilters);
+      setCurrentPage(1);
+    },
+    [activeStatKey],
+  );
 
   const handleExecutiveAction = (
     action: string,
@@ -195,6 +258,8 @@ export function ExecutivesPageContent() {
               icon={Users}
               iconContainerClassName="bg-amber-50"
               iconClassName="text-amber-700"
+              isActive={activeStatKey === "total"}
+              onClick={() => handleStatCardClick("total")}
             />
             <StatCard
               label="Available Today"
@@ -203,6 +268,8 @@ export function ExecutivesPageContent() {
               icon={UserCheck}
               iconContainerClassName="bg-blue-50"
               iconClassName="text-blue-600"
+              isActive={activeStatKey === "available"}
+              onClick={() => handleStatCardClick("available")}
             />
             <StatCard
               label="Orders Created Today"
@@ -211,6 +278,8 @@ export function ExecutivesPageContent() {
               icon={Package}
               iconContainerClassName="bg-purple-50"
               iconClassName="text-purple-600"
+              isActive={activeStatKey === "ordersToday"}
+              onClick={() => handleStatCardClick("ordersToday")}
             />
             <StatCard
               label="Customer Calls Assisted"
@@ -219,6 +288,8 @@ export function ExecutivesPageContent() {
               icon={Headphones}
               iconContainerClassName="bg-red-50"
               iconClassName="text-red-600"
+              isActive={activeStatKey === "callsAssisted"}
+              onClick={() => handleStatCardClick("callsAssisted")}
             />
           </>
         )}

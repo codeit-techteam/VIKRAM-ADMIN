@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  Download,
-  Eye,
-  EyeOff,
-  LayoutGrid,
-  FolderOpen,
-  Plus,
-} from "lucide-react";
+import { Eye, EyeOff, LayoutGrid, FolderOpen, Plus } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -15,7 +8,7 @@ import { ConfirmationDialog } from "@/components/allocation/ConfirmationDialog";
 import { FilterTabs } from "@/components/shared/FilterTabs";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { CategoryTable } from "@/features/cms/components/CategoryTable";
 import {
@@ -98,19 +91,13 @@ export function CategoriesPageContent() {
         subtitle="Organize and prioritize your construction supply hierarchy."
         breadcrumbs={getNavBreadcrumbsFromPath("/customer-app-cms/categories")}
         actions={
-          <>
-            <Button variant="outline" size="lg" className="h-10 gap-2 px-4">
-              <Download className="size-4" />
-              Export Categories
-            </Button>
-            <Link
-              href="/customer-app-cms/categories/new"
-              className={cn(buttonVariants({ size: "lg" }), "h-10 gap-2 px-4")}
-            >
-              <Plus className="size-4" />
-              Add Category
-            </Link>
-          </>
+          <Link
+            href="/customer-app-cms/categories/new"
+            className={cn(buttonVariants({ size: "lg" }), "h-10 gap-2 px-4")}
+          >
+            <Plus className="size-4" />
+            Add Category
+          </Link>
         }
       />
 

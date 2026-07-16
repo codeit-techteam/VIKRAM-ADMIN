@@ -1,7 +1,6 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { useState } from "react";
 
 import { Input } from "@/components/ui/input";
 import {
@@ -24,15 +23,24 @@ const ROW_COUNT_OPTIONS = [10, 25, 50, 100] as const;
 interface FilterToolbarProps {
   searchPlaceholder?: string;
   className?: string;
+  search?: string;
+  onSearchChange?: (value: string) => void;
+  status?: string;
+  onStatusChange?: (value: string) => void;
+  rowCount?: string;
+  onRowCountChange?: (value: string) => void;
 }
 
 export function FilterToolbar({
   searchPlaceholder = "Filter by title or target...",
   className,
+  search = "",
+  onSearchChange,
+  status = "all",
+  onStatusChange,
+  rowCount = "10",
+  onRowCountChange,
 }: FilterToolbarProps) {
-  const [status, setStatus] = useState("all");
-  const [rowCount, setRowCount] = useState("10");
-
   return (
     <div
       className={cn(
@@ -45,6 +53,8 @@ export function FilterToolbar({
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-gray-400" />
           <Input
             type="search"
+            value={search}
+            onChange={(event) => onSearchChange?.(event.target.value)}
             placeholder={searchPlaceholder}
             className="h-9 border-gray-200 bg-white pl-9 text-sm placeholder:text-gray-400"
           />
@@ -53,7 +63,7 @@ export function FilterToolbar({
         <Select
           value={status}
           onValueChange={(value) => {
-            if (value) setStatus(value);
+            if (value) onStatusChange?.(value);
           }}
         >
           <SelectTrigger className="h-9 w-full border-gray-200 sm:w-auto">
@@ -73,7 +83,7 @@ export function FilterToolbar({
       <Select
         value={rowCount}
         onValueChange={(value) => {
-          if (value) setRowCount(value);
+          if (value) onRowCountChange?.(value);
         }}
       >
         <SelectTrigger className="h-9 w-full border-gray-200 sm:ml-auto sm:w-auto">

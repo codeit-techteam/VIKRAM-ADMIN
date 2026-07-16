@@ -24,6 +24,10 @@ export const USER_MANAGEMENT_NAV_GROUPS: NavChildGroup[] = [
         label: "Sub Hub Managers",
         href: `${ROUTES.USER_MANAGEMENT}/sub-hub-managers`,
       },
+      {
+        label: "Drivers",
+        href: ROUTES.USER_MANAGEMENT_DRIVERS,
+      },
     ],
   },
 ];
@@ -50,6 +54,6 @@ export const USER_MANAGEMENT_TABS = [
   {
     id: "drivers",
     label: "Drivers",
-    href: `${ROUTES.USER_MANAGEMENT}/drivers`,
+    href: ROUTES.USER_MANAGEMENT_DRIVERS,
   },
 ] as const;

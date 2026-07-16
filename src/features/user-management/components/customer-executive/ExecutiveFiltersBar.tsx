@@ -91,7 +91,11 @@ export function ExecutiveFiltersBar({
         <Select
           value={filters.status}
           onValueChange={(value) =>
-            onChange({ ...filters, status: value ?? "all" })
+            onChange({
+              ...filters,
+              status: value ?? "all",
+              activity: "all",
+            })
           }
         >
           <SelectTrigger className="w-full lg:w-[140px]">

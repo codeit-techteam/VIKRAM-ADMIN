@@ -288,16 +288,22 @@ export function FleetDriversPage() {
                           >
                             View Profile
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() =>
-                              notify.success(
-                                "Vehicle Assigned",
-                                `Vehicle assignment initiated for ${driver.name}.`,
-                              )
-                            }
-                          >
-                            Assign Vehicle
-                          </DropdownMenuItem>
+                          {driver.status === "available" ? (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                notify.success(
+                                  driver.assignedVehicleId
+                                    ? "Vehicle Reassigned"
+                                    : "Vehicle Assigned",
+                                  `Vehicle assignment initiated for ${driver.name}.`,
+                                )
+                              }
+                            >
+                              {driver.assignedVehicleId
+                                ? "Reassign Vehicle"
+                                : "Assign Vehicle"}
+                            </DropdownMenuItem>
+                          ) : null}
                           <DropdownMenuItem
                             onClick={() =>
                               notify.success(

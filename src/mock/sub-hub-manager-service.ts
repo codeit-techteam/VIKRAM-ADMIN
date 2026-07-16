@@ -12,137 +12,42 @@ import type {
   SubHubManager,
   HubSummary,
 } from "@/features/user-management/types/sub-hub-manager.types";
+import { SUB_HUBS } from "@/mock/sub-hubs";
+import { managerNeedsAttention } from "@/utils/manager-ops-metrics";
 
-// ─── Reference data ───────────────────────────────────────────────────────────
+// ─── Reference data (aligned with Sub-Hub Network) ────────────────────────────
 
-export const MANAGER_HUBS: HubSummary[] = [
-  {
-    hubId: "hub-mum-01",
-    hubName: "Mumbai Central Hub",
-    hubCode: "MUM-01",
-    city: "Mumbai",
-    warehouse: "Mumbai Central Warehouse",
-    coverageRadius: "15 km",
-    pendingRequisitions: 3,
-    pendingDispatches: 8,
-    todayOrders: 27,
-    lowStockItems: 4,
-    drivers: 22,
-  },
-  {
-    hubId: "hub-pun-01",
-    hubName: "Pune West Hub",
-    hubCode: "PUN-01",
-    city: "Pune",
-    warehouse: "Pune Regional Warehouse",
-    coverageRadius: "12 km",
-    pendingRequisitions: 7,
-    pendingDispatches: 16,
-    todayOrders: 41,
-    lowStockItems: 12,
-    drivers: 18,
-  },
-  {
-    hubId: "hub-del-01",
-    hubName: "Delhi South Hub",
-    hubCode: "DEL-01",
-    city: "Delhi",
-    warehouse: "Delhi Central Warehouse",
-    coverageRadius: "18 km",
-    pendingRequisitions: 2,
-    pendingDispatches: 5,
-    todayOrders: 19,
-    lowStockItems: 3,
-    drivers: 14,
-  },
-  {
-    hubId: "hub-gur-01",
-    hubName: "Gurgaon Central Hub",
-    hubCode: "GUR-01",
-    city: "Gurgaon",
-    warehouse: "NCR Regional Warehouse",
-    coverageRadius: "10 km",
-    pendingRequisitions: 6,
-    pendingDispatches: 20,
-    todayOrders: 55,
-    lowStockItems: 15,
-    drivers: 20,
-  },
-  {
-    hubId: "hub-nag-01",
-    hubName: "Nagpur North Hub",
-    hubCode: "NAG-01",
-    city: "Nagpur",
-    warehouse: "Nagpur Warehouse",
-    coverageRadius: "20 km",
-    pendingRequisitions: 4,
-    pendingDispatches: 9,
-    todayOrders: 22,
-    lowStockItems: 6,
-    drivers: 12,
-  },
-  {
-    hubId: "hub-hyd-01",
-    hubName: "Hyderabad East Hub",
-    hubCode: "HYD-01",
-    city: "Hyderabad",
-    warehouse: "Hyderabad Warehouse",
-    coverageRadius: "14 km",
-    pendingRequisitions: 9,
-    pendingDispatches: 18,
-    todayOrders: 48,
-    lowStockItems: 11,
-    drivers: 16,
-  },
-  {
-    hubId: "hub-che-01",
-    hubName: "Chennai Central Hub",
-    hubCode: "CHE-01",
-    city: "Chennai",
-    warehouse: "Chennai Warehouse",
-    coverageRadius: "16 km",
-    pendingRequisitions: 1,
-    pendingDispatches: 4,
-    todayOrders: 14,
-    lowStockItems: 2,
-    drivers: 10,
-  },
-  {
-    hubId: "hub-ban-01",
-    hubName: "Bangalore South Hub",
-    hubCode: "BAN-01",
-    city: "Bangalore",
-    warehouse: "Bangalore Warehouse",
-    coverageRadius: "11 km",
-    pendingRequisitions: 5,
-    pendingDispatches: 12,
-    todayOrders: 33,
-    lowStockItems: 8,
-    drivers: 15,
-  },
-];
+function warehouseForCity(city: string): string {
+  if (city === "Gurgaon" || city === "Manesar")
+    return "Gurgaon Central Warehouse";
+  if (city === "Noida" || city === "Faridabad") return "NCR Regional Warehouse";
+  if (city === "New Delhi") return "Delhi Central Warehouse";
+  if (city === "Jaipur") return "Rajasthan Regional Warehouse";
+  return `${city} Regional Warehouse`;
+}
 
-const REGIONS: Record<string, string> = {
-  "hub-mum-01": "West Region",
-  "hub-pun-01": "West Region",
-  "hub-del-01": "North Region",
-  "hub-gur-01": "North NCR",
-  "hub-nag-01": "Central Region",
-  "hub-hyd-01": "South Region",
-  "hub-che-01": "South Region",
-  "hub-ban-01": "South Region",
-};
+/** Hub catalog shared by list, transfer, and profile — IDs match SUB_HUBS. */
+export const MANAGER_HUBS: HubSummary[] = SUB_HUBS.filter(
+  (hub) => hub.isActive,
+).map((hub) => ({
+  hubId: hub.id,
+  hubName: hub.name,
+  hubCode: hub.nodeId,
+  city: hub.city,
+  warehouse: warehouseForCity(hub.city),
+  coverageRadius: "12 km",
+  pendingRequisitions: 0,
+  pendingDispatches: 0,
+  todayOrders: 0,
+  lowStockItems: 0,
+  drivers: 12,
+}));
 
-const WAREHOUSES = [
-  "Mumbai Central Warehouse",
-  "Pune Regional Warehouse",
-  "Delhi Central Warehouse",
-  "NCR Regional Warehouse",
-  "Nagpur Warehouse",
-  "Hyderabad Warehouse",
-  "Chennai Warehouse",
-  "Bangalore Warehouse",
-];
+const REGIONS: Record<string, string> = Object.fromEntries(
+  SUB_HUBS.map((hub) => [hub.id, hub.region]),
+);
+
+const WAREHOUSES = [...new Set(MANAGER_HUBS.map((hub) => hub.warehouse))];
 
 const FIRST_NAMES = [
   "Arjun",
@@ -225,143 +130,90 @@ function computeStatus(manager: {
   return "ACTIVE";
 }
 
-// ─── Core 6 detailed managers ─────────────────────────────────────────────────
+// ─── Core managers (1:1 with Sub-Hub Network assigned managers) ───────────────
 
-const CORE_MANAGERS: SubHubManager[] = [
-  {
-    id: "mgr-001",
-    employeeId: "BQ-MGR-001",
-    name: "Arjun Sharma",
-    phone: "+91 98201 11001",
-    email: "arjun.sharma@bqindia.com",
-    hubId: "hub-mum-01",
-    hubName: "Mumbai Central Hub",
-    hubCode: "MUM-01",
-    warehouse: "Mumbai Central Warehouse",
-    region: "West Region",
-    city: "Mumbai",
-    pendingRequisitions: 3,
-    pendingDispatches: 8,
-    todayOrders: 27,
-    lowStockItems: 4,
-    availableDrivers: 18,
-    totalDrivers: 22,
-    joiningDate: daysAgoIso(420),
-    status: "ACTIVE",
-  },
-  {
-    id: "mgr-002",
-    employeeId: "BQ-MGR-002",
-    name: "Kavita Mehta",
-    phone: "+91 98201 11002",
-    email: "kavita.mehta@bqindia.com",
-    hubId: "hub-pun-01",
-    hubName: "Pune West Hub",
-    hubCode: "PUN-01",
-    warehouse: "Pune Regional Warehouse",
-    region: "West Region",
-    city: "Pune",
-    pendingRequisitions: 7,
-    pendingDispatches: 16,
-    todayOrders: 41,
-    lowStockItems: 12,
-    availableDrivers: 12,
-    totalDrivers: 18,
-    joiningDate: daysAgoIso(380),
-    status: "BUSY",
-  },
-  {
-    id: "mgr-003",
-    employeeId: "BQ-MGR-003",
-    name: "Rahul Singh",
-    phone: "+91 98201 11003",
-    email: "rahul.singh@bqindia.com",
-    hubId: "hub-del-01",
-    hubName: "Delhi South Hub",
-    hubCode: "DEL-01",
-    warehouse: "Delhi Central Warehouse",
-    region: "North Region",
-    city: "Delhi",
-    pendingRequisitions: 2,
-    pendingDispatches: 5,
-    todayOrders: 19,
-    lowStockItems: 3,
-    availableDrivers: 11,
-    totalDrivers: 14,
-    joiningDate: daysAgoIso(510),
-    status: "ACTIVE",
-  },
-  {
-    id: "mgr-004",
-    employeeId: "BQ-MGR-004",
-    name: "Suresh Gupta",
-    phone: "+91 98201 11004",
-    email: "suresh.gupta@bqindia.com",
-    hubId: "hub-gur-01",
-    hubName: "Gurgaon Central Hub",
-    hubCode: "GUR-01",
-    warehouse: "NCR Regional Warehouse",
-    region: "North NCR",
-    city: "Gurgaon",
-    pendingRequisitions: 6,
-    pendingDispatches: 20,
-    todayOrders: 55,
-    lowStockItems: 15,
-    availableDrivers: 14,
-    totalDrivers: 20,
-    joiningDate: daysAgoIso(290),
-    status: "ATTENTION",
-  },
-  {
-    id: "mgr-005",
-    employeeId: "BQ-MGR-005",
-    name: "Priya Reddy",
-    phone: "+91 98201 11005",
-    email: "priya.reddy@bqindia.com",
-    hubId: "hub-hyd-01",
-    hubName: "Hyderabad East Hub",
-    hubCode: "HYD-01",
-    warehouse: "Hyderabad Warehouse",
-    region: "South Region",
-    city: "Hyderabad",
-    pendingRequisitions: 9,
-    pendingDispatches: 18,
-    todayOrders: 48,
-    lowStockItems: 11,
-    availableDrivers: 10,
-    totalDrivers: 16,
-    joiningDate: daysAgoIso(615),
-    status: "ATTENTION",
-  },
-  {
-    id: "mgr-006",
-    employeeId: "BQ-MGR-006",
-    name: "Deepa Iyer",
-    phone: "+91 98201 11006",
-    email: "deepa.iyer@bqindia.com",
-    hubId: "hub-che-01",
-    hubName: "Chennai Central Hub",
-    hubCode: "CHE-01",
-    warehouse: "Chennai Warehouse",
-    region: "South Region",
-    city: "Chennai",
-    pendingRequisitions: 1,
-    pendingDispatches: 4,
-    todayOrders: 14,
-    lowStockItems: 2,
-    availableDrivers: 8,
-    totalDrivers: 10,
-    joiningDate: daysAgoIso(720),
-    status: "LEAVE",
-  },
-];
+function buildCoreManagerFromHub(
+  hub: (typeof SUB_HUBS)[number],
+  index: number,
+  overrides?: Partial<SubHubManager>,
+): SubHubManager {
+  const hash = hashString(hub.id);
+  const pendingRequisitions = 2 + (hash % 8);
+  const pendingDispatches = 4 + (hash % 18);
+  const todayOrders = 12 + (hash % 40);
+  const lowStockItems = hash % 14;
+  const totalDrivers = 10 + (hash % 12);
+  const availableDrivers = Math.min(
+    totalDrivers,
+    Math.floor(totalDrivers * 0.65) + (hash % 3),
+  );
+  const isOnLeave = !hub.isActive || overrides?.status === "LEAVE";
 
-// ─── Generated managers ────────────────────────────────────────────────────────
+  const base: SubHubManager = {
+    id: `mgr-${String(index + 1).padStart(3, "0")}`,
+    employeeId: `BQ-MGR-${String(index + 1).padStart(3, "0")}`,
+    name: hub.managerName,
+    phone: hub.managerPhone ?? `+91 98100 ${11000 + index}`,
+    email:
+      hub.managerEmail ??
+      `${hub.managerName.toLowerCase().replace(/\s+/g, ".")}@bajriwala.in`,
+    hubId: hub.id,
+    hubName: hub.name,
+    hubCode: hub.nodeId,
+    warehouse: warehouseForCity(hub.city),
+    region: hub.region,
+    city: hub.city,
+    pendingRequisitions,
+    pendingDispatches,
+    todayOrders,
+    lowStockItems,
+    availableDrivers,
+    totalDrivers,
+    joiningDate: hub.hubSince ?? daysAgoIso(365),
+    status: computeStatus({
+      pendingRequisitions,
+      pendingDispatches,
+      lowStockItems,
+      todayOrders,
+      isOnLeave,
+    }),
+  };
+
+  return { ...base, ...overrides, status: overrides?.status ?? base.status };
+}
+
+const CORE_MANAGERS: SubHubManager[] = SUB_HUBS.map((hub, index) =>
+  buildCoreManagerFromHub(
+    hub,
+    index,
+    !hub.isActive ? { status: "LEAVE" } : undefined,
+  ),
+);
+
+// ─── Generated relief / secondary managers ─────────────────────────────────────
 
 const TOTAL_MANAGERS = 24;
 
 function buildGeneratedManager(index: number): SubHubManager {
-  const hub = MANAGER_HUBS[index % MANAGER_HUBS.length];
+  const activeHubs =
+    MANAGER_HUBS.length > 0
+      ? MANAGER_HUBS
+      : [
+          {
+            hubId: "hub-gurgaon-north",
+            hubName: "Gurgaon Central",
+            hubCode: "H-101",
+            city: "Gurgaon",
+            warehouse: warehouseForCity("Gurgaon"),
+            coverageRadius: "12 km",
+            pendingRequisitions: 0,
+            pendingDispatches: 0,
+            todayOrders: 0,
+            lowStockItems: 0,
+            drivers: 12,
+          },
+        ];
+  const hub = activeHubs[index % activeHubs.length];
   const firstName = FIRST_NAMES[(index * 7) % FIRST_NAMES.length];
   const lastName = LAST_NAMES[(index * 3) % LAST_NAMES.length];
   const id = `mgr-gen-${String(index + 1).padStart(3, "0")}`;
@@ -385,15 +237,15 @@ function buildGeneratedManager(index: number): SubHubManager {
 
   return {
     id,
-    employeeId: `BQ-MGR-${String(index + 7).padStart(3, "0")}`,
+    employeeId: `BQ-MGR-${String(index + CORE_MANAGERS.length + 1).padStart(3, "0")}`,
     name: `${firstName} ${lastName}`,
     phone: `+91 98${String(10000000 + hash).slice(0, 8)}`,
-    email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@bqindia.com`,
+    email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@bajriwala.in`,
     hubId: hub.hubId,
     hubName: hub.hubName,
     hubCode: hub.hubCode,
     warehouse: hub.warehouse,
-    region: REGIONS[hub.hubId] ?? "West Region",
+    region: REGIONS[hub.hubId] ?? "NCR North",
     city: hub.city,
     status,
     pendingRequisitions,
@@ -434,8 +286,12 @@ function matchesFilters(
   if (filters.hubId !== "all" && manager.hubId !== filters.hubId) {
     return false;
   }
-  if (filters.status !== "all" && manager.status !== filters.status) {
-    return false;
+  if (filters.status !== "all") {
+    if (filters.status === "NEED_ATTENTION") {
+      if (!managerNeedsAttention(manager)) return false;
+    } else if (manager.status !== filters.status) {
+      return false;
+    }
   }
   if (filters.warehouse !== "all" && manager.warehouse !== filters.warehouse) {
     return false;
@@ -461,12 +317,8 @@ export function computeManagerStats(
   return {
     totalManagers: managers.length,
     managersAvailable: managers.filter((m) => m.status === "ACTIVE").length,
-    managersNeedAttention: managers.filter(
-      (m) =>
-        m.pendingRequisitions > 5 ||
-        m.lowStockItems > 10 ||
-        m.pendingDispatches > 15,
-    ).length,
+    managersNeedAttention: managers.filter((m) => managerNeedsAttention(m))
+      .length,
     managersOnLeave: managers.filter((m) => m.status === "LEAVE").length,
   };
 }
@@ -569,8 +421,36 @@ export function getManagerProfile(
   if (!manager) return null;
 
   const hash = hashString(managerId);
-  const hub =
-    MANAGER_HUBS.find((h) => h.hubId === manager.hubId) ?? MANAGER_HUBS[0];
+  const networkHub = SUB_HUBS.find((h) => h.id === manager.hubId);
+  const hub: HubSummary =
+    MANAGER_HUBS.find((h) => h.hubId === manager.hubId) ??
+    (networkHub
+      ? {
+          hubId: networkHub.id,
+          hubName: networkHub.name,
+          hubCode: networkHub.nodeId,
+          city: networkHub.city,
+          warehouse: warehouseForCity(networkHub.city),
+          coverageRadius: "12 km",
+          pendingRequisitions: manager.pendingRequisitions,
+          pendingDispatches: manager.pendingDispatches,
+          todayOrders: manager.todayOrders,
+          lowStockItems: manager.lowStockItems,
+          drivers: manager.totalDrivers,
+        }
+      : {
+          hubId: manager.hubId,
+          hubName: manager.hubName,
+          hubCode: manager.hubCode,
+          city: manager.city,
+          warehouse: manager.warehouse,
+          coverageRadius: "12 km",
+          pendingRequisitions: manager.pendingRequisitions,
+          pendingDispatches: manager.pendingDispatches,
+          todayOrders: manager.todayOrders,
+          lowStockItems: manager.lowStockItems,
+          drivers: manager.totalDrivers,
+        });
 
   const hours = buildHours();
   const recentActivity: ManagerActivityEvent[] = ACTIVITY_TEMPLATES.slice(
@@ -633,15 +513,18 @@ export function getManagerProfile(
 
 export function getManagerFilterOptions() {
   const regions = [
-    ...new Set(MANAGER_HUBS.map((h) => REGIONS[h.hubId] ?? "West Region")),
+    ...new Set(MANAGER_HUBS.map((h) => REGIONS[h.hubId] ?? h.city)),
   ];
   return {
     regions: regions.map((r) => ({ value: r, label: r })),
     hubs: MANAGER_HUBS.map((h) => ({ value: h.hubId, label: h.hubName })),
-    statuses: (["ACTIVE", "BUSY", "ATTENTION", "LEAVE"] as const).map((s) => ({
-      value: s,
-      label: s.charAt(0) + s.slice(1).toLowerCase(),
-    })),
+    statuses: [
+      { value: "ACTIVE", label: "Active" },
+      { value: "BUSY", label: "Busy" },
+      { value: "ATTENTION", label: "Attention" },
+      { value: "NEED_ATTENTION", label: "Need Attention" },
+      { value: "LEAVE", label: "Leave" },
+    ],
     warehouses: WAREHOUSES.map((w) => ({ value: w, label: w })),
   };
 }

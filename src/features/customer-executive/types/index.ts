@@ -218,6 +218,7 @@ export interface CeCustomerFilters {
   city: string;
   status: CustomerStatus | "ALL";
   customerType: CustomerType | "ALL";
+  activeThisMonth: boolean;
 }
 
 export interface CeOrderFilters {
@@ -308,6 +309,7 @@ export const EMPTY_CUSTOMER_FILTERS: CeCustomerFilters = {
   city: "ALL",
   status: "ALL",
   customerType: "ALL",
+  activeThisMonth: false,
 };
 
 export const EMPTY_ORDER_FILTERS: CeOrderFilters = {

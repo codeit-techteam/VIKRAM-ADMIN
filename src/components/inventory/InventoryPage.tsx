@@ -1,16 +1,25 @@
 "use client";
 
+import Link from "next/link";
+import { Calendar, Download, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
+import { InventoryDetailSheet } from "@/components/inventory/InventoryDetailSheet";
 import { InventoryFilters } from "@/components/inventory/InventoryFilters";
 import {
   InventoryStatsCard,
   type InventoryStatKey,
 } from "@/components/inventory/InventoryStatsCard";
 import { InventoryTable } from "@/components/inventory/InventoryTable";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { Button } from "@/components/ui/button";
+import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
+import { ROUTES } from "@/constants/routes";
 import {
   computeInventoryStats,
   formatInventoryItemsCount,
+  getAvailableStock,
   getInventoryStockStatus,
   INVENTORY_CATEGORY_FILTERS,
   INVENTORY_PAGE_SIZE,
@@ -21,6 +30,7 @@ import type {
   InventoryItem,
   InventoryStockStatus,
 } from "@/types/inventory.types";
+import { notify } from "@/utils/notify";
 
 const CLICKABLE_STATS: InventoryStatKey[] = [
   "inventory-items",
@@ -36,7 +46,53 @@ const STAT_STATUS_MAP: Partial<
   "out-of-stock-items": "out-of-stock",
 };
 
+function downloadInventoryCsv(items: InventoryItem[]) {
+  const header = [
+    "Product Name",
+    "SKU",
+    "Category",
+    "Current Stock",
+    "Reserved",
+    "Available",
+    "Minimum Stock",
+    "Unit",
+    "Purchase Price",
+    "Status",
+  ];
+
+  const lines = items.map((item) => {
+    const available = getAvailableStock(item);
+    const status = getInventoryStockStatus(item);
+
+    return [
+      item.productName,
+      item.sku,
+      item.category,
+      item.currentStock,
+      item.committedStock,
+      available,
+      item.minimumStock,
+      item.unit,
+      item.purchasePrice,
+      status,
+    ]
+      .map((cell) => `"${String(cell).replaceAll('"', '""')}"`)
+      .join(",");
+  });
+
+  const blob = new Blob([[header.join(","), ...lines].join("\n")], {
+    type: "text/csv;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `central-warehouse-inventory-${Date.now()}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export function InventoryPage() {
+  const searchParams = useSearchParams();
   const inventoryItems = useWarehouseErpStore((state) => state.inventory);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -44,11 +100,20 @@ export function InventoryPage() {
     useState<InventoryCategoryFilter["slug"]>("all");
   const [activeStat, setActiveStat] = useState<InventoryStatKey | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setIsLoading(false), 600);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get("alert") === "low-stock") {
+      setActiveStat("low-stock-alerts");
+      setCurrentPage(1);
+    }
+  }, [searchParams]);
 
   const stats = useMemo(
     () => computeInventoryStats(inventoryItems),
@@ -147,8 +212,17 @@ export function InventoryPage() {
     window.setTimeout(() => setIsRefreshing(false), 800);
   };
 
+  const handleExportCsv = () => {
+    downloadInventoryCsv(filteredItems);
+    notify.success(
+      "Export started",
+      `${filteredItems.length} inventory item${filteredItems.length === 1 ? "" : "s"} exported as CSV.`,
+    );
+  };
+
   const handleViewItem = (item: InventoryItem) => {
-    void item;
+    setSelectedItem(item);
+    setDetailOpen(true);
   };
 
   const handleEditItem = (item: InventoryItem) => {
@@ -157,6 +231,44 @@ export function InventoryPage() {
 
   return (
     <div className="space-y-5">
+      <PageHeader
+        title="Inventory Management - Central Warehouse"
+        breadcrumbs={getNavBreadcrumbsFromPath("/central-warehouse/inventory")}
+        actions={
+          <>
+            <Button variant="outline" className="h-10 gap-2 px-4">
+              <Calendar className="size-4" />
+              {new Date().toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 gap-2 px-4"
+              onClick={handleExportCsv}
+              disabled={filteredItems.length === 0}
+            >
+              <Download className="size-4" />
+              Export CSV
+            </Button>
+            <Button
+              className="h-10 gap-2 px-4"
+              render={
+                <Link
+                  href={`${ROUTES.CENTRAL_WAREHOUSE}/inventory/add-material`}
+                />
+              }
+            >
+              <Plus className="size-4" />
+              Add New Material
+            </Button>
+          </>
+        }
+      />
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {statCards.map((stat) => (
           <InventoryStatsCard
@@ -195,6 +307,12 @@ export function InventoryPage() {
           }
         />
       </div>
+
+      <InventoryDetailSheet
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        item={selectedItem}
+      />
     </div>
   );
 }

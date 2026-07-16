@@ -8,13 +8,12 @@ import {
 } from "@tanstack/react-table";
 import { Eye, Package } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { DashboardCard } from "@/components/shared/DashboardCard";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { DataTableSkeleton } from "@/components/tables/data-table-skeleton";
 import {
   Table,
@@ -25,7 +24,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { NAV_FILTER_PRESETS } from "@/constants/navigation-filters";
+import { CeOrderDetailSheet } from "@/features/customer-executive/components/orders/CeOrderDetailSheet";
 import type { RecentOrder } from "@/features/dashboard/types/dashboard.types";
+import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
 import { cn } from "@/lib/utils";
 
 interface RecentOrdersTableProps {
@@ -39,7 +40,26 @@ export function RecentOrdersTable({
   orders,
   isLoading,
 }: RecentOrdersTableProps) {
-  const router = useRouter();
+  const getOrder = useCustomerExecutiveStore((s) => s.getOrder);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const selectedOrder = useMemo(
+    () => (selectedOrderId ? (getOrder(selectedOrderId) ?? null) : null),
+    [selectedOrderId, getOrder],
+  );
+
+  const openOrderDetail = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    setDetailOpen(true);
+  };
+
+  const handleDetailOpenChange = (open: boolean) => {
+    setDetailOpen(open);
+    if (!open) {
+      setSelectedOrderId(null);
+    }
+  };
 
   const columns = useMemo(
     () => [
@@ -151,17 +171,19 @@ export function RecentOrdersTable({
         id: "actions",
         header: "Actions",
         cell: ({ row }) => (
-          <Link
-            href={row.original.href}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
             aria-label={`View ${row.original.orderId}`}
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "icon" }),
-              "size-8 text-[#8B5E3C] hover:bg-orange-50 hover:text-[#8B5E3C]",
-            )}
-            onClick={(event) => event.stopPropagation()}
+            className="size-8 text-[#8B5E3C] hover:bg-orange-50 hover:text-[#8B5E3C]"
+            onClick={(event) => {
+              event.stopPropagation();
+              openOrderDetail(row.original.id);
+            }}
           >
             <Eye className="size-4" />
-          </Link>
+          </Button>
         ),
       }),
     ],
@@ -225,7 +247,7 @@ export function RecentOrdersTable({
                 <TableRow
                   key={row.id}
                   className="cursor-pointer border-gray-100 transition-colors hover:bg-gray-50/80"
-                  onClick={() => router.push(row.original.href)}
+                  onClick={() => openOrderDetail(row.original.id)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className="py-4">
@@ -241,6 +263,12 @@ export function RecentOrdersTable({
           </Table>
         </div>
       )}
+
+      <CeOrderDetailSheet
+        open={detailOpen}
+        onOpenChange={handleDetailOpenChange}
+        order={selectedOrder}
+      />
     </DashboardCard>
   );
 }

@@ -201,13 +201,13 @@ export const quickActions: WarehouseQuickAction[] = [
     id: "receive-stock",
     label: "Receive Stock",
     icon: "receive-stock",
-    href: `${ROUTES.CENTRAL_WAREHOUSE}/receive`,
+    href: `${ROUTES.CENTRAL_WAREHOUSE}/inventory/add-material`,
   },
   {
     id: "approve-requisition",
     label: "Approve Requisition",
     icon: "approve-requisition",
-    href: `${ROUTES.CENTRAL_WAREHOUSE}/requisitions`,
+    href: `${ROUTES.CENTRAL_WAREHOUSE}/requisitions?status=PENDING`,
   },
   {
     id: "allocate-inventory",
@@ -223,7 +223,7 @@ export const quickActions: WarehouseQuickAction[] = [
   },
   {
     id: "inventory-management",
-    label: "Inventory Mgmt",
+    label: "Inventory",
     icon: "inventory-management",
     href: `${ROUTES.CENTRAL_WAREHOUSE}/inventory`,
   },

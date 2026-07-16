@@ -48,6 +48,17 @@ import { useLogisticsStore } from "@/store/logistics-store";
 import type { LogisticsVehicle, VehicleFilters } from "@/types/logistics.types";
 import { notify } from "@/utils/notify";
 
+type VehicleStatKey =
+  "total" | "running" | "available" | "maintenance" | "inactive";
+
+const STAT_STATUS_MAP: Record<VehicleStatKey, string> = {
+  total: "all",
+  running: "running",
+  available: "available",
+  maintenance: "maintenance",
+  inactive: "inactive",
+};
+
 export function FleetVehiclesPage() {
   const searchParams = useSearchParams();
   const { isLoading } = useLogisticsLoading();
@@ -107,6 +118,19 @@ export function FleetVehiclesPage() {
     [stats],
   );
 
+  const handleStatCardClick = (statId: VehicleStatKey) => {
+    const nextStatus = STAT_STATUS_MAP[statId];
+    setFilters((prev) => ({
+      ...prev,
+      status: prev.status === nextStatus ? "all" : nextStatus,
+    }));
+    setCurrentPage(1);
+  };
+
+  const activeStatId = (
+    Object.entries(STAT_STATUS_MAP) as [VehicleStatKey, string][]
+  ).find(([, status]) => status === filters.status)?.[0];
+
   const queryResult = useMemo(
     () => queryVehicles(vehicles, currentPage, LOGISTICS_PAGE_SIZE, filters),
     [vehicles, currentPage, filters],
@@ -116,7 +140,10 @@ export function FleetVehiclesPage() {
     {
       label: "Status",
       value: filters.status,
-      onChange: (v: string) => setFilters((f) => ({ ...f, status: v })),
+      onChange: (v: string) => {
+        setFilters((f) => ({ ...f, status: v }));
+        setCurrentPage(1);
+      },
       options: [
         { value: "all", label: "All Statuses" },
         { value: "available", label: "Available" },
@@ -130,7 +157,10 @@ export function FleetVehiclesPage() {
     {
       label: "Warehouse",
       value: filters.warehouse,
-      onChange: (v: string) => setFilters((f) => ({ ...f, warehouse: v })),
+      onChange: (v: string) => {
+        setFilters((f) => ({ ...f, warehouse: v }));
+        setCurrentPage(1);
+      },
       options: [
         { value: "all", label: "All" },
         ...LOGISTICS_WAREHOUSES.map((w) => ({ value: w, label: w })),
@@ -139,7 +169,10 @@ export function FleetVehiclesPage() {
     {
       label: "Hub",
       value: filters.hub,
-      onChange: (v: string) => setFilters((f) => ({ ...f, hub: v })),
+      onChange: (v: string) => {
+        setFilters((f) => ({ ...f, hub: v }));
+        setCurrentPage(1);
+      },
       options: [
         { value: "all", label: "All" },
         ...LOGISTICS_HUBS.map((h) => ({ value: h, label: h })),
@@ -174,6 +207,8 @@ export function FleetVehiclesPage() {
             key={stat.id}
             stat={stat}
             isLoading={isLoading}
+            isActive={activeStatId === stat.id}
+            onClick={() => handleStatCardClick(stat.id as VehicleStatKey)}
           />
         ))}
       </div>

@@ -326,6 +326,7 @@ export interface DispatchFilters {
   search: string;
   status: string;
   source: string;
+  assignment: "all" | "needs_driver" | "needs_vehicle";
 }
 
 export interface MaintenanceFilters {

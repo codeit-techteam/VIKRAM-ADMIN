@@ -38,12 +38,52 @@ import {
   queryDispatches,
 } from "@/mock/logistics";
 import { useLogisticsStore } from "@/store/logistics-store";
-import type { DispatchFilters, DispatchRecord } from "@/types/logistics.types";
+import type {
+  DispatchFilters,
+  DispatchRecord,
+  DispatchStatus,
+} from "@/types/logistics.types";
 import { notify } from "@/utils/notify";
+
+type DispatchStatKey = "pending" | "today" | "drivers" | "vehicles";
+
+const STAT_FILTER_MAP: Record<
+  DispatchStatKey,
+  Pick<DispatchFilters, "status" | "assignment">
+> = {
+  pending: { status: "pending", assignment: "all" },
+  today: { status: "all", assignment: "all" },
+  drivers: { status: "all", assignment: "needs_driver" },
+  vehicles: { status: "all", assignment: "needs_vehicle" },
+};
+
+const ASSIGNABLE_STATUSES: DispatchStatus[] = ["pending", "assigned"];
+
+function canAssignVehicle(item: DispatchRecord) {
+  return ASSIGNABLE_STATUSES.includes(item.status) && !item.vehicleId;
+}
+
+function canAssignDriver(item: DispatchRecord) {
+  return (
+    ASSIGNABLE_STATUSES.includes(item.status) &&
+    Boolean(item.vehicleId) &&
+    !item.driverId
+  );
+}
+
+function canReassignVehicle(item: DispatchRecord) {
+  return ASSIGNABLE_STATUSES.includes(item.status) && Boolean(item.vehicleId);
+}
+
+function canReassignDriver(item: DispatchRecord) {
+  return ASSIGNABLE_STATUSES.includes(item.status) && Boolean(item.driverId);
+}
 
 export function RouteDispatchPage() {
   const { isLoading } = useLogisticsLoading();
   const dispatches = useLogisticsStore((s) => s.dispatches);
+  const drivers = useLogisticsStore((s) => s.drivers);
+  const vehicles = useLogisticsStore((s) => s.vehicles);
   const generateDispatch = useLogisticsStore((s) => s.generateDispatch);
 
   const [filters, setFilters] = useState<DispatchFilters>(
@@ -53,8 +93,12 @@ export function RouteDispatchPage() {
   const [assignVehicleOpen, setAssignVehicleOpen] = useState(false);
   const [assignDriverOpen, setAssignDriverOpen] = useState(false);
   const [assignTargetId, setAssignTargetId] = useState("");
+  const [activeCard, setActiveCard] = useState<DispatchStatKey | null>(null);
 
-  const stats = useMemo(() => getDispatchStats(dispatches), [dispatches]);
+  const stats = useMemo(
+    () => getDispatchStats(dispatches, drivers, vehicles),
+    [dispatches, drivers, vehicles],
+  );
 
   const kpiCards = useMemo<LogisticsMetricCardData[]>(
     () => [
@@ -93,11 +137,33 @@ export function RouteDispatchPage() {
     [dispatches, currentPage, filters],
   );
 
+  const handleStatCardClick = (statId: DispatchStatKey) => {
+    if (activeCard === statId) {
+      setActiveCard(null);
+      setFilters(EMPTY_DISPATCH_FILTERS);
+      setCurrentPage(1);
+      return;
+    }
+
+    const next = STAT_FILTER_MAP[statId];
+    setActiveCard(statId);
+    setFilters((prev) => ({
+      ...prev,
+      status: next.status,
+      assignment: next.assignment,
+    }));
+    setCurrentPage(1);
+  };
+
   const filterConfigs = [
     {
       label: "Status",
       value: filters.status,
-      onChange: (v: string) => setFilters((f) => ({ ...f, status: v })),
+      onChange: (v: string) => {
+        setFilters((f) => ({ ...f, status: v, assignment: "all" }));
+        setActiveCard(v === "pending" ? "pending" : null);
+        setCurrentPage(1);
+      },
       options: [
         { value: "all", label: "All Statuses" },
         { value: "pending", label: "Pending" },
@@ -110,7 +176,10 @@ export function RouteDispatchPage() {
     {
       label: "Source",
       value: filters.source,
-      onChange: (v: string) => setFilters((f) => ({ ...f, source: v })),
+      onChange: (v: string) => {
+        setFilters((f) => ({ ...f, source: v }));
+        setCurrentPage(1);
+      },
       options: [
         { value: "all", label: "All Sources" },
         ...LOGISTICS_WAREHOUSES.map((w) => ({ value: w, label: w })),
@@ -167,6 +236,8 @@ export function RouteDispatchPage() {
             key={stat.id}
             stat={stat}
             isLoading={isLoading}
+            isActive={activeCard === stat.id}
+            onClick={() => handleStatCardClick(stat.id as DispatchStatKey)}
           />
         ))}
       </div>
@@ -181,6 +252,7 @@ export function RouteDispatchPage() {
         filters={filterConfigs}
         onReset={() => {
           setFilters(EMPTY_DISPATCH_FILTERS);
+          setActiveCard(null);
           setCurrentPage(1);
         }}
       />
@@ -235,66 +307,99 @@ export function RouteDispatchPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {queryResult.data.map((item) => (
-                  <TableRow key={item.id} className="hover:bg-gray-50/50">
-                    <TableCell className="font-medium">
-                      {item.dispatchId}
-                    </TableCell>
-                    <TableCell className="max-w-[130px] truncate text-sm text-[#64748B]">
-                      {item.source}
-                    </TableCell>
-                    <TableCell className="max-w-[130px] truncate text-sm text-[#64748B]">
-                      {item.destination}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {item.vehicleNumber ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {item.driverName ?? "—"}
-                    </TableCell>
-                    <TableCell className="max-w-[160px] truncate text-sm text-[#64748B]">
-                      {item.route}
-                    </TableCell>
-                    <TableCell className="text-sm text-[#64748B]">
-                      {formatLogisticsDateTime(item.eta)}
-                    </TableCell>
-                    <TableCell>
-                      <LogisticsStatusBadge status={item.status} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <Button
-                              size="icon-sm"
-                              variant="ghost"
-                              className="size-8"
+                {queryResult.data.map((item) => {
+                  const showAssignVehicle = canAssignVehicle(item);
+                  const showAssignDriver = canAssignDriver(item);
+                  const showReassignVehicle = canReassignVehicle(item);
+                  const showReassignDriver = canReassignDriver(item);
+
+                  return (
+                    <TableRow key={item.id} className="hover:bg-gray-50/50">
+                      <TableCell className="font-medium">
+                        {item.dispatchId}
+                      </TableCell>
+                      <TableCell className="max-w-[130px] truncate text-sm text-[#64748B]">
+                        {item.source}
+                      </TableCell>
+                      <TableCell className="max-w-[130px] truncate text-sm text-[#64748B]">
+                        {item.destination}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {item.vehicleNumber ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {item.driverName ?? "—"}
+                      </TableCell>
+                      <TableCell className="max-w-[160px] truncate text-sm text-[#64748B]">
+                        {item.route}
+                      </TableCell>
+                      <TableCell className="text-sm text-[#64748B]">
+                        {formatLogisticsDateTime(item.eta)}
+                      </TableCell>
+                      <TableCell>
+                        <LogisticsStatusBadge status={item.status} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            render={
+                              <Button
+                                size="icon-sm"
+                                variant="ghost"
+                                className="size-8"
+                              >
+                                <MoreVertical className="size-4" />
+                              </Button>
+                            }
+                          />
+                          <DropdownMenuContent align="end">
+                            {showAssignVehicle ? (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  handleAction("assign-vehicle", item)
+                                }
+                              >
+                                Assign Vehicle
+                              </DropdownMenuItem>
+                            ) : null}
+                            {showAssignDriver ? (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  handleAction("assign-driver", item)
+                                }
+                              >
+                                Assign Driver
+                              </DropdownMenuItem>
+                            ) : null}
+                            {showReassignVehicle && !showAssignVehicle ? (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  handleAction("assign-vehicle", item)
+                                }
+                              >
+                                Change Vehicle
+                              </DropdownMenuItem>
+                            ) : null}
+                            {showReassignDriver && !showAssignDriver ? (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  handleAction("assign-driver", item)
+                                }
+                              >
+                                Change Driver
+                              </DropdownMenuItem>
+                            ) : null}
+                            <DropdownMenuItem
+                              onClick={() => handleAction("view-route", item)}
                             >
-                              <MoreVertical className="size-4" />
-                            </Button>
-                          }
-                        />
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => handleAction("assign-vehicle", item)}
-                          >
-                            Assign Vehicle
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleAction("assign-driver", item)}
-                          >
-                            Assign Driver
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleAction("view-route", item)}
-                          >
-                            View Route
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                              View Route
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Pagination } from "@/components/shared/Pagination";
@@ -76,6 +76,46 @@ import { UserPlus } from "lucide-react";
 
 const columnHelper = createColumnHelper<CeCustomer>();
 
+type CustomerStatKey = "total" | "vip" | "activeThisMonth";
+
+function isActiveThisMonth(customer: CeCustomer): boolean {
+  if (!customer.lastOrderAt) return false;
+  const d = new Date(customer.lastOrderAt);
+  const now = new Date();
+  return (
+    d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+  );
+}
+
+function getActiveStatKey(filters: CeCustomerFilters): CustomerStatKey | null {
+  if (filters.activeThisMonth && filters.status === "ALL") {
+    return "activeThisMonth";
+  }
+  if (filters.status === "VIP" && !filters.activeThisMonth) {
+    return "vip";
+  }
+  if (
+    filters.status === "ALL" &&
+    !filters.activeThisMonth &&
+    filters.city === "ALL" &&
+    filters.customerType === "ALL" &&
+    !filters.search
+  ) {
+    return "total";
+  }
+  return null;
+}
+
+function buildStatCardFilters(statId: CustomerStatKey): CeCustomerFilters {
+  if (statId === "vip") {
+    return { ...EMPTY_CUSTOMER_FILTERS, status: "VIP" };
+  }
+  if (statId === "activeThisMonth") {
+    return { ...EMPTY_CUSTOMER_FILTERS, activeThisMonth: true };
+  }
+  return EMPTY_CUSTOMER_FILTERS;
+}
+
 export function CeCustomersPage() {
   const router = useRouter();
   const { isLoading } = useCeLoading();
@@ -127,6 +167,33 @@ export function CeCustomersPage() {
     setAppliedFilters(draftFilters);
     setCurrentPage(1);
   };
+
+  const activeStatKey = getActiveStatKey(appliedFilters);
+
+  const handleStatCardClick = useCallback(
+    (statId: CustomerStatKey) => {
+      const nextFilters =
+        activeStatKey === statId && statId !== "total"
+          ? EMPTY_CUSTOMER_FILTERS
+          : buildStatCardFilters(statId);
+
+      setDraftFilters(nextFilters);
+      setAppliedFilters(nextFilters);
+      setCurrentPage(1);
+      setSelectedIds([]);
+    },
+    [activeStatKey],
+  );
+
+  const vipCount = useMemo(
+    () => customers.filter((c) => c.status === "VIP").length,
+    [customers],
+  );
+
+  const activeThisMonthCount = useMemo(
+    () => customers.filter(isActiveThisMonth).length,
+    [customers],
+  );
 
   const handleAssign = () => {
     if (!selectedExecutiveId || assignTargetIds.length === 0) return;
@@ -343,26 +410,22 @@ export function CeCustomersPage() {
           label="Total Customers"
           value={customers.length}
           isLoading={isLoading}
+          isActive={activeStatKey === "total"}
+          onClick={() => handleStatCardClick("total")}
         />
         <CeMetricCard
           label="VIP Customers"
-          value={customers.filter((c) => c.status === "VIP").length}
+          value={vipCount}
           isLoading={isLoading}
+          isActive={activeStatKey === "vip"}
+          onClick={() => handleStatCardClick("vip")}
         />
         <CeMetricCard
           label="Active This Month"
-          value={
-            customers.filter((c) => {
-              if (!c.lastOrderAt) return false;
-              const d = new Date(c.lastOrderAt);
-              const now = new Date();
-              return (
-                d.getMonth() === now.getMonth() &&
-                d.getFullYear() === now.getFullYear()
-              );
-            }).length
-          }
+          value={activeThisMonthCount}
           isLoading={isLoading}
+          isActive={activeStatKey === "activeThisMonth"}
+          onClick={() => handleStatCardClick("activeThisMonth")}
         />
       </div>
 
@@ -390,6 +453,7 @@ export function CeCustomersPage() {
               setDraftFilters((f) => ({
                 ...f,
                 status: v as CeCustomerFilters["status"],
+                activeThisMonth: false,
               })),
             options: [
               { label: "All Status", value: "ALL" },

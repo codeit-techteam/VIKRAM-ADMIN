@@ -4,7 +4,9 @@ import {
   getAllManagers,
   getManagerProfile,
   queryManagers,
+  MANAGER_HUBS,
 } from "@/mock/sub-hub-manager-service";
+import { SUB_HUBS } from "@/mock/sub-hubs";
 import type {
   CreateManagerPayload,
   ManagerFilters,
@@ -17,7 +19,6 @@ import type {
 import type { ManagerOnboardingSchema } from "@/features/user-management/schema/manager-onboarding.schema";
 import type { CreateManagerResult } from "@/features/user-management/types/manager-onboarding.types";
 import { getHubById, HUB_ASSIGNMENT_DATA } from "@/mock/manager-onboarding";
-import { MANAGER_HUBS } from "@/mock/sub-hub-manager-service";
 
 interface SubHubManagerStoreState {
   managers: SubHubManager[];
@@ -55,8 +56,16 @@ export const useSubHubManagerStore = create<SubHubManagerStoreState>(
         if (filters.hubId !== "all" && manager.hubId !== filters.hubId) {
           return false;
         }
-        if (filters.status !== "all" && manager.status !== filters.status) {
-          return false;
+        if (filters.status !== "all") {
+          if (filters.status === "NEED_ATTENTION") {
+            const needsAttention =
+              manager.pendingRequisitions > 5 ||
+              manager.lowStockItems > 10 ||
+              manager.pendingDispatches > 15;
+            if (!needsAttention) return false;
+          } else if (manager.status !== filters.status) {
+            return false;
+          }
         }
         if (
           filters.warehouse !== "all" &&
@@ -78,18 +87,29 @@ export const useSubHubManagerStore = create<SubHubManagerStoreState>(
 
     transferHub: (payload) => {
       const hub = MANAGER_HUBS.find((h) => h.hubId === payload.newHubId);
-      if (!hub) return;
+      const networkHub = SUB_HUBS.find((h) => h.id === payload.newHubId);
+      if (!hub && !networkHub) return;
+
+      const hubId = hub?.hubId ?? networkHub!.id;
+      const hubName = hub?.hubName ?? networkHub!.name;
+      const hubCode = hub?.hubCode ?? networkHub!.nodeId;
+      const city = hub?.city ?? networkHub!.city;
+      const warehouse =
+        hub?.warehouse ??
+        (networkHub ? `${networkHub.city} Regional Warehouse` : "");
+      const region = networkHub?.region;
 
       set((state) => ({
         managers: state.managers.map((manager) =>
           manager.id === payload.managerId
             ? {
                 ...manager,
-                hubId: hub.hubId,
-                hubName: hub.hubName,
-                hubCode: hub.hubCode,
-                warehouse: hub.warehouse,
-                city: hub.city,
+                hubId,
+                hubName,
+                hubCode,
+                warehouse,
+                city,
+                ...(region ? { region } : {}),
               }
             : manager,
         ),

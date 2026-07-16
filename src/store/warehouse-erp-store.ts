@@ -12,7 +12,6 @@ import {
   erpLogToInventoryActivity,
   generateAllocationId,
   generateId,
-  requisitionToCriticalItem,
   resolveMaterialName,
   resolveSku,
   upsertHubInventory,
@@ -41,7 +40,6 @@ import type {
   InventoryActivity,
   LoadingChecklist,
   MaterialAllocationItem,
-  Requisition,
   RequisitionApprovalPayload,
   RequisitionListItem,
   RequisitionRejectionPayload,
@@ -166,7 +164,7 @@ export interface WarehouseErpState {
   getPendingDispatchTransfers: () => TransferListItem[];
 
   getInventoryActivities: () => InventoryActivity[];
-  getCriticalRequisitions: () => Requisition[];
+  getCriticalRequisitions: () => RequisitionListItem[];
   getDashboardStats: () => WarehouseStat[];
   getSubHubDashboardKpis: () => SubHubStat[];
   getSubHubSummaries: () => SubHubSummary[];
@@ -1227,8 +1225,7 @@ export const useWarehouseErpStore = create<WarehouseErpState>((set, get) => ({
       .requisitions.filter(
         (item) => item.priority === "critical" && item.status === "PENDING",
       )
-      .slice(0, 5)
-      .map(requisitionToCriticalItem),
+      .slice(0, 5),
 
   getDashboardStats: () => {
     const state = get();

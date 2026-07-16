@@ -246,7 +246,21 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
 
   assignVehicleToDispatch: (dispatchId, vehicleId) => {
     const vehicle = get().vehicles.find((v) => v.id === vehicleId);
-    if (!vehicle) return;
+    if (!vehicle || vehicle.status !== "available") return;
+
+    const previous = get().dispatches.find((d) => d.dispatchId === dispatchId);
+    if (
+      !previous ||
+      previous.status === "in_transit" ||
+      previous.status === "dispatched" ||
+      previous.status === "completed" ||
+      previous.status === "cancelled"
+    ) {
+      return;
+    }
+
+    const previousVehicleId = previous.vehicleId;
+    const previousDriverId = previous.driverId;
 
     set((state) => ({
       dispatches: state.dispatches.map((d) =>
@@ -255,7 +269,41 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
               ...d,
               vehicleId,
               vehicleNumber: vehicle.vehicleNumber,
+              // Changing vehicle clears prior driver — reassign after vehicle
+              driverId: null,
+              driverName: null,
               status: d.status === "pending" ? "assigned" : d.status,
+            }
+          : d,
+      ),
+      vehicles: state.vehicles.map((v) => {
+        if (v.id === vehicleId) {
+          return {
+            ...v,
+            status: "assigned" as const,
+            currentShipmentId: dispatchId,
+            assignedDriverId: null,
+            assignedDriverName: null,
+          };
+        }
+        if (previousVehicleId && v.id === previousVehicleId) {
+          return {
+            ...v,
+            status: "available" as const,
+            currentShipmentId: null,
+            assignedDriverId: null,
+            assignedDriverName: null,
+          };
+        }
+        return v;
+      }),
+      drivers: state.drivers.map((d) =>
+        previousDriverId && d.id === previousDriverId
+          ? {
+              ...d,
+              status: "available" as const,
+              assignedVehicleId: null,
+              assignedVehicleNumber: null,
             }
           : d,
       ),
@@ -266,11 +314,63 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
     const driver = get().drivers.find((d) => d.id === driverId);
     if (!driver) return;
 
+    const dispatch = get().dispatches.find((d) => d.dispatchId === dispatchId);
+    if (!dispatch) return;
+
+    // Drivers can only be assigned once vehicle is set, and never while in transit/completed
+    if (
+      !dispatch.vehicleId ||
+      dispatch.status === "in_transit" ||
+      dispatch.status === "dispatched" ||
+      dispatch.status === "completed" ||
+      dispatch.status === "cancelled"
+    ) {
+      return;
+    }
+
+    const previousDriverId = dispatch.driverId;
+    const vehicleId = dispatch.vehicleId;
+    const vehicleNumber = dispatch.vehicleNumber;
+
     set((state) => ({
       dispatches: state.dispatches.map((d) =>
         d.dispatchId === dispatchId
-          ? { ...d, driverId, driverName: driver.name }
+          ? {
+              ...d,
+              driverId,
+              driverName: driver.name,
+              status: d.status === "pending" ? "assigned" : d.status,
+            }
           : d,
+      ),
+      drivers: state.drivers.map((d) => {
+        if (d.id === driverId) {
+          return {
+            ...d,
+            status: "available" as const,
+            assignedVehicleId: vehicleId,
+            assignedVehicleNumber: vehicleNumber,
+          };
+        }
+        if (previousDriverId && d.id === previousDriverId) {
+          return {
+            ...d,
+            status: "available" as const,
+            assignedVehicleId: null,
+            assignedVehicleNumber: null,
+          };
+        }
+        return d;
+      }),
+      vehicles: state.vehicles.map((v) =>
+        v.id === vehicleId
+          ? {
+              ...v,
+              assignedDriverId: driverId,
+              assignedDriverName: driver.name,
+              status: "assigned" as const,
+            }
+          : v,
       ),
     }));
   },

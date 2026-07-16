@@ -34,3 +34,8 @@ export {
   ManagersPageContent,
   ManagerProfileContent,
 } from "@/features/user-management/components/sub-hub-manager";
+export {
+  DriversPageContent,
+  DriverFiltersBar,
+  DriverTable,
+} from "@/features/user-management/components/drivers";

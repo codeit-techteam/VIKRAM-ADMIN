@@ -163,12 +163,16 @@ export interface ExecutiveDashboardStats {
   joinedThisMonth: number;
 }
 
+export type ExecutiveActivityFilter = "all" | "orders-today" | "calls-assisted";
+
 export interface ExecutiveFilters {
   search: string;
   region: string;
   hubId: string;
   status: string;
   dateRange: string;
+  /** KPI card activity filter (orders/calls today) */
+  activity: ExecutiveActivityFilter;
 }
 
 export interface ExecutiveQueryParams {
@@ -221,6 +225,7 @@ export const EMPTY_EXECUTIVE_FILTERS: ExecutiveFilters = {
   hubId: "all",
   status: "all",
   dateRange: "7",
+  activity: "all",
 };
 
 export const EXECUTIVE_PAGE_SIZE = 10;

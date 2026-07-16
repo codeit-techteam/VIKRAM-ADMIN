@@ -24,11 +24,19 @@ import type { Banner } from "@/features/cms/types/banner.types";
 
 interface BannerPreviewTableProps {
   banners: Banner[];
+  isLoading?: boolean;
+  onEdit?: (banner: Banner) => void;
+  onDelete?: (banner: Banner) => void;
 }
 
 const columnHelper = createColumnHelper<Banner>();
 
-export function BannerPreviewTable({ banners }: BannerPreviewTableProps) {
+export function BannerPreviewTable({
+  banners,
+  isLoading = false,
+  onEdit,
+  onDelete,
+}: BannerPreviewTableProps) {
   const columns = useMemo(
     () => [
       columnHelper.display({
@@ -100,6 +108,7 @@ export function BannerPreviewTable({ banners }: BannerPreviewTableProps) {
               variant="ghost"
               size="icon-sm"
               className="size-8 text-gray-400 hover:text-gray-600"
+              onClick={() => onEdit?.(row.original)}
             >
               <Pencil className="size-4" />
               <span className="sr-only">Edit {row.original.title}</span>
@@ -108,6 +117,7 @@ export function BannerPreviewTable({ banners }: BannerPreviewTableProps) {
               variant="ghost"
               size="icon-sm"
               className="size-8 text-red-400 hover:text-red-600"
+              onClick={() => onDelete?.(row.original)}
             >
               <Trash2 className="size-4" />
               <span className="sr-only">Delete {row.original.title}</span>
@@ -116,7 +126,7 @@ export function BannerPreviewTable({ banners }: BannerPreviewTableProps) {
         ),
       }),
     ],
-    [],
+    [onDelete, onEdit],
   );
 
   const table = useReactTable({
@@ -124,6 +134,22 @@ export function BannerPreviewTable({ banners }: BannerPreviewTableProps) {
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
+
+  if (isLoading) {
+    return (
+      <div className="flex h-40 items-center justify-center text-sm text-[#64748B]">
+        Loading banners...
+      </div>
+    );
+  }
+
+  if (banners.length === 0) {
+    return (
+      <div className="flex h-40 items-center justify-center text-sm text-[#64748B]">
+        No banners match your filters.
+      </div>
+    );
+  }
 
   return (
     <div className="overflow-x-auto">

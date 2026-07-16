@@ -27,6 +27,7 @@ export const ROUTES = {
   CUSTOMER_EXECUTIVE_ADD: "/user-management/customer-executives/add",
   SUB_HUB_MANAGERS: "/user-management/sub-hub-managers",
   SUB_HUB_MANAGER_ADD: "/user-management/sub-hub-managers/add",
+  USER_MANAGEMENT_DRIVERS: "/user-management/drivers",
   APPROVALS_CENTER: "/approvals",
   USER_ONBOARDING: "/user-management/onboarding",
   ANALYTICS_REPORTS: "/analytics-reports",

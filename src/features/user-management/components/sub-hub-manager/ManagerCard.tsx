@@ -1,20 +1,15 @@
 "use client";
 
-import {
-  ArrowRightLeft,
-  Eye,
-  MapPin,
-  Package,
-  Truck,
-  Users,
-} from "lucide-react";
+import { ArrowRightLeft, Eye, MapPin, Package, Users } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { ManagerStatusBadge } from "@/features/user-management/components/sub-hub-manager/ManagerStatusBadge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import type { SubHubManager } from "@/features/user-management/types/sub-hub-manager.types";
 import { ROUTES } from "@/constants/routes";
 import { cn } from "@/lib/utils";
+import { managerNeedsAttention } from "@/utils/manager-ops-metrics";
 
 const AVATAR_COLORS = [
   "bg-blue-100 text-blue-700",
@@ -66,15 +61,26 @@ interface ManagerCardProps {
 }
 
 export function ManagerCard({ manager, onTransfer }: ManagerCardProps) {
-  const isAttention =
-    manager.pendingRequisitions > 5 ||
-    manager.lowStockItems > 10 ||
-    manager.pendingDispatches > 15;
+  const router = useRouter();
+  const isAttention = managerNeedsAttention(manager);
+  const profileHref = `${ROUTES.SUB_HUB_MANAGERS}/${manager.id}`;
+  const hubHref = manager.hubId
+    ? `${ROUTES.SUB_HUB_NETWORK}/${manager.hubId}`
+    : ROUTES.SUB_HUB_NETWORK;
 
   return (
     <div
+      role="link"
+      tabIndex={0}
+      onClick={() => router.push(profileHref)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          router.push(profileHref);
+        }
+      }}
       className={cn(
-        "relative flex flex-col rounded-xl border bg-white p-5 shadow-sm transition-shadow hover:shadow-md",
+        "relative flex cursor-pointer flex-col rounded-xl border bg-white p-5 shadow-sm transition-shadow hover:shadow-md",
         isAttention ? "border-amber-200" : "border-gray-100",
       )}
     >
@@ -115,7 +121,7 @@ export function ManagerCard({ manager, onTransfer }: ManagerCardProps) {
         <ManagerStatusBadge status={manager.status} />
       </div>
 
-      {/* Operational summary */}
+      {/* Operational summary — live hub / fleet metrics */}
       <div className="mt-4 rounded-lg bg-[#FAFAF8] p-3">
         <p className="mb-2 text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
           Operational Summary
@@ -150,9 +156,13 @@ export function ManagerCard({ manager, onTransfer }: ManagerCardProps) {
       </div>
 
       {/* Actions */}
-      <div className="mt-4 flex items-center gap-2">
+      <div
+        className="mt-4 flex items-center gap-2"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
         <Link
-          href={`${ROUTES.SUB_HUB_MANAGERS}/${manager.id}`}
+          href={profileHref}
           className={buttonVariants({
             variant: "outline",
             size: "sm",
@@ -163,7 +173,7 @@ export function ManagerCard({ manager, onTransfer }: ManagerCardProps) {
           View Manager
         </Link>
         <Link
-          href={`${ROUTES.SUB_HUB_NETWORK}/${manager.hubId}`}
+          href={hubHref}
           className={buttonVariants({
             variant: "outline",
             size: "sm",

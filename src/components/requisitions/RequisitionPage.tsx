@@ -65,8 +65,14 @@ export function RequisitionPage() {
     const statusParam = searchParams.get("status");
     const hubParam = searchParams.get("hub");
     const typeParam = searchParams.get("type");
+    const chipParam = searchParams.get("chip");
 
-    if (statusParam?.toUpperCase() === "PENDING" || typeParam === "hub") {
+    if (chipParam === "critical") {
+      setActiveChip("critical");
+    } else if (
+      statusParam?.toUpperCase() === "PENDING" ||
+      typeParam === "hub"
+    ) {
       setActiveChip("pending");
     }
 

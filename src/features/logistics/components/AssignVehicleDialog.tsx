@@ -34,9 +34,7 @@ export function AssignVehicleDialog({
     (s) => s.assignVehicleToDispatch,
   );
 
-  const availableVehicles = vehicles.filter(
-    (v) => v.status === "available" || v.status === "assigned",
-  );
+  const availableVehicles = vehicles.filter((v) => v.status === "available");
 
   const handleAssign = (vehicleId: string) => {
     if (targetType === "dispatch") {

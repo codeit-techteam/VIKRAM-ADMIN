@@ -22,13 +22,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { CreateProductDialog } from "@/components/warehouse/products/CreateProductDialog";
 import {
   WAREHOUSE_PRODUCTS,
   WAREHOUSE_PRODUCT_CATEGORIES,
   type WarehouseProduct,
 } from "@/mock/warehouse-products";
 import { cn } from "@/lib/utils";
-import { notify } from "@/utils/notify";
 
 const statusStyles: Record<WarehouseProduct["status"], string> = {
   ACTIVE: "bg-emerald-100 text-emerald-700",
@@ -38,6 +38,8 @@ const statusStyles: Record<WarehouseProduct["status"], string> = {
 
 export function ProductsPage() {
   const [isLoading] = useState(false);
+  const [products, setProducts] =
+    useState<WarehouseProduct[]>(WAREHOUSE_PRODUCTS);
   const [searchQuery, setSearchQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -45,7 +47,7 @@ export function ProductsPage() {
   const filteredProducts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
-    return WAREHOUSE_PRODUCTS.filter((product) => {
+    return products.filter((product) => {
       const matchesSearch =
         query.length === 0 ||
         product.name.toLowerCase().includes(query) ||
@@ -61,16 +63,7 @@ export function ProductsPage() {
 
       return matchesSearch && matchesCategory;
     });
-  }, [searchQuery, category]);
-
-  const handleCreateProduct = () => {
-    setCreateDialogOpen(true);
-    notify.info(
-      "Create Product",
-      "Product creation form will open here. Frontend placeholder only.",
-    );
-    window.setTimeout(() => setCreateDialogOpen(false), 300);
-  };
+  }, [products, searchQuery, category]);
 
   return (
     <div className="space-y-5">
@@ -106,8 +99,7 @@ export function ProductsPage() {
         <Button
           type="button"
           className="h-10 gap-2 px-4"
-          onClick={handleCreateProduct}
-          disabled={createDialogOpen}
+          onClick={() => setCreateDialogOpen(true)}
         >
           <Plus className="size-4" />
           Create Product
@@ -204,6 +196,14 @@ export function ProductsPage() {
           </div>
         )}
       </div>
+
+      <CreateProductDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        onCreated={(product) => {
+          setProducts((current) => [product, ...current]);
+        }}
+      />
     </div>
   );
 }

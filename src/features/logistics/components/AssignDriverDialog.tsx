@@ -34,9 +34,7 @@ export function AssignDriverDialog({
     (s) => s.assignDriverToDispatch,
   );
 
-  const availableDrivers = drivers.filter(
-    (d) => d.status === "available" || d.status === "driving",
-  );
+  const availableDrivers = drivers.filter((d) => d.status === "available");
 
   const handleAssign = (driverId: string) => {
     if (targetType === "dispatch") {

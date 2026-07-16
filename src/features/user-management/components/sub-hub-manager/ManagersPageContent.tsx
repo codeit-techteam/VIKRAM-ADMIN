@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { Pagination } from "@/components/shared/Pagination";
 import { StatCard, StatCardSkeleton } from "@/components/shared/StatCard";
 import { UserManagementTabs } from "@/features/user-management/components/UserManagementTabs";
+import { AssignManagerHubDialog } from "@/features/user-management/components/sub-hub-manager/AssignManagerHubDialog";
 import {
   ManagerCard,
   ManagerCardSkeleton,
@@ -33,18 +34,46 @@ import {
   type ManagerFilters,
   type SubHubManager,
 } from "@/features/user-management/types/sub-hub-manager.types";
-import { getManagerFilterOptions } from "@/mock/sub-hub-manager-service";
+import {
+  getManagerFilterOptions,
+  queryManagers,
+} from "@/mock/sub-hub-manager-service";
 import { ROUTES } from "@/constants/routes";
+import { useLogisticsStore } from "@/store/logistics-store";
 import { useSubHubManagerStore } from "@/store/sub-hub-manager-store";
+import { normalizeHubInventory } from "@/store/sub-hub-state";
+import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
+import { enrichManagersWithOps } from "@/utils/manager-ops-metrics";
 import { notify } from "@/utils/notify";
 
+type ManagerStatKey = "total" | "available" | "attention" | "leave";
+
+const STAT_STATUS_MAP: Record<ManagerStatKey, string> = {
+  total: "all",
+  available: "ACTIVE",
+  attention: "NEED_ATTENTION",
+  leave: "LEAVE",
+};
+
+function getActiveStatKey(filters: ManagerFilters): ManagerStatKey | null {
+  if (filters.status === "ACTIVE") return "available";
+  if (filters.status === "NEED_ATTENTION") return "attention";
+  if (filters.status === "LEAVE") return "leave";
+  if (filters.status === "all") return "total";
+  return null;
+}
+
 export function ManagersPageContent() {
-  const queryManagers = useSubHubManagerStore((state) => state.queryManagers);
   const transferHub = useSubHubManagerStore((state) => state.transferHub);
   const deactivateManager = useSubHubManagerStore(
     (state) => state.deactivateManager,
   );
   const managers = useSubHubManagerStore((state) => state.managers);
+
+  const hubInventory = useWarehouseErpStore((state) => state.hubInventory);
+  const requisitions = useWarehouseErpStore((state) => state.requisitions);
+  const transfers = useWarehouseErpStore((state) => state.transfers);
+  const drivers = useLogisticsStore((state) => state.drivers);
 
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -60,33 +89,46 @@ export function ManagersPageContent() {
     null,
   );
   const [isTransferOpen, setIsTransferOpen] = useState(false);
+  const [isAssignOpen, setIsAssignOpen] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setIsLoading(false), 450);
     return () => window.clearTimeout(timer);
   }, []);
 
+  const enrichedManagers = useMemo(
+    () =>
+      enrichManagersWithOps(managers, {
+        hubInventory: normalizeHubInventory(hubInventory),
+        requisitions,
+        transfers,
+        drivers,
+      }),
+    [managers, hubInventory, requisitions, transfers, drivers],
+  );
+
   const tableResult = useMemo(
     () =>
-      queryManagers({
+      queryManagers(enrichedManagers, {
         page: currentPage,
         limit: MANAGER_PAGE_SIZE,
         filters: appliedFilters,
       }),
-    [queryManagers, currentPage, appliedFilters, managers],
+    [enrichedManagers, currentPage, appliedFilters],
   );
 
   const cardResult = useMemo(
     () =>
-      queryManagers({
+      queryManagers(enrichedManagers, {
         page: cardPage,
         limit: MANAGER_CARDS_PAGE_SIZE,
         filters: appliedFilters,
       }),
-    [queryManagers, cardPage, appliedFilters, managers],
+    [enrichedManagers, cardPage, appliedFilters],
   );
 
   const filterOptions = useMemo(() => getManagerFilterOptions(), []);
+  const activeStatKey = getActiveStatKey(appliedFilters);
 
   const handleApplyFilters = useCallback(() => {
     setAppliedFilters(draftFilters);
@@ -100,6 +142,26 @@ export function ManagersPageContent() {
     setCurrentPage(1);
     setCardPage(1);
   }, []);
+
+  const handleStatCardClick = useCallback(
+    (statId: ManagerStatKey) => {
+      const nextStatus =
+        activeStatKey === statId && statId !== "total"
+          ? "all"
+          : STAT_STATUS_MAP[statId];
+
+      const nextFilters: ManagerFilters = {
+        ...EMPTY_MANAGER_FILTERS,
+        status: nextStatus,
+      };
+
+      setDraftFilters(nextFilters);
+      setAppliedFilters(nextFilters);
+      setCurrentPage(1);
+      setCardPage(1);
+    },
+    [activeStatKey],
+  );
 
   const handleOpenTransfer = (manager: SubHubManager) => {
     setTransferManager(manager);
@@ -116,6 +178,20 @@ export function ManagersPageContent() {
     notify.success(
       "Manager Transferred",
       "Manager transferred successfully to new hub.",
+    );
+  };
+
+  const handleAssignHub = (managerId: string, hubId: string) => {
+    transferHub({
+      managerId,
+      newHubId: hubId,
+      reason: "Hub assignment from managers list",
+      effectiveDate: new Date().toISOString().split("T")[0],
+    });
+    const manager = enrichedManagers.find((m) => m.id === managerId);
+    notify.success(
+      "Hub Assigned",
+      `${manager?.name ?? "Manager"} assigned to the selected hub.`,
     );
   };
 
@@ -163,9 +239,7 @@ export function ManagersPageContent() {
               type="button"
               variant="outline"
               className="gap-2"
-              onClick={() =>
-                notify.success("Assign Hub", "Hub assignment flow opened.")
-              }
+              onClick={() => setIsAssignOpen(true)}
             >
               <Building2 className="size-4" />
               Assign Hub
@@ -220,6 +294,8 @@ export function ManagersPageContent() {
               icon={Users}
               iconContainerClassName="bg-blue-50"
               iconClassName="text-blue-600"
+              isActive={activeStatKey === "total"}
+              onClick={() => handleStatCardClick("total")}
             />
             <StatCard
               label="Managers Available"
@@ -228,6 +304,8 @@ export function ManagersPageContent() {
               icon={Zap}
               iconContainerClassName="bg-emerald-50"
               iconClassName="text-emerald-600"
+              isActive={activeStatKey === "available"}
+              onClick={() => handleStatCardClick("available")}
             />
             <StatCard
               label="Need Attention"
@@ -239,6 +317,8 @@ export function ManagersPageContent() {
               valueVariant={
                 stats.managersNeedAttention > 3 ? "warning" : "default"
               }
+              isActive={activeStatKey === "attention"}
+              onClick={() => handleStatCardClick("attention")}
             />
             <StatCard
               label="Managers On Leave"
@@ -247,6 +327,8 @@ export function ManagersPageContent() {
               icon={UserX}
               iconContainerClassName="bg-red-50"
               iconClassName="text-red-500"
+              isActive={activeStatKey === "leave"}
+              onClick={() => handleStatCardClick("leave")}
             />
           </>
         )}
@@ -339,6 +421,13 @@ export function ManagersPageContent() {
           setTransferManager(null);
         }}
         onTransfer={handleTransfer}
+      />
+
+      <AssignManagerHubDialog
+        open={isAssignOpen}
+        onClose={() => setIsAssignOpen(false)}
+        managers={enrichedManagers}
+        onAssign={handleAssignHub}
       />
     </div>
   );

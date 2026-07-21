@@ -91,4 +91,13 @@ export const API_ENDPOINTS = {
     PROFILE: "/settings/profile",
     PREFERENCES: "/settings/preferences",
   },
+  HUB_MANAGERS: {
+    BASE: "/admin/hub-managers",
+    HUBS: "/admin/hub-managers/hubs",
+    BY_ID: (id: string) => `/admin/hub-managers/${id}`,
+    TRANSFER: (id: string) => `/admin/hub-managers/${id}/transfer-hub`,
+    DEACTIVATE: (id: string) => `/admin/hub-managers/${id}/deactivate`,
+    REACTIVATE: (id: string) => `/admin/hub-managers/${id}/reactivate`,
+    RESET_PASSWORD: (id: string) => `/admin/hub-managers/${id}/reset-password`,
+  },
 } as const;

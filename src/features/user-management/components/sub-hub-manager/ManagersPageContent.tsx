@@ -38,9 +38,10 @@ import {
   getManagerFilterOptions,
   queryManagers,
 } from "@/mock/sub-hub-manager-service";
+import { hubManagerService } from "@/services/hubManager.service";
+import { getApiErrorMessage } from "@/services/api";
 import { ROUTES } from "@/constants/routes";
 import { useLogisticsStore } from "@/store/logistics-store";
-import { useSubHubManagerStore } from "@/store/sub-hub-manager-store";
 import { normalizeHubInventory } from "@/store/sub-hub-state";
 import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 import { enrichManagersWithOps } from "@/utils/manager-ops-metrics";
@@ -64,11 +65,8 @@ function getActiveStatKey(filters: ManagerFilters): ManagerStatKey | null {
 }
 
 export function ManagersPageContent() {
-  const transferHub = useSubHubManagerStore((state) => state.transferHub);
-  const deactivateManager = useSubHubManagerStore(
-    (state) => state.deactivateManager,
-  );
-  const managers = useSubHubManagerStore((state) => state.managers);
+  const [managers, setManagers] = useState<SubHubManager[]>([]);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const hubInventory = useWarehouseErpStore((state) => state.hubInventory);
   const requisitions = useWarehouseErpStore((state) => state.requisitions);
@@ -92,8 +90,26 @@ export function ManagersPageContent() {
   const [isAssignOpen, setIsAssignOpen] = useState(false);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 450);
-    return () => window.clearTimeout(timer);
+    let active = true;
+    setIsLoading(true);
+    hubManagerService
+      .list({ page: 1, limit: 100 })
+      .then((result) => {
+        if (!active) return;
+        setManagers(result.data);
+        setFetchError(null);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setFetchError(getApiErrorMessage(error));
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const enrichedManagers = useMemo(
@@ -168,39 +184,66 @@ export function ManagersPageContent() {
     setIsTransferOpen(true);
   };
 
-  const handleTransfer = (
+  const handleTransfer = async (
     managerId: string,
     newHubId: string,
     reason: string,
-    effectiveDate: string,
+    _effectiveDate: string,
   ) => {
-    transferHub({ managerId, newHubId, reason, effectiveDate });
-    notify.success(
-      "Manager Transferred",
-      "Manager transferred successfully to new hub.",
-    );
+    try {
+      const updated = await hubManagerService.transferHub(
+        managerId,
+        newHubId,
+        reason,
+      );
+      setManagers((current) =>
+        current.map((manager) =>
+          manager.id === managerId ? updated : manager,
+        ),
+      );
+      notify.success(
+        "Manager Transferred",
+        "Manager transferred successfully to new hub.",
+      );
+    } catch (error) {
+      notify.error("Transfer failed", getApiErrorMessage(error));
+    }
   };
 
-  const handleAssignHub = (managerId: string, hubId: string) => {
-    transferHub({
-      managerId,
-      newHubId: hubId,
-      reason: "Hub assignment from managers list",
-      effectiveDate: new Date().toISOString().split("T")[0],
-    });
-    const manager = enrichedManagers.find((m) => m.id === managerId);
-    notify.success(
-      "Hub Assigned",
-      `${manager?.name ?? "Manager"} assigned to the selected hub.`,
-    );
+  const handleAssignHub = async (managerId: string, hubId: string) => {
+    try {
+      const updated = await hubManagerService.transferHub(
+        managerId,
+        hubId,
+        "Hub assignment from managers list",
+      );
+      setManagers((current) =>
+        current.map((manager) =>
+          manager.id === managerId ? updated : manager,
+        ),
+      );
+      notify.success(
+        "Hub Assigned",
+        `${updated.name} assigned to the selected hub.`,
+      );
+    } catch (error) {
+      notify.error("Assignment failed", getApiErrorMessage(error));
+    }
   };
 
-  const handleDeactivate = (manager: SubHubManager) => {
-    deactivateManager(manager.id);
-    notify.success(
-      "Manager Deactivated",
-      `${manager.name} has been deactivated.`,
-    );
+  const handleDeactivate = async (manager: SubHubManager) => {
+    try {
+      const updated = await hubManagerService.deactivate(manager.id);
+      setManagers((current) =>
+        current.map((item) => (item.id === manager.id ? updated : item)),
+      );
+      notify.success(
+        "Manager Deactivated",
+        `${manager.name} has been deactivated.`,
+      );
+    } catch (error) {
+      notify.error("Deactivation failed", getApiErrorMessage(error));
+    }
   };
 
   const handleEdit = (manager: SubHubManager) => {

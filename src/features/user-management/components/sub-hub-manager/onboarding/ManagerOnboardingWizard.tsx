@@ -35,8 +35,9 @@ import {
 import type { CreateManagerResult } from "@/features/user-management/types/manager-onboarding.types";
 import { MANAGER_WIZARD_STEPS } from "@/mock/manager-onboarding";
 import { useManagerDraftStore } from "@/store/manager-draft-store";
-import { useSubHubManagerStore } from "@/store/sub-hub-manager-store";
 import { notify } from "@/utils/notify";
+import { hubManagerService } from "@/services/hubManager.service";
+import { getApiErrorMessage } from "@/services/api";
 
 const TOTAL_STEPS = MANAGER_WIZARD_STEPS.length;
 
@@ -74,11 +75,6 @@ export function ManagerOnboardingWizard() {
   );
   const markSaved = useManagerDraftStore((s) => s.markSaved);
   const resetDraft = useManagerDraftStore((s) => s.resetDraft);
-
-  const createManagerFromDraft = useSubHubManagerStore(
-    (s) => s.createManagerFromDraft,
-  );
-  const managers = useSubHubManagerStore((s) => s.managers);
 
   const [currentStep, setStep] = useState(draft.currentStep || 1);
   const [isLoading, setIsLoading] = useState(true);
@@ -221,29 +217,41 @@ export function ManagerOnboardingWizard() {
   const onCreateManager = async (data: ManagerOnboardingSchema) => {
     setIsCreating(true);
     try {
-      const result = createManagerFromDraft(data);
+      const created = await hubManagerService.create({
+        fullName: data.fullName,
+        employeeId: data.employeeId || undefined,
+        email: data.email,
+        phone: data.phone,
+        password: data.temporaryPassword,
+        hubId: data.hub,
+        isActive: data.accountActive,
+      });
+
+      const result: CreateManagerResult = {
+        id: created.id,
+        employeeId: created.employeeId,
+        name: created.fullName,
+        hubName: created.hubName,
+        hubCode: created.hubCode,
+        username: created.employeeId,
+        credentialsSent: data.sendWelcomeEmail || data.sendSms,
+      };
+
       setCreatedManager(result);
-      const existingIds = managers.map((m) => m.employeeId);
-      resetDraft(existingIds);
+      resetDraft([]);
       notify.success(
         "Manager Created Successfully",
         `${result.name} has been provisioned and assigned to ${result.hubName}.`,
       );
     } catch (error) {
-      notify.error(
-        "Unable to create manager",
-        error instanceof Error ? error.message : "Please review and try again.",
-      );
+      notify.error("Unable to create manager", getApiErrorMessage(error));
     } finally {
       setIsCreating(false);
     }
   };
 
   const handleCreateAnother = () => {
-    const existingIds = useSubHubManagerStore
-      .getState()
-      .managers.map((m) => m.employeeId);
-    resetDraft(existingIds);
+    resetDraft([]);
     reset(useManagerDraftStore.getState().draft as ManagerOnboardingSchema);
     setCreatedManager(null);
     goToStep(1);

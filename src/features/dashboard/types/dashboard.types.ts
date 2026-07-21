@@ -100,3 +100,55 @@ export interface WarehouseActivityData {
 export interface ExecutiveStatsData {
   items: ActivityStatItem[];
 }
+
+export interface DashboardMembershipPurchase {
+  id: string;
+  customer: string;
+  plan: string;
+  amount: string;
+  date: string;
+  href: string;
+}
+
+export interface DashboardWalletRefund {
+  id: string;
+  customer: string;
+  orderNumber: string;
+  amount: string;
+  status: string;
+  date: string;
+  href: string;
+}
+
+export interface DashboardBulkLead {
+  id: string;
+  company: string;
+  project: string;
+  value: string;
+  status: string;
+  href: string;
+}
+
+export interface DashboardTestimonialPreview {
+  id: string;
+  customerName: string;
+  city: string;
+  type: "VIDEO" | "IMAGE";
+  rating: number;
+  review: string;
+  mediaUrl: string;
+  status: string;
+  href: string;
+}
+
+export interface CustomerFeaturesDashboardData {
+  membershipRevenue: string;
+  walletBalance: string;
+  loyaltyMembers: number;
+  bulkProcurementLeads: number;
+  testimonialCount: number;
+  recentMembershipPurchases: DashboardMembershipPurchase[];
+  latestWalletRefunds: DashboardWalletRefund[];
+  bulkLeads: DashboardBulkLead[];
+  latestTestimonials: DashboardTestimonialPreview[];
+}

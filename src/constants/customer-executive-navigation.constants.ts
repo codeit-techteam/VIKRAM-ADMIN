@@ -44,6 +44,15 @@ export const CUSTOMER_EXECUTIVE_NAV_GROUPS: NavChildGroup[] = [
       },
     ],
   },
+  {
+    label: "Procurement",
+    items: [
+      {
+        label: "Bulk Procurement",
+        href: ROUTES.CUSTOMER_EXECUTIVE_BULK_PROCUREMENT,
+      },
+    ],
+  },
 ];
 
 export const CUSTOMER_EXECUTIVE_NAV_CHILDREN: NavChildItem[] =

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { CUSTOMER_EXECUTIVE_NAV_GROUPS } from "@/constants/customer-executive-navigation.constants";
+import { FINANCE_NAV_GROUPS } from "@/constants/finance-navigation.constants";
 import { LOGISTICS_NAV_GROUPS } from "@/constants/logistics-navigation.constants";
 import { CENTRAL_WAREHOUSE_NAV_GROUPS } from "@/constants/warehouse-navigation.constants";
 import { SUB_HUB_NETWORK_NAV_GROUPS } from "@/constants/sub-hub-navigation.constants";
@@ -110,6 +111,15 @@ export const NAV_SECTIONS: NavSection[] = [
               { label: "Categories", href: "/customer-app-cms/categories" },
             ],
           },
+          {
+            label: "Engagement",
+            items: [
+              {
+                label: "Customer Testimonials",
+                href: "/customer-app-cms/testimonials",
+              },
+            ],
+          },
         ],
       },
     ],
@@ -142,6 +152,8 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Finance & Payments",
         href: "/finance-payments",
         icon: Wallet,
+        hasSubmenu: true,
+        childGroups: FINANCE_NAV_GROUPS,
       },
     ],
   },

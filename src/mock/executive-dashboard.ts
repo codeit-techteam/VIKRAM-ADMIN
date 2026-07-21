@@ -1,9 +1,13 @@
 import {
+  Award,
   ClipboardList,
+  Crown,
   IndianRupee,
+  MessageSquareQuote,
   Package,
   Truck,
   Users,
+  Wallet,
   Warehouse,
 } from "lucide-react";
 
@@ -18,6 +22,7 @@ import {
   getExecutiveKpiOrderPool,
 } from "@/features/dashboard/utils/executive-kpi-metrics";
 import type {
+  CustomerFeaturesDashboardData,
   DashboardDateFilter,
   DashboardDateRange,
   DashboardNotification,
@@ -35,6 +40,25 @@ import {
   computePendingDispatchCount,
   DISPATCH_LOG_LIST,
 } from "@/mock/dispatch-logs";
+import {
+  computeMembershipStats,
+  MOCK_MEMBERSHIPS,
+} from "@/mock/mockMemberships";
+import {
+  computeWalletStats,
+  MOCK_WALLET_REFUNDS,
+  MOCK_WALLET_TRANSACTIONS,
+} from "@/mock/mockWallet";
+import { MOCK_LOYALTY_CUSTOMERS } from "@/mock/mockLoyalty";
+import {
+  computeBulkProcurementStats,
+  MOCK_BULK_PROCUREMENT,
+} from "@/mock/mockBulkProcurement";
+import {
+  computeTestimonialStats,
+  MOCK_TESTIMONIALS,
+} from "@/mock/mockTestimonials";
+import { formatCurrency } from "@/utils/format-currency";
 
 export type {
   DashboardDateFilter,
@@ -122,10 +146,12 @@ function buildRecentOrders(): RecentOrder[] {
 
 export interface ExecutiveDashboardData {
   statCards: StatCardData[];
+  customerFeatureCards: StatCardData[];
   pendingActions: PendingAction[];
   quickActions: QuickActionItem[];
   recentOrders: RecentOrder[];
   notifications: DashboardNotification[];
+  customerFeatures: CustomerFeaturesDashboardData;
 }
 
 export function fetchExecutiveDashboardData(
@@ -136,6 +162,14 @@ export function fetchExecutiveDashboardData(
   const ordersInTransit = computeOrdersInTransit(kpiOrders, filter);
   const quarterRevenue = computeQuarterRevenue(kpiOrders, filter);
   const activeCustomers = computeActiveCustomers(kpiOrders, filter);
+
+  const membershipStats = computeMembershipStats(MOCK_MEMBERSHIPS);
+  const walletStats = computeWalletStats(
+    MOCK_WALLET_TRANSACTIONS,
+    MOCK_WALLET_REFUNDS,
+  );
+  const bulkStats = computeBulkProcurementStats(MOCK_BULK_PROCUREMENT);
+  const testimonialStats = computeTestimonialStats(MOCK_TESTIMONIALS);
 
   return {
     statCards: [
@@ -176,6 +210,119 @@ export function fetchExecutiveDashboardData(
         iconClassName: "text-emerald-600",
       },
     ],
+    customerFeatureCards: [
+      {
+        label: "Membership Revenue",
+        value: formatCompactRupee(membershipStats.membershipRevenue),
+        subtext: `${membershipStats.activeMemberships} active memberships`,
+        href: ROUTES.USER_MANAGEMENT_MEMBERSHIP_PLANS,
+        icon: Crown,
+        iconContainerClassName: "bg-orange-50",
+        iconClassName: "text-primary",
+      },
+      {
+        label: "Wallet Balance",
+        value: formatCompactRupee(walletStats.totalWalletBalance),
+        subtext: `${walletStats.transactionsToday} transactions today`,
+        href: ROUTES.FINANCE_CUSTOMER_WALLET,
+        icon: Wallet,
+        iconContainerClassName: "bg-blue-50",
+        iconClassName: "text-blue-600",
+      },
+      {
+        label: "Loyalty Members",
+        value: String(MOCK_LOYALTY_CUSTOMERS.length),
+        subtext: "Enrolled in loyalty program",
+        href: ROUTES.USER_MANAGEMENT_CUSTOMER_LOYALTY,
+        icon: Award,
+        iconContainerClassName: "bg-purple-50",
+        iconClassName: "text-purple-600",
+      },
+      {
+        label: "Bulk Procurement Leads",
+        value: String(bulkStats.openRequests + bulkStats.assigned),
+        subtext: formatCompactRupee(bulkStats.revenuePotential) + " pipeline",
+        href: ROUTES.CUSTOMER_EXECUTIVE_BULK_PROCUREMENT,
+        icon: ClipboardList,
+        iconContainerClassName: "bg-amber-50",
+        iconClassName: "text-amber-600",
+      },
+      {
+        label: "Customer Testimonials",
+        value: String(testimonialStats.published),
+        subtext: `${testimonialStats.draft} drafts pending`,
+        href: ROUTES.CUSTOMER_APP_CMS_TESTIMONIALS,
+        icon: MessageSquareQuote,
+        iconContainerClassName: "bg-green-50",
+        iconClassName: "text-green-600",
+      },
+    ],
+    customerFeatures: {
+      membershipRevenue: formatCurrency(membershipStats.membershipRevenue),
+      walletBalance: formatCurrency(walletStats.totalWalletBalance),
+      loyaltyMembers: MOCK_LOYALTY_CUSTOMERS.length,
+      bulkProcurementLeads: bulkStats.openRequests + bulkStats.assigned,
+      testimonialCount: testimonialStats.published,
+      recentMembershipPurchases: [...MOCK_MEMBERSHIPS]
+        .sort(
+          (a, b) =>
+            new Date(b.purchaseDate).getTime() -
+            new Date(a.purchaseDate).getTime(),
+        )
+        .slice(0, 5)
+        .map((m) => ({
+          id: m.id,
+          customer: m.customerName,
+          plan: m.membership,
+          amount: formatCurrency(m.amount),
+          date: m.purchaseDate,
+          href: ROUTES.USER_MANAGEMENT_MEMBERSHIP_PLANS,
+        })),
+      latestWalletRefunds: [...MOCK_WALLET_REFUNDS]
+        .sort(
+          (a, b) =>
+            new Date(b.requestedDate).getTime() -
+            new Date(a.requestedDate).getTime(),
+        )
+        .slice(0, 5)
+        .map((r) => ({
+          id: r.id,
+          customer: r.customerName,
+          orderNumber: r.orderNumber,
+          amount: formatCurrency(r.amount),
+          status: r.status,
+          date: r.requestedDate,
+          href: ROUTES.FINANCE_CUSTOMER_WALLET,
+        })),
+      bulkLeads: [...MOCK_BULK_PROCUREMENT]
+        .filter((r) => r.status === "OPEN" || r.status === "ASSIGNED")
+        .slice(0, 5)
+        .map((r) => ({
+          id: r.id,
+          company: r.company,
+          project: r.project,
+          value: formatCurrency(r.expectedOrderValue),
+          status: r.status,
+          href: ROUTES.CUSTOMER_EXECUTIVE_BULK_PROCUREMENT,
+        })),
+      latestTestimonials: [...MOCK_TESTIMONIALS]
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        )
+        .slice(0, 4)
+        .map((t) => ({
+          id: t.id,
+          customerName: t.customerName,
+          city: t.city,
+          type: t.type,
+          rating: t.rating,
+          review: t.review,
+          mediaUrl: t.thumbnailUrl ?? t.mediaUrl,
+          status: t.status,
+          href: ROUTES.CUSTOMER_APP_CMS_TESTIMONIALS,
+        })),
+    },
     pendingActions: [
       {
         id: "exec-orders",

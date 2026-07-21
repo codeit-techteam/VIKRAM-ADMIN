@@ -32,7 +32,7 @@ export const useAuthStore = create<AuthState>()(
       setLoading: (isLoading) => set({ isLoading }),
       login: (user, accessToken, refreshToken) => {
         setStoredTokens(accessToken, refreshToken);
-        setAuthCookies(accessToken, refreshToken);
+        setAuthCookies(accessToken, refreshToken, user.role);
         set({
           user,
           accessToken,

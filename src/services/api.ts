@@ -15,6 +15,15 @@ import {
 } from "@/store/auth-store";
 import type { ApiErrorResponse } from "@/types/api";
 
+const AUTH_PATHS = [
+  "/admin/auth/login",
+  "/admin/auth/refresh",
+  "/admin/auth/logout",
+];
+
+const isAuthRequest = (url?: string): boolean =>
+  AUTH_PATHS.some((path) => url?.includes(path));
+
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (token: string) => void;
@@ -60,6 +69,11 @@ api.interceptors.response.use(
     };
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // Never run refresh-token flow for login/auth endpoints
+      if (isAuthRequest(originalRequest.url)) {
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -88,7 +102,7 @@ api.interceptors.response.use(
       try {
         const { data } = await axios.post<{
           data: { accessToken: string; refreshToken: string };
-        }>(`${env.apiBaseUrl}/auth/refresh`, { refreshToken });
+        }>(`${env.apiBaseUrl}/admin/auth/refresh`, { refreshToken });
 
         const { accessToken, refreshToken: newRefreshToken } = data.data;
         setStoredTokens(accessToken, newRefreshToken);

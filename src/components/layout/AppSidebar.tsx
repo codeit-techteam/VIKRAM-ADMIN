@@ -11,12 +11,48 @@ import {
   BOTTOM_NAV_ITEMS,
   findActiveNavParent,
   NAV_SECTIONS,
+  type NavItem,
+  type NavSection,
 } from "@/constants/navigation.constants";
+import {
+  NAV_ITEM_PERMISSIONS,
+  getDefaultRouteForRole,
+} from "@/constants/route-access";
+import { useAuth, usePermissions } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/store/sidebar-store";
 
+function filterNavItem(
+  item: NavItem,
+  can: (permission: string) => boolean,
+): NavItem | null {
+  const required = NAV_ITEM_PERMISSIONS[item.href];
+  if (required && !can(required)) return null;
+  return item;
+}
+
+function filterNavSections(
+  sections: NavSection[],
+  can: (permission: string) => boolean,
+): NavSection[] {
+  return sections
+    .map((section) => ({
+      ...section,
+      items: section.items
+        .map((item) => filterNavItem(item, can))
+        .filter((item): item is NavItem => item !== null),
+    }))
+    .filter((section) => section.items.length > 0);
+}
+
 export function AppSidebar() {
   const pathname = usePathname();
+  const { can } = usePermissions();
+  const { role } = useAuth();
+  const homeHref = role ? getDefaultRouteForRole(role) : "/dashboard";
+  const visibleSections = filterNavSections(NAV_SECTIONS, (permission) =>
+    can(permission as Parameters<typeof can>[0]),
+  );
   const isCollapsed = useSidebarStore((state) => state.isCollapsed);
   const setCollapsed = useSidebarStore((state) => state.setCollapsed);
   const [expandedHref, setExpandedHref] = useState<string | null>(
@@ -55,7 +91,7 @@ export function AppSidebar() {
     >
       <div className="border-b border-gray-100 px-4 py-5">
         <Link
-          href="/dashboard"
+          href={homeHref}
           className={cn(
             "flex items-center gap-3",
             isCollapsed && "justify-center",
@@ -81,7 +117,7 @@ export function AppSidebar() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-5">
-        {NAV_SECTIONS.map((section, index) => (
+        {visibleSections.map((section, index) => (
           <SidebarSection
             key={section.label ?? `section-${index}`}
             label={section.label}

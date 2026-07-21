@@ -17,16 +17,19 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { AUTH_COPY, AUTH_ASSETS } from "@/constants/auth.constants";
 import { ROUTES } from "@/constants/routes";
+import { getDefaultRouteForRole } from "@/constants/route-access";
 import {
   loginSchema,
   type LoginSchema,
 } from "@/features/auth/schema/login.schema";
+import { authService } from "@/services/auth";
 import {
   getDevAuthResponse,
   validateDevCredentials,
 } from "@/services/dev-auth";
 import { useAuthStore } from "@/store/auth-store";
 import { notify } from "@/utils/notify";
+import { getApiErrorMessage } from "@/services/api";
 
 const defaultValues: z.input<typeof loginSchema> = {
   email: "",
@@ -67,21 +70,46 @@ export function LoginForm() {
     setIsSubmitting(true);
 
     try {
-      if (!validateDevCredentials(values)) {
-        notify.error("Invalid email or password");
-        return;
+      let user;
+      let tokens;
+      let usedDevAuth = false;
+
+      // Dev accounts: sign in locally without calling API (works when backend is offline)
+      if (validateDevCredentials(values)) {
+        const devResponse = getDevAuthResponse(values);
+        user = devResponse.user;
+        tokens = devResponse.tokens;
+        usedDevAuth = true;
+      } else {
+        const response = await authService.login(values);
+        user = response.user;
+        tokens = response.tokens;
       }
 
-      const { user, tokens } = getDevAuthResponse();
       login(user, tokens.accessToken, tokens.refreshToken);
 
-      notify.success("Signed in successfully");
+      notify.success(
+        usedDevAuth
+          ? "Signed in successfully (dev mode)"
+          : "Signed in successfully",
+      );
 
-      const callbackUrl = searchParams.get("callbackUrl") ?? ROUTES.DASHBOARD;
-      router.push(callbackUrl);
+      const callbackUrl = searchParams.get("callbackUrl");
+      const destination =
+        callbackUrl && callbackUrl !== ROUTES.DASHBOARD
+          ? callbackUrl
+          : getDefaultRouteForRole(user.role);
+      router.push(destination);
       router.refresh();
-    } catch {
-      notify.error("Unable to sign in. Please try again.");
+    } catch (error) {
+      const message = getApiErrorMessage(error);
+      if (message === "Network Error" || message.includes("ERR_CONNECTION")) {
+        notify.error(
+          "Cannot reach the server. Start the backend on port 8000, or use a dev account (e.g. executive@bajriwala.in / bajriwala123).",
+        );
+      } else {
+        notify.error(message || "Unable to sign in. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }

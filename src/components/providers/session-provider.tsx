@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { isDevMockToken } from "@/constants/dev-auth.constants";
 import { authService } from "@/services/auth";
 import { useAuthStore } from "@/store/auth-store";
+import { setAuthCookies } from "@/utils/auth-cookies";
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const accessToken = useAuthStore((state) => state.accessToken);
@@ -28,6 +29,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       try {
         const user = await authService.getMe();
         setUser(user);
+        if (accessToken) {
+          const refreshToken = useAuthStore.getState().refreshToken;
+          if (refreshToken) {
+            setAuthCookies(accessToken, refreshToken, user.role);
+          }
+        }
       } catch {
         logout();
       } finally {

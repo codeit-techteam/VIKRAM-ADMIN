@@ -1,16 +1,24 @@
-import { DEV_AUTH, DEV_SUPER_ADMIN_USER } from "@/constants/dev-auth.constants";
+import { DEV_AUTH } from "@/constants/dev-auth.constants";
+import { getDevUserForCredentials } from "@/constants/dev-auth.constants";
 import type { LoginCredentials } from "@/types/auth";
 
 export function validateDevCredentials(credentials: LoginCredentials): boolean {
   return (
-    credentials.email.toLowerCase() === DEV_AUTH.email &&
-    credentials.password === DEV_AUTH.password
+    getDevUserForCredentials(credentials.email, credentials.password) !== null
   );
 }
 
-export function getDevAuthResponse() {
+export function getDevAuthResponse(credentials: LoginCredentials) {
+  const user = getDevUserForCredentials(
+    credentials.email,
+    credentials.password,
+  );
+  if (!user) {
+    throw new Error("Invalid dev credentials");
+  }
+
   return {
-    user: DEV_SUPER_ADMIN_USER,
+    user,
     tokens: {
       accessToken: DEV_AUTH.accessToken,
       refreshToken: DEV_AUTH.refreshToken,

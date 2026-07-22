@@ -70,10 +70,10 @@ export function CustomerFeaturesSection({
         </DashboardCard>
 
         <DashboardCard
-          title="Latest Wallet Refunds"
+          title="Latest Refunds"
           action={
             <Link
-              href="/finance-payments/customer-wallet"
+              href="/finance-payments"
               className="text-primary text-sm font-medium hover:underline"
             >
               View all
@@ -84,7 +84,7 @@ export function CustomerFeaturesSection({
             <SectionSkeleton />
           ) : (
             <div className="divide-y divide-gray-100">
-              {data.latestWalletRefunds.map((refund) => (
+              {data.latestRefunds.map((refund) => (
                 <Link
                   key={refund.id}
                   href={refund.href}

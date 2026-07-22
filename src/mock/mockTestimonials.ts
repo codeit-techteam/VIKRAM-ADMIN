@@ -71,7 +71,7 @@ export const MOCK_TESTIMONIALS: CustomerTestimonial[] = [
     city: "Gandhinagar",
     rating: 4,
     review:
-      "Great platform for managing multiple site deliveries. The wallet feature makes refunds hassle-free.",
+      "Great platform for managing multiple site deliveries. Refunds and order tracking are hassle-free.",
     mediaUrl:
       "https://images.unsplash.com/photo-1581094794329-cd811b82a4a8?w=800",
     thumbnailUrl:

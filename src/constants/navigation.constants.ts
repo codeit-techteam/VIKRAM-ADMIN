@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  IndianRupee,
   LayoutDashboard,
   LogOut,
   Network,
@@ -7,7 +8,6 @@ import {
   Truck,
   UserCog,
   Users,
-  Wallet,
   Warehouse,
 } from "lucide-react";
 
@@ -151,7 +151,7 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         label: "Finance & Payments",
         href: "/finance-payments",
-        icon: Wallet,
+        icon: IndianRupee,
         hasSubmenu: true,
         childGroups: FINANCE_NAV_GROUPS,
       },

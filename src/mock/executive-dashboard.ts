@@ -7,7 +7,6 @@ import {
   Package,
   Truck,
   Users,
-  Wallet,
   Warehouse,
 } from "lucide-react";
 
@@ -44,11 +43,6 @@ import {
   computeMembershipStats,
   MOCK_MEMBERSHIPS,
 } from "@/mock/mockMemberships";
-import {
-  computeWalletStats,
-  MOCK_WALLET_REFUNDS,
-  MOCK_WALLET_TRANSACTIONS,
-} from "@/mock/mockWallet";
 import { MOCK_LOYALTY_CUSTOMERS } from "@/mock/mockLoyalty";
 import {
   computeBulkProcurementStats,
@@ -154,6 +148,25 @@ export interface ExecutiveDashboardData {
   customerFeatures: CustomerFeaturesDashboardData;
 }
 
+const MOCK_REFUNDS = [
+  {
+    id: "ref-1",
+    customerName: "Rajesh Kumar",
+    orderNumber: "BJW-1042",
+    amount: 2500,
+    status: "PENDING",
+    requestedDate: "2026-07-20",
+  },
+  {
+    id: "ref-2",
+    customerName: "Amit Builders",
+    orderNumber: "BJW-1038",
+    amount: 1800,
+    status: "APPROVED",
+    requestedDate: "2026-07-19",
+  },
+];
+
 export function fetchExecutiveDashboardData(
   filter: DashboardDateFilter = { range: "quarter" },
 ): ExecutiveDashboardData {
@@ -164,10 +177,6 @@ export function fetchExecutiveDashboardData(
   const activeCustomers = computeActiveCustomers(kpiOrders, filter);
 
   const membershipStats = computeMembershipStats(MOCK_MEMBERSHIPS);
-  const walletStats = computeWalletStats(
-    MOCK_WALLET_TRANSACTIONS,
-    MOCK_WALLET_REFUNDS,
-  );
   const bulkStats = computeBulkProcurementStats(MOCK_BULK_PROCUREMENT);
   const testimonialStats = computeTestimonialStats(MOCK_TESTIMONIALS);
 
@@ -221,15 +230,6 @@ export function fetchExecutiveDashboardData(
         iconClassName: "text-primary",
       },
       {
-        label: "Wallet Balance",
-        value: formatCompactRupee(walletStats.totalWalletBalance),
-        subtext: `${walletStats.transactionsToday} transactions today`,
-        href: ROUTES.FINANCE_CUSTOMER_WALLET,
-        icon: Wallet,
-        iconContainerClassName: "bg-blue-50",
-        iconClassName: "text-blue-600",
-      },
-      {
         label: "Loyalty Members",
         value: String(MOCK_LOYALTY_CUSTOMERS.length),
         subtext: "Enrolled in loyalty program",
@@ -259,7 +259,6 @@ export function fetchExecutiveDashboardData(
     ],
     customerFeatures: {
       membershipRevenue: formatCurrency(membershipStats.membershipRevenue),
-      walletBalance: formatCurrency(walletStats.totalWalletBalance),
       loyaltyMembers: MOCK_LOYALTY_CUSTOMERS.length,
       bulkProcurementLeads: bulkStats.openRequests + bulkStats.assigned,
       testimonialCount: testimonialStats.published,
@@ -278,7 +277,7 @@ export function fetchExecutiveDashboardData(
           date: m.purchaseDate,
           href: ROUTES.USER_MANAGEMENT_MEMBERSHIP_PLANS,
         })),
-      latestWalletRefunds: [...MOCK_WALLET_REFUNDS]
+      latestRefunds: [...MOCK_REFUNDS]
         .sort(
           (a, b) =>
             new Date(b.requestedDate).getTime() -
@@ -292,7 +291,7 @@ export function fetchExecutiveDashboardData(
           amount: formatCurrency(r.amount),
           status: r.status,
           date: r.requestedDate,
-          href: ROUTES.FINANCE_CUSTOMER_WALLET,
+          href: ROUTES.FINANCE_PAYMENTS,
         })),
       bulkLeads: [...MOCK_BULK_PROCUREMENT]
         .filter((r) => r.status === "OPEN" || r.status === "ASSIGNED")

@@ -26,6 +26,7 @@ import type { CeOrder } from "@/features/customer-executive/types";
 import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
 import { formatCurrency } from "@/utils/format-currency";
 import { formatDate } from "@/utils/format-date";
+import { formatPaymentMethodLabel } from "@/utils/payment-method-labels";
 
 interface CeOrderDetailSheetProps {
   open: boolean;
@@ -136,7 +137,7 @@ export function CeOrderDetailSheet({
               />
               <DetailField
                 label="Payment Method"
-                value={order.paymentMethod.replace("_", " ")}
+                value={formatPaymentMethodLabel(order.paymentMethod)}
               />
             </div>
           </Section>

@@ -11,10 +11,6 @@ export const FINANCE_NAV_GROUPS: NavChildGroup[] = [
         label: "Finance & Payments",
         href: ROUTES.FINANCE_PAYMENTS,
       },
-      {
-        label: "Customer Wallet",
-        href: ROUTES.FINANCE_CUSTOMER_WALLET,
-      },
     ],
   },
 ];

@@ -36,10 +36,6 @@ export const API_ENDPOINTS = {
     CUSTOMER_SEARCH: "/admin/customer-executive/customers/search",
     CUSTOMER_NOTE: (id: string) =>
       `/admin/customer-executive/customers/${id}/note`,
-    CUSTOMER_WALLET: (id: string) =>
-      `/admin/customer-executive/customers/${id}/wallet`,
-    CUSTOMER_WALLET_HISTORY: (id: string) =>
-      `/admin/customer-executive/customers/${id}/wallet/history`,
     CUSTOMER_MEMBERSHIP: (id: string) =>
       `/admin/customer-executive/customers/${id}/membership`,
     CUSTOMER_MEMBERSHIP_RENEW: (id: string) =>
@@ -99,5 +95,14 @@ export const API_ENDPOINTS = {
     DEACTIVATE: (id: string) => `/admin/hub-managers/${id}/deactivate`,
     REACTIVATE: (id: string) => `/admin/hub-managers/${id}/reactivate`,
     RESET_PASSWORD: (id: string) => `/admin/hub-managers/${id}/reset-password`,
+  },
+  LOYALTY: {
+    BASE: "/admin/loyalty",
+    STATS: "/admin/loyalty/stats",
+    LEADERBOARD: "/admin/loyalty/leaderboard",
+    BY_CUSTOMER: (customerId: string) => `/admin/loyalty/${customerId}`,
+    ADJUST: (customerId: string) => `/admin/loyalty/${customerId}/adjust`,
+    REWARD: (customerId: string) => `/admin/loyalty/${customerId}/reward`,
+    REDEEM: (customerId: string) => `/admin/loyalty/${customerId}/redeem`,
   },
 } as const;

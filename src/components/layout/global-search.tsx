@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Building2,
   ClipboardList,
+  IndianRupee,
   LayoutDashboard,
   Network,
   Package,
@@ -12,7 +13,6 @@ import {
   Truck,
   UserCog,
   Users,
-  Wallet,
   Warehouse,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -66,7 +66,7 @@ const QUICK_ACCESS: QuickAccessItem[] = [
     label: "Finance & Payments",
     description: "Invoices and settlements",
     href: ROUTES.FINANCE_PAYMENTS,
-    icon: Wallet,
+    icon: IndianRupee,
   },
   {
     label: "Logistics",

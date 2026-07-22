@@ -110,7 +110,7 @@ export interface DashboardMembershipPurchase {
   href: string;
 }
 
-export interface DashboardWalletRefund {
+export interface DashboardRefund {
   id: string;
   customer: string;
   orderNumber: string;
@@ -143,12 +143,11 @@ export interface DashboardTestimonialPreview {
 
 export interface CustomerFeaturesDashboardData {
   membershipRevenue: string;
-  walletBalance: string;
   loyaltyMembers: number;
   bulkProcurementLeads: number;
   testimonialCount: number;
   recentMembershipPurchases: DashboardMembershipPurchase[];
-  latestWalletRefunds: DashboardWalletRefund[];
+  latestRefunds: DashboardRefund[];
   bulkLeads: DashboardBulkLead[];
   latestTestimonials: DashboardTestimonialPreview[];
 }

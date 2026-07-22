@@ -5,7 +5,7 @@ import {
   MessageSquareWarning,
   UserPlus,
   Users,
-  Wallet,
+  IndianRupee,
   ShoppingCart,
   CreditCard,
   Truck,
@@ -178,7 +178,7 @@ export function CeDashboardPage() {
             label="Pending Payments"
             value={stats.pendingPayments}
             subtext={formatCurrency(stats.pendingPaymentsAmount)}
-            icon={Wallet}
+            icon={IndianRupee}
             iconContainerClassName="bg-amber-50"
             iconClassName="text-amber-600"
             href={`${ROUTES.CUSTOMER_EXECUTIVE}/payments`}

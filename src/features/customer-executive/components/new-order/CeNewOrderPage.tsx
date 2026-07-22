@@ -32,7 +32,7 @@ const PAYMENT_OPTIONS: {
 }[] = [
   { value: "UPI", label: "UPI" },
   { value: "BANK", label: "Bank Transfer" },
-  { value: "CASH", label: "Cash" },
+  { value: "CASH", label: "Cash on Delhivery" },
   { value: "CREDIT", label: "Credit", desc: "Limit: ₹5L" },
 ];
 

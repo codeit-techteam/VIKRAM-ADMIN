@@ -15,7 +15,6 @@ export const ROUTES = {
   USER_MANAGEMENT_CUSTOMERS: "/user-management/customers",
   LOGISTICS: "/logistics",
   FINANCE_PAYMENTS: "/finance-payments",
-  FINANCE_CUSTOMER_WALLET: "/finance-payments/customer-wallet",
   USER_MANAGEMENT_MEMBERSHIP_PLANS: "/user-management/membership-plans",
   USER_MANAGEMENT_CUSTOMER_LOYALTY: "/user-management/customer-loyalty",
   CUSTOMER_APP_CMS_TESTIMONIALS: "/customer-app-cms/testimonials",

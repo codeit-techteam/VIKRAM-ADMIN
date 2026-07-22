@@ -8,7 +8,7 @@ import {
   ShoppingCart,
   Truck,
   UserPlus,
-  Wallet,
+  IndianRupee,
   BarChart3,
 } from "lucide-react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
@@ -44,7 +44,7 @@ const PERMISSION_ICONS = {
   dispatch: Truck,
   drivers: IdCard,
   reports: BarChart3,
-  payments: Wallet,
+  payments: IndianRupee,
   requisitions: ClipboardList,
 } as const;
 

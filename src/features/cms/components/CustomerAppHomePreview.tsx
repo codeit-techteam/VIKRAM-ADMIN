@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ChevronRight, Gift, Wallet } from "lucide-react";
+import { ArrowLeft, ChevronRight, Gift } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -166,7 +166,7 @@ export function CustomerAppHomePreview() {
                     </p>
                   </div>
                   <div className="flex size-10 items-center justify-center rounded-xl bg-white/10">
-                    <Wallet className="size-5 text-[#ffda79]" />
+                    <Gift className="size-5 text-[#ffda79]" />
                   </div>
                 </div>
                 <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/15">

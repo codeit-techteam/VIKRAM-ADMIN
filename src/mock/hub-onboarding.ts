@@ -165,7 +165,7 @@ export const MANAGER_PERMISSION_OPTIONS = [
   { value: "dispatch" as const, label: "Dispatch", icon: "truck" },
   { value: "drivers" as const, label: "Drivers", icon: "id-card" },
   { value: "reports" as const, label: "Reports", icon: "chart" },
-  { value: "payments" as const, label: "Payments", icon: "wallet" },
+  { value: "payments" as const, label: "Payments", icon: "payments" },
   { value: "requisitions" as const, label: "Requisitions", icon: "clipboard" },
 ] as const;
 

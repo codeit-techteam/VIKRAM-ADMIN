@@ -16,6 +16,15 @@ export const API_ENDPOINTS = {
     BASE: "/users",
     BY_ID: (id: string) => `/users/${id}`,
   },
+  CUSTOMERS: {
+    BASE: "/admin/customers",
+    BY_ID: (id: string) => `/admin/customers/${id}`,
+    STATUS: (id: string) => `/admin/customers/${id}/status`,
+    ACTIVATE: (id: string) => `/admin/customers/${id}/activate`,
+    DISABLE: (id: string) => `/admin/customers/${id}/disable`,
+    UPGRADE_MEMBERSHIP: (id: string) =>
+      `/admin/customers/${id}/membership/upgrade`,
+  },
   CMS: {
     BASE: "/cms",
     BY_ID: (id: string) => `/cms/${id}`,

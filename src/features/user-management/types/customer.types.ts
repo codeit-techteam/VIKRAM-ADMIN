@@ -124,6 +124,12 @@ export interface CustomerRecord {
   blockReason?: CustomerBlockReason;
   blockedAt?: string;
   supportExecutiveAssignment?: SupportExecutiveAssignment;
+  /** Real-backend-only fields (admin customers API). Optional so mock data keeps working. */
+  company?: string | null;
+  gst?: string | null;
+  membership?: string | null;
+  lastLogin?: string | null;
+  walletBalance?: number;
 }
 
 export interface CustomerOrder {

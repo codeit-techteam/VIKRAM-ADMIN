@@ -11,6 +11,11 @@ export const API_ENDPOINTS = {
     STATS: "/dashboard/stats",
     CHARTS: "/dashboard/charts",
     RECENT_ACTIVITY: "/dashboard/recent-activity",
+    ADMIN: "/admin/dashboard",
+  },
+  ADMIN_ORDERS: {
+    BASE: "/admin/orders",
+    BY_ID: (id: string) => `/admin/orders/${id}`,
   },
   USERS: {
     BASE: "/users",
@@ -24,6 +29,11 @@ export const API_ENDPOINTS = {
     DISABLE: (id: string) => `/admin/customers/${id}/disable`,
     UPGRADE_MEMBERSHIP: (id: string) =>
       `/admin/customers/${id}/membership/upgrade`,
+    SITES: (id: string) => `/admin/customers/${id}/sites`,
+    SITE_BY_ID: (id: string, siteId: string) =>
+      `/admin/customers/${id}/sites/${siteId}`,
+    SITE_PRIMARY: (id: string, siteId: string) =>
+      `/admin/customers/${id}/sites/${siteId}/primary`,
   },
   CMS: {
     BASE: "/cms",
@@ -34,8 +44,24 @@ export const API_ENDPOINTS = {
     BY_ID: (id: string) => `/warehouse/${id}`,
   },
   SUBHUB: {
-    BASE: "/subhub",
-    BY_ID: (id: string) => `/subhub/${id}`,
+    BASE: "/admin/hubs",
+    BY_ID: (id: string) => `/admin/hubs/${id}`,
+    PROVISION: "/admin/hubs/provision",
+    INVENTORY: (id: string) => `/admin/hubs/${id}/inventory`,
+    ORDERS: (id: string) => `/admin/hubs/${id}/orders`,
+    PERFORMANCE: (id: string) => `/admin/hubs/${id}/performance`,
+    STATUS: (id: string) => `/admin/hubs/${id}/status`,
+    MANAGER: (id: string) => `/admin/hubs/${id}/manager`,
+    DRIVERS: (id: string) => `/admin/hubs/${id}/drivers`,
+    COVERAGE: (id: string) => `/admin/hubs/${id}/coverage`,
+  },
+  PRODUCTS: {
+    BASE: "/admin/products",
+    BY_ID: (id: string) => `/admin/products/${id}`,
+  },
+  CATEGORIES: {
+    BASE: "/admin/categories",
+    BY_ID: (id: string) => `/admin/categories/${id}`,
   },
   CUSTOMER_EXECUTIVE: {
     BASE: "/admin/customer-executive",

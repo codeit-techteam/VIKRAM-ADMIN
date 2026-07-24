@@ -67,6 +67,62 @@ export interface CustomerDeliveryAddress {
   isDefault: boolean;
 }
 
+export type DeliverySiteType =
+  "CONSTRUCTION_SITE" | "WAREHOUSE" | "OFFICE" | "FACTORY" | "RESIDENCE";
+
+export interface DeliverySite {
+  id: string;
+  customerId: string;
+  siteName: string;
+  siteType: DeliverySiteType | null;
+  contactPerson: string | null;
+  phone: string | null;
+  fullAddress: string;
+  landmark: string | null;
+  gateNumber: string | null;
+  floor: string | null;
+  city: string;
+  state: string;
+  country: string;
+  pincode: string;
+  latitude: number;
+  longitude: number;
+  deliveryNotes: string | null;
+  isPrimary: boolean;
+  createdAt: string;
+  updatedAt: string;
+  ordersDelivered?: number;
+}
+
+export interface CreateDeliverySitePayload {
+  siteName: string;
+  siteType?: DeliverySiteType;
+  contactPerson?: string;
+  phone?: string;
+  fullAddress: string;
+  landmark?: string;
+  gateNumber?: string;
+  floor?: string;
+  city: string;
+  state: string;
+  country?: string;
+  pincode: string;
+  latitude: number;
+  longitude: number;
+  deliveryNotes?: string;
+  isPrimary?: boolean;
+}
+
+export type UpdateDeliverySitePayload = Partial<CreateDeliverySitePayload>;
+
+export const DELIVERY_SITE_TYPE_LABELS: Record<DeliverySiteType, string> = {
+  CONSTRUCTION_SITE: "Construction Site",
+  WAREHOUSE: "Warehouse",
+  OFFICE: "Office",
+  FACTORY: "Factory",
+  RESIDENCE: "Residence",
+};
+
 export interface CustomerOrderProduct {
   id: string;
   name: string;

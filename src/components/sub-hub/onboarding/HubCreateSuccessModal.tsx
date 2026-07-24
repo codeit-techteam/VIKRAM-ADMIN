@@ -43,6 +43,15 @@ export function HubCreateSuccessModal({
             </span>{" "}
             ({result.hubCode}) is live across Sub-Hub Network, inventory,
             logistics, and dashboard KPIs.
+            {result.managerUsername && result.managerPassword ? (
+              <span className="mt-3 block rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-left text-sm text-[#9A3412]">
+                Hub Manager login (save now):
+                <br />
+                Username: <strong>{result.managerUsername}</strong>
+                <br />
+                Password: <strong>{result.managerPassword}</strong>
+              </span>
+            ) : null}
           </DialogDescription>
         </DialogHeader>
 

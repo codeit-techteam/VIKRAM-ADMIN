@@ -16,24 +16,41 @@ import { HubInventoryStep } from "@/components/sub-hub/onboarding/steps/HubInven
 import { HubLogisticsStep } from "@/components/sub-hub/onboarding/steps/HubLogisticsStep";
 import { HubManagerStep } from "@/components/sub-hub/onboarding/steps/HubManagerStep";
 import { HubReviewStep } from "@/components/sub-hub/onboarding/steps/HubReviewStep";
-import { HubWarehouseStep } from "@/components/sub-hub/onboarding/steps/HubWarehouseStep";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/constants/routes";
-import { generateHubCode, HUB_WIZARD_STEPS } from "@/mock/hub-onboarding";
+import {
+  generateHubCode,
+  HUB_WIZARD_STEPS,
+  MAIN_WAREHOUSE,
+} from "@/mock/hub-onboarding";
 import {
   hubFormSchema,
   STEP_FIELD_NAMES,
   STEP_SCHEMAS,
   type HubFormSchema,
 } from "@/schema/hub-form.schema";
+import {
+  hubsService,
+  mapProvisionToCreateResult,
+  resolveCoords,
+} from "@/services/hubs.service";
+import { catalogService } from "@/services/catalog.service";
 import { useHubDraftStore } from "@/store/hub-draft-store";
-import { resolveSubHubs } from "@/store/sub-hub-state";
-import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 import type { CreateHubResult } from "@/types/hub-onboarding.types";
 import { notify } from "@/utils/notify";
+import { useQueryClient } from "@tanstack/react-query";
 
 const TOTAL_STEPS = HUB_WIZARD_STEPS.length;
+
+/** Migrate drafts saved under the old 7-step wizard (warehouse was step 3). */
+function normalizeWizardStep(step: number): number {
+  if (step <= 2) return step;
+  if (step === 3) return 3; // old warehouse → land on manager
+  if (step >= 7) return 6;
+  if (step >= 4) return step - 1;
+  return Math.min(Math.max(step, 1), TOTAL_STEPS);
+}
 
 function formatSavedAt(timestamp: string | null) {
   if (!timestamp) return "Not saved yet";
@@ -47,6 +64,7 @@ function formatSavedAt(timestamp: string | null) {
 
 export function HubOnboardingWizard() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const draft = useHubDraftStore((s) => s.draft);
   const lastSavedAt = useHubDraftStore((s) => s.lastSavedAt);
   const isDirty = useHubDraftStore((s) => s.isDirty);
@@ -56,18 +74,38 @@ export function HubOnboardingWizard() {
   const resetDraft = useHubDraftStore((s) => s.resetDraft);
   const syncHubCode = useHubDraftStore((s) => s.syncHubCode);
 
-  const subHubs = useWarehouseErpStore((s) => s.subHubs);
-  const addSubHub = useWarehouseErpStore((s) => s.addSubHub);
-
-  const [currentStep, setStep] = useState(draft.currentStep || 1);
+  const [currentStep, setStep] = useState(
+    normalizeWizardStep(draft.currentStep || 1),
+  );
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const [createdHub, setCreatedHub] = useState<CreateHubResult | null>(null);
+  const [existingCodes, setExistingCodes] = useState<string[]>([]);
 
   const methods = useForm<HubFormSchema>({
     resolver: zodResolver(hubFormSchema),
-    defaultValues: draft,
+    defaultValues: {
+      ...draft,
+      currentStep: normalizeWizardStep(draft.currentStep || 1),
+      basic: {
+        ...draft.basic,
+        linkedWarehouseId: MAIN_WAREHOUSE.id,
+        linkedWarehouseName: MAIN_WAREHOUSE.name,
+        latitude: draft.basic.latitude ?? 28.6139,
+        longitude: draft.basic.longitude ?? 77.209,
+      },
+      warehouse: {
+        ...draft.warehouse,
+        warehouseId: MAIN_WAREHOUSE.id,
+        warehouseName: MAIN_WAREHOUSE.name,
+      },
+      coverage: {
+        ...draft.coverage,
+        latitude: draft.coverage.latitude ?? draft.basic.latitude ?? 28.6139,
+        longitude: draft.coverage.longitude ?? draft.basic.longitude ?? 77.209,
+      },
+    },
     mode: "onChange",
   });
 
@@ -77,35 +115,104 @@ export function HubOnboardingWizard() {
     reset,
     trigger,
     watch,
+    setValue,
     formState: { isDirty: formDirty },
   } = methods;
 
   useEffect(() => {
-    reset(draft);
-    setStep(draft.currentStep || 1);
+    const step = normalizeWizardStep(draft.currentStep || 1);
+    reset({
+      ...draft,
+      currentStep: step,
+      basic: {
+        ...draft.basic,
+        linkedWarehouseId: MAIN_WAREHOUSE.id,
+        linkedWarehouseName: MAIN_WAREHOUSE.name,
+        latitude: draft.basic.latitude ?? 28.6139,
+        longitude: draft.basic.longitude ?? 77.209,
+      },
+      warehouse: {
+        ...draft.warehouse,
+        warehouseId: MAIN_WAREHOUSE.id,
+        warehouseName: MAIN_WAREHOUSE.name,
+      },
+      coverage: {
+        ...draft.coverage,
+        latitude: draft.coverage.latitude ?? 28.6139,
+        longitude: draft.coverage.longitude ?? 77.209,
+      },
+    });
+    setStep(step);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    const existingCodes = resolveSubHubs(subHubs).map((hub) => hub.nodeId);
-    syncHubCode(existingCodes);
-    const nextCode = generateHubCode(getValues("basic.state"), existingCodes);
-    const currentCode = getValues("basic.hubCode");
-    if (nextCode !== currentCode) {
-      methods.setValue("basic.hubCode", nextCode);
-    }
-  }, [subHubs, syncHubCode, getValues, methods]);
+    void hubsService
+      .list({ page: 1, limit: 100 })
+      .then((res) => {
+        const codes = res.data.map((hub) => hub.code);
+        setExistingCodes(codes);
+        syncHubCode(codes);
+        const nextCode = generateHubCode(
+          getValues("basic.state"),
+          codes,
+          getValues("basic.city"),
+        );
+        const currentCode = getValues("basic.hubCode");
+        if (nextCode !== currentCode) {
+          setValue("basic.hubCode", nextCode);
+        }
+      })
+      .catch(() => {
+        /* keep draft code if list fails */
+      });
+  }, [syncHubCode, getValues, setValue]);
+
+  useEffect(() => {
+    void catalogService
+      .fetchInventorySkus()
+      .then((skus) => {
+        if (skus.length === 0) return;
+        const current = getValues("inventory.skus") ?? [];
+        const hasCatalogIds = current.some((sku) => sku.productId);
+        if (hasCatalogIds && current.length > 0) return;
+        setValue("inventory.skus", skus, { shouldDirty: true });
+        useHubDraftStore.getState().updateInventory({ skus });
+      })
+      .catch(() => {
+        /* keep empty / draft SKUs if catalog fails */
+      });
+  }, [getValues, setValue]);
 
   const watchedState = watch("basic.state");
+  const watchedCity = watch("basic.city");
+  const watchedPincode = watch("basic.pincode");
+
   useEffect(() => {
-    const existingCodes = resolveSubHubs(subHubs).map((hub) => hub.nodeId);
-    const nextCode = generateHubCode(watchedState, existingCodes);
-    methods.setValue("basic.hubCode", nextCode);
+    const nextCode = generateHubCode(watchedState, existingCodes, watchedCity);
+    setValue("basic.hubCode", nextCode);
     useHubDraftStore.getState().updateBasic({
       state: watchedState,
+      city: watchedCity,
       hubCode: nextCode,
     });
-  }, [watchedState, subHubs, methods]);
+  }, [watchedState, watchedCity, existingCodes, setValue]);
+
+  useEffect(() => {
+    const coords = resolveCoords(watchedCity || "", watchedPincode || "110001");
+    setValue("basic.latitude", coords.lat);
+    setValue("basic.longitude", coords.lng);
+    setValue("coverage.latitude", coords.lat);
+    setValue("coverage.longitude", coords.lng);
+    useHubDraftStore.getState().updateBasic({
+      latitude: coords.lat,
+      longitude: coords.lng,
+    });
+    useHubDraftStore.getState().updateCoverage({
+      latitude: coords.lat,
+      longitude: coords.lng,
+    });
+  }, [watchedCity, watchedPincode, setValue]);
 
   const saveDraft = useCallback(
     async (silent = false) => {
@@ -117,6 +224,16 @@ export function HubOnboardingWizard() {
           ...values,
           currentStep,
           updatedAt: timestamp,
+          basic: {
+            ...values.basic,
+            linkedWarehouseId: MAIN_WAREHOUSE.id,
+            linkedWarehouseName: MAIN_WAREHOUSE.name,
+          },
+          warehouse: {
+            ...values.warehouse,
+            warehouseId: MAIN_WAREHOUSE.id,
+            warehouseName: MAIN_WAREHOUSE.name,
+          },
         });
         markSaved(timestamp);
         reset(values);
@@ -159,7 +276,7 @@ export function HubOnboardingWizard() {
   };
 
   const validateCurrentStep = async () => {
-    if (currentStep === 7) {
+    if (currentStep === TOTAL_STEPS) {
       return trigger();
     }
 
@@ -181,15 +298,32 @@ export function HubOnboardingWizard() {
 
     if (currentStep === 1) {
       const name = values.basic.hubName.trim().toLowerCase();
-      const duplicate = resolveSubHubs(subHubs).some(
-        (hub) => hub.name.toLowerCase() === name,
-      );
-      if (duplicate) {
+      const code = values.basic.hubCode.trim().toUpperCase();
+      if (existingCodes.some((c) => c.toUpperCase() === code)) {
         notify.error(
-          "Duplicate hub name",
-          "A hub with this name already exists in the network.",
+          "Duplicate hub code",
+          "A hub with this code already exists in the network.",
         );
         return false;
+      }
+      try {
+        const res = await hubsService.list({
+          page: 1,
+          limit: 100,
+          search: name,
+        });
+        const duplicate = res.data.some(
+          (hub) => hub.name.toLowerCase() === name,
+        );
+        if (duplicate) {
+          notify.error(
+            "Duplicate hub name",
+            "A hub with this name already exists in the network.",
+          );
+          return false;
+        }
+      } catch {
+        /* allow continue if list fails; backend will enforce uniqueness */
       }
     }
 
@@ -210,23 +344,25 @@ export function HubOnboardingWizard() {
   const onCreateHub = async (data: HubFormSchema) => {
     setIsPublishing(true);
     try {
-      const result = addSubHub(data);
+      const provisioned = await hubsService.provision(data);
+      const result = mapProvisionToCreateResult(provisioned);
       setCreatedHub(result);
       setSuccessOpen(true);
-      resetDraft(
-        resolveSubHubs(useWarehouseErpStore.getState().subHubs).map(
-          (h) => h.nodeId,
-        ),
-      );
+      resetDraft([...existingCodes, provisioned.hub.code]);
+      setExistingCodes((prev) => [...prev, provisioned.hub.code]);
+      await queryClient.invalidateQueries({ queryKey: ["admin-hubs"] });
       notify.success(
-        "Hub created",
-        `${result.hubName} is live across the control tower.`,
+        "Hub provisioned",
+        `${result.hubName} is live. Manager login: ${result.managerUsername}`,
       );
     } catch (error) {
-      notify.error(
-        "Unable to create hub",
-        error instanceof Error ? error.message : "Please review and try again.",
-      );
+      const message =
+        (error as { response?: { data?: { message?: string } } })?.response
+          ?.data?.message ||
+        (error instanceof Error
+          ? error.message
+          : "Please review and try again.");
+      notify.error("Unable to create hub", message);
     } finally {
       setIsPublishing(false);
     }
@@ -239,14 +375,12 @@ export function HubOnboardingWizard() {
       case 2:
         return <HubInventoryStep />;
       case 3:
-        return <HubWarehouseStep />;
-      case 4:
         return <HubManagerStep />;
-      case 5:
+      case 4:
         return <HubLogisticsStep />;
-      case 6:
+      case 5:
         return <HubCoverageStep />;
-      case 7:
+      case 6:
         return <HubReviewStep onEditStep={goToStep} />;
       default:
         return null;
@@ -274,7 +408,7 @@ export function HubOnboardingWizard() {
               </div>
               <h1 className="text-2xl font-bold text-[#1A1A1A]">Add New Hub</h1>
               <p className="mt-1 text-sm text-[#64748B]">
-                Complete the 7-step onboarding wizard to register a hub across
+                Complete the 6-step onboarding wizard to register a hub across
                 inventory, logistics, and operations.
               </p>
             </div>
@@ -379,10 +513,7 @@ export function HubOnboardingWizard() {
         onCreateAnother={() => {
           setSuccessOpen(false);
           setCreatedHub(null);
-          const codes = resolveSubHubs(
-            useWarehouseErpStore.getState().subHubs,
-          ).map((hub) => hub.nodeId);
-          resetDraft(codes);
+          resetDraft(existingCodes);
           reset(useHubDraftStore.getState().draft);
           goToStep(1);
         }}

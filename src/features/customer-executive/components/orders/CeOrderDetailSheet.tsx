@@ -87,7 +87,12 @@ export function CeOrderDetailSheet({
   const hub = hubs.find((h) => h.id === order.hubId);
   const driver = drivers.find((d) => d.id === order.driverId);
   const vehicle = vehicles.find((v) => v.id === order.vehicleId);
-  const paymentStatus = order.paymentMethod === "CREDIT" ? "PENDING" : "PAID";
+  const hubName = order.hubName || hub?.name;
+  const driverName = order.driverName || driver?.name;
+  const driverPhone = order.driverPhone || driver?.phone;
+  const vehicleNumber = order.vehicleNumber || vehicle?.registration;
+  const paymentStatus =
+    order.paymentMethod === "CASH" ? "Pending COD" : "PENDING";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -123,21 +128,15 @@ export function CeOrderDetailSheet({
               <DetailField label="ETA" value={order.eta ?? "—"} />
               <DetailField
                 label="Payment"
-                value={
-                  <span
-                    className={
-                      paymentStatus === "PAID"
-                        ? "text-green-600"
-                        : "text-red-600"
-                    }
-                  >
-                    {paymentStatus}
-                  </span>
-                }
+                value={<span className="text-amber-600">{paymentStatus}</span>}
               />
               <DetailField
                 label="Payment Method"
                 value={formatPaymentMethodLabel(order.paymentMethod)}
+              />
+              <DetailField
+                label="Tracking"
+                value={order.trackingStep.replaceAll("_", " ")}
               />
             </div>
           </Section>
@@ -170,7 +169,7 @@ export function CeOrderDetailSheet({
                 </TableHeader>
                 <TableBody>
                   {order.items.map((item) => (
-                    <TableRow key={item.productId}>
+                    <TableRow key={`${item.productId}-${item.productName}`}>
                       <TableCell>
                         <p className="text-sm font-medium">
                           {item.productName}
@@ -199,22 +198,26 @@ export function CeOrderDetailSheet({
             </div>
           </Section>
 
-          {hub ? (
+          {hubName ? (
             <Section title="Assigned Hub" icon={MapPin}>
               <div className="grid gap-4 rounded-lg border border-gray-100 p-4 sm:grid-cols-2">
-                <DetailField label="Hub" value={hub.name} />
-                <DetailField label="City" value={hub.city} />
+                <DetailField label="Hub" value={hubName} />
+                <DetailField
+                  label="Code"
+                  value={order.hubCode || hub?.city || "—"}
+                />
+                <DetailField label="Manager" value={order.managerName || "—"} />
               </div>
             </Section>
           ) : null}
 
-          {driver ? (
+          {driverName ? (
             <Section title="Driver & Vehicle" icon={Truck}>
               <div className="grid gap-4 rounded-lg border border-gray-100 p-4 sm:grid-cols-2">
-                <DetailField label="Driver" value={driver.name} />
-                <DetailField label="Phone" value={driver.phone} />
-                {vehicle ? (
-                  <DetailField label="Vehicle" value={vehicle.registration} />
+                <DetailField label="Driver" value={driverName} />
+                <DetailField label="Phone" value={driverPhone || "—"} />
+                {vehicleNumber ? (
+                  <DetailField label="Vehicle" value={vehicleNumber} />
                 ) : null}
               </div>
             </Section>

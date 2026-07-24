@@ -17,6 +17,8 @@ const managerPermissionSchema = z.enum([
 export const hubInventorySkuSchema = z.object({
   id: z.string(),
   materialId: z.string(),
+  productId: z.string().optional(),
+  variantId: z.string().optional(),
   sku: z.string(),
   category: z.string(),
   productName: z.string(),
@@ -33,7 +35,7 @@ export const hubFormSchema = z.object({
   id: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
-  currentStep: z.number().min(1).max(7),
+  currentStep: z.number().min(1).max(6),
   assignee: z.string(),
   basic: z.object({
     hubName: z.string().min(2, "Hub name is required"),
@@ -54,7 +56,7 @@ export const hubFormSchema = z.object({
     pincode: z.string().regex(/^\d{6}$/, "Enter a valid 6-digit pincode"),
     detailedAddress: z.string().min(5, "Detailed address is required"),
     coverageRadiusKm: z.number().min(1).max(100),
-    linkedWarehouseId: z.string().min(1, "Linked warehouse is required"),
+    linkedWarehouseId: z.string().min(1),
     linkedWarehouseName: z.string().min(1),
     fulfillmentPriority: z.enum(["P1", "P2", "P3"]),
     workingDays: z
@@ -62,12 +64,14 @@ export const hubFormSchema = z.object({
       .min(1, "Select at least one working day"),
     shiftStart: z.string().min(1),
     shiftEnd: z.string().min(1),
+    latitude: z.number(),
+    longitude: z.number(),
   }),
   inventory: z.object({
     skus: z.array(hubInventorySkuSchema),
   }),
   warehouse: z.object({
-    warehouseId: z.string().min(1, "Warehouse is required"),
+    warehouseId: z.string().min(1),
     warehouseName: z.string().min(1),
     distanceKm: z.number().min(0),
     transferTimeMins: z.number().min(0),
@@ -75,9 +79,7 @@ export const hubFormSchema = z.object({
     autoRestocking: z.boolean(),
     restockThresholdPercent: z.number().min(1).max(100),
     emergencyReplenishment: z.boolean(),
-    allowedCategories: z
-      .array(z.string())
-      .min(1, "Select at least one product category"),
+    allowedCategories: z.array(z.string()),
     contacts: z.array(
       z.object({
         id: z.string(),
@@ -98,53 +100,45 @@ export const hubFormSchema = z.object({
       email: z.string(),
       permissions: z.array(managerPermissionSchema).min(1),
       credentialsGenerated: z.boolean(),
+      generatedUsername: z.string().optional(),
+      generatedPassword: z.string().optional(),
       sendWhatsAppWelcome: z.boolean(),
     })
     .superRefine((manager, ctx) => {
-      if (manager.mode === "existing" && !manager.existingManagerId) {
+      if (!manager.fullName.trim()) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Select an existing manager",
-          path: ["existingManagerId"],
+          message: "Manager name is required",
+          path: ["fullName"],
         });
       }
-
-      if (manager.mode === "create") {
-        if (!manager.fullName.trim()) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "Manager name is required",
-            path: ["fullName"],
-          });
-        }
-        if (!manager.employeeId.trim()) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "Employee ID is required",
-            path: ["employeeId"],
-          });
-        }
-        if (!/^\d{10}$/.test(manager.phone.replace(/\s+/g, ""))) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "Enter a valid 10-digit mobile number",
-            path: ["phone"],
-          });
-        }
-        if (!manager.email.includes("@")) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "Enter a valid corporate email",
-            path: ["email"],
-          });
-        }
-        if (!manager.credentialsGenerated) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "Generate login credentials before continuing",
-            path: ["credentialsGenerated"],
-          });
-        }
+      if (!manager.employeeId.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Employee ID / username is required",
+          path: ["employeeId"],
+        });
+      }
+      if (!/^\d{10}$/.test(manager.phone.replace(/\s+/g, ""))) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Enter a valid 10-digit mobile number",
+          path: ["phone"],
+        });
+      }
+      if (!manager.email.includes("@")) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Enter a valid corporate email",
+          path: ["email"],
+        });
+      }
+      if (!manager.credentialsGenerated) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Generate login credentials before continuing",
+          path: ["credentialsGenerated"],
+        });
       }
     }),
   fleet: z.object({
@@ -155,6 +149,7 @@ export const hubFormSchema = z.object({
           name: z.string(),
           phone: z.string(),
           licenseNo: z.string(),
+          vehicleType: z.string().optional(),
           avatarInitials: z.string(),
         }),
       )
@@ -186,6 +181,8 @@ export const hubFormSchema = z.object({
     avgTransitMins: z.number(),
     peakDelayMins: z.number(),
     fuelEfficiency: z.enum(["high", "medium", "low"]),
+    latitude: z.number(),
+    longitude: z.number(),
   }),
 });
 
@@ -200,13 +197,6 @@ export const STEP_SCHEMAS = {
         path: ["basic", "hubName"],
       });
     }
-    if (!data.basic.linkedWarehouseId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Linked warehouse is required",
-        path: ["basic", "linkedWarehouseId"],
-      });
-    }
   }),
   2: hubFormSchema.pick({ inventory: true }).superRefine((data, ctx) => {
     const selected = data.inventory.skus.filter((sku) => sku.selected);
@@ -218,10 +208,9 @@ export const STEP_SCHEMAS = {
       });
     }
   }),
-  3: hubFormSchema.pick({ warehouse: true }),
-  4: hubFormSchema.pick({ manager: true }),
-  5: hubFormSchema.pick({ fleet: true }),
-  6: hubFormSchema.pick({ coverage: true }).superRefine((data, ctx) => {
+  3: hubFormSchema.pick({ manager: true }),
+  4: hubFormSchema.pick({ fleet: true }),
+  5: hubFormSchema.pick({ coverage: true }).superRefine((data, ctx) => {
     if (data.coverage.radiusKm < 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -241,21 +230,16 @@ export const STEP_FIELD_NAMES = {
     "basic.city",
     "basic.pincode",
     "basic.detailedAddress",
-    "basic.linkedWarehouseId",
     "basic.workingDays",
   ],
   2: ["inventory.skus"],
-  3: ["warehouse.warehouseId", "warehouse.allowedCategories"],
-  4: [
-    "manager.mode",
-    "manager.existingManagerId",
+  3: [
     "manager.fullName",
     "manager.employeeId",
     "manager.phone",
     "manager.email",
-    "manager.permissions",
     "manager.credentialsGenerated",
   ],
-  5: ["fleet.drivers", "fleet.vehicles", "fleet.deliverySlots"],
-  6: ["coverage.radiusKm", "coverage.pincodes"],
+  4: ["fleet.drivers", "fleet.vehicles", "fleet.deliverySlots"],
+  5: ["coverage.radiusKm", "coverage.pincodes"],
 } as const;

@@ -1,5 +1,10 @@
 import api from "@/services/api";
 import { API_ENDPOINTS } from "@/constants/api-endpoints";
+import type {
+  CreateDeliverySitePayload,
+  DeliverySite,
+  UpdateDeliverySitePayload,
+} from "@/features/user-management/types/customer.types";
 
 export interface AdminCustomerListItem {
   id: string;
@@ -141,6 +146,58 @@ export async function upgradeAdminCustomerMembership(
   const { data } = await api.post<ApiEnvelope<AdminCustomerDetail>>(
     API_ENDPOINTS.CUSTOMERS.UPGRADE_MEMBERSHIP(id),
     payload,
+  );
+  return data.data;
+}
+
+export async function fetchCustomerSites(
+  customerId: string,
+): Promise<DeliverySite[]> {
+  const { data } = await api.get<ApiEnvelope<DeliverySite[]>>(
+    API_ENDPOINTS.CUSTOMERS.SITES(customerId),
+  );
+  return data.data;
+}
+
+export async function createCustomerSite(
+  customerId: string,
+  payload: CreateDeliverySitePayload,
+): Promise<DeliverySite> {
+  const { data } = await api.post<ApiEnvelope<DeliverySite>>(
+    API_ENDPOINTS.CUSTOMERS.SITES(customerId),
+    payload,
+  );
+  return data.data;
+}
+
+export async function updateCustomerSite(
+  customerId: string,
+  siteId: string,
+  payload: UpdateDeliverySitePayload,
+): Promise<DeliverySite> {
+  const { data } = await api.put<ApiEnvelope<DeliverySite>>(
+    API_ENDPOINTS.CUSTOMERS.SITE_BY_ID(customerId, siteId),
+    payload,
+  );
+  return data.data;
+}
+
+export async function deleteCustomerSite(
+  customerId: string,
+  siteId: string,
+): Promise<void> {
+  await api.delete<ApiEnvelope<null>>(
+    API_ENDPOINTS.CUSTOMERS.SITE_BY_ID(customerId, siteId),
+  );
+}
+
+export async function setPrimaryCustomerSite(
+  customerId: string,
+  siteId: string,
+): Promise<DeliverySite> {
+  const { data } = await api.patch<ApiEnvelope<DeliverySite>>(
+    API_ENDPOINTS.CUSTOMERS.SITE_PRIMARY(customerId, siteId),
+    {},
   );
   return data.data;
 }

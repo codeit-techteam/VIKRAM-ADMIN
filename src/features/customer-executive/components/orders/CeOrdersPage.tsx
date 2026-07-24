@@ -59,6 +59,10 @@ export function CeOrdersPage() {
   const queryOrders = useCustomerExecutiveStore((s) => s.queryOrders);
   const orders = useCustomerExecutiveStore((s) => s.orders);
   const getOrder = useCustomerExecutiveStore((s) => s.getOrder);
+  const loadOrdersFromApi = useCustomerExecutiveStore(
+    (s) => s.loadOrdersFromApi,
+  );
+  const ordersLoading = useCustomerExecutiveStore((s) => s.ordersLoading);
 
   const [draftFilters, setDraftFilters] =
     useState<CeOrderFilters>(EMPTY_ORDER_FILTERS);
@@ -68,9 +72,17 @@ export function CeOrdersPage() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
+  useEffect(() => {
+    void loadOrdersFromApi();
+    const timer = window.setInterval(() => {
+      void loadOrdersFromApi();
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [loadOrdersFromApi]);
+
   const selectedOrder = useMemo(
     () => (selectedOrderId ? (getOrder(selectedOrderId) ?? null) : null),
-    [selectedOrderId, getOrder],
+    [selectedOrderId, getOrder, orders],
   );
 
   const openOrderDetail = (orderId: string) => {
@@ -262,8 +274,8 @@ export function CeOrdersPage() {
         Apply Filters
       </Button>
 
-      {isLoading ? (
-        <CeTableSkeleton columns={7} />
+      {isLoading || ordersLoading ? (
+        <CeTableSkeleton columns={9} />
       ) : queryResult.items.length === 0 ? (
         <EmptyState title="No orders found" />
       ) : (
@@ -273,10 +285,12 @@ export function CeOrdersPage() {
               <TableRow className="bg-orange-50/50 hover:bg-orange-50/50">
                 <TableHead>Order ID</TableHead>
                 <TableHead>Customer</TableHead>
+                <TableHead>Hub</TableHead>
+                <TableHead>Manager</TableHead>
+                <TableHead>Payment</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Source</TableHead>
-                <TableHead>ETA</TableHead>
+                <TableHead>Date</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -288,30 +302,31 @@ export function CeOrdersPage() {
                   onClick={() => openOrderDetail(order.id)}
                 >
                   <TableCell className="text-primary font-medium">
-                    #
                     <HighlightText
                       text={order.orderNumber}
                       query={appliedFilters.search}
                     />
                   </TableCell>
                   <TableCell>
-                    <p className="font-medium">{order.company}</p>
-                    <p className="text-xs text-[#64748B]">
-                      <HighlightText
-                        text={order.customerName}
-                        query={appliedFilters.search}
-                      />
-                    </p>
+                    <HighlightText
+                      text={order.customerName}
+                      query={appliedFilters.search}
+                    />
                   </TableCell>
+                  <TableCell>{order.hubName || order.hubCode || "—"}</TableCell>
+                  <TableCell>{order.managerName || "—"}</TableCell>
+                  <TableCell>{order.paymentMethod}</TableCell>
                   <TableCell>{formatCurrency(order.amount)}</TableCell>
                   <TableCell>
                     <CeStatusBadge status={order.status} />
                   </TableCell>
                   <TableCell>
-                    <CeStatusBadge status={order.orderSource} />
-                  </TableCell>
-                  <TableCell className="text-sm text-[#64748B]">
-                    {order.eta ?? "—"}
+                    {new Date(order.createdAt).toLocaleString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </TableCell>
                   <TableCell onClick={(event) => event.stopPropagation()}>
                     <DropdownMenu>

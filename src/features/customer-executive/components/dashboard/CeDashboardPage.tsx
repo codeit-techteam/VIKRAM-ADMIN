@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Pagination } from "@/components/shared/Pagination";
@@ -66,6 +66,10 @@ export function CeDashboardPage() {
     (s) => s.getDashboardStats,
   );
   const queryOrders = useCustomerExecutiveStore((s) => s.queryOrders);
+  const loadOrdersFromApi = useCustomerExecutiveStore(
+    (s) => s.loadOrdersFromApi,
+  );
+  const orders = useCustomerExecutiveStore((s) => s.orders);
   const getRecentActivities = useCustomerExecutiveStore(
     (s) => s.getRecentActivities,
   );
@@ -78,6 +82,14 @@ export function CeDashboardPage() {
 
   const [orderPage, setOrderPage] = useState(1);
   const [paymentDrawer, setPaymentDrawer] = useState<CePayment | null>(null);
+
+  useEffect(() => {
+    void loadOrdersFromApi();
+    const timer = window.setInterval(() => {
+      void loadOrdersFromApi();
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [loadOrdersFromApi]);
 
   const stats = getDashboardStats();
   const recentOrders = useMemo(
@@ -92,7 +104,7 @@ export function CeDashboardPage() {
           orderSource: "ALL",
         },
       }),
-    [queryOrders, orderPage],
+    [queryOrders, orderPage, orders],
   );
   const activities = getRecentActivities(8);
   const pendingPayments = getPendingPayments(5);

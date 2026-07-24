@@ -112,6 +112,12 @@ export interface CeOrder {
   driverId?: string;
   vehicleId?: string;
   hubId: string;
+  hubName?: string;
+  hubCode?: string;
+  managerName?: string;
+  driverName?: string;
+  driverPhone?: string;
+  vehicleNumber?: string;
 }
 
 export interface CePayment {

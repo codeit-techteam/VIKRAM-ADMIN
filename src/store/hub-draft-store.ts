@@ -131,7 +131,11 @@ export const useHubDraftStore = create<HubDraftStore>()(
 
       syncHubCode: (existingCodes) => {
         const { draft } = get();
-        const nextCode = generateHubCode(draft.basic.state, existingCodes);
+        const nextCode = generateHubCode(
+          draft.basic.state,
+          existingCodes,
+          draft.basic.city,
+        );
         if (nextCode === draft.basic.hubCode) return;
         set({
           draft: touch({

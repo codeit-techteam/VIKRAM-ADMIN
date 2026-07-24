@@ -1,4 +1,3 @@
-import { INVENTORY_ITEMS } from "@/mock/inventory";
 import type {
   HubDraft,
   HubInventorySkuDraft,
@@ -10,14 +9,41 @@ import type {
 export const HUB_DRAFT_STORAGE_KEY = "bq-hub-wizard-draft";
 export const HUB_DRAFT_SAVED_AT_KEY = "bq-hub-wizard-draft-saved-at";
 
+/** Single warehouse for current phase — every hub links here automatically. */
+export const MAIN_WAREHOUSE = {
+  id: "wh-main-gurugram",
+  name: "Main Warehouse Gurugram",
+  distanceKm: 0,
+  transferTimeMins: 0,
+  priority: "Tier 1" as const,
+  contacts: [
+    {
+      id: "wc-main-1",
+      name: "Warehouse Ops",
+      role: "Warehouse Manager",
+      availability: "on-duty" as const,
+      phone: "+91 98100 22001",
+    },
+  ],
+} as const;
+
+/** Default Hub Manager for current phase (editable in the wizard). */
+export const DEFAULT_HUB_MANAGER = {
+  fullName: "Rahul Sharma",
+  phone: "9876543210",
+  email: "rahul@company.com",
+  employeeId: "rahul.sharma",
+  username: "rahul.sharma",
+  password: "Rahul@123",
+} as const;
+
 export const HUB_WIZARD_STEPS: HubWizardStep[] = [
   { id: 1, label: "Basic Information", shortLabel: "Basic Info" },
   { id: 2, label: "Inventory Configuration", shortLabel: "Inventory" },
-  { id: 3, label: "Warehouse Mapping", shortLabel: "Warehouse" },
-  { id: 4, label: "Hub Manager", shortLabel: "Manager" },
-  { id: 5, label: "Logistics Configuration", shortLabel: "Logistics" },
-  { id: 6, label: "Service Area Coverage", shortLabel: "Coverage" },
-  { id: 7, label: "Review & Create", shortLabel: "Review" },
+  { id: 3, label: "Hub Manager", shortLabel: "Manager" },
+  { id: 4, label: "Logistics Configuration", shortLabel: "Logistics" },
+  { id: 5, label: "Service Area Coverage", shortLabel: "Coverage" },
+  { id: 6, label: "Review & Create", shortLabel: "Review" },
 ];
 
 export const HUB_TYPE_OPTIONS: Array<{ value: HubType; label: string }> = [
@@ -65,63 +91,8 @@ export const INDIAN_STATES = [
   "West Bengal",
 ] as const;
 
-export const HUB_WAREHOUSE_OPTIONS = [
-  {
-    id: "wh-main",
-    name: "Main Warehouse",
-    distanceKm: 12.4,
-    transferTimeMins: 45,
-    priority: "Tier 1" as const,
-    contacts: [
-      {
-        id: "wc-1",
-        name: "Rajesh Sharma",
-        role: "Warehouse Manager",
-        availability: "on-duty" as const,
-        phone: "+91 98100 22001",
-      },
-      {
-        id: "wc-2",
-        name: "Sanya Malhotra",
-        role: "Fleet Coordinator",
-        availability: "on-duty" as const,
-        phone: "+91 98100 22002",
-      },
-    ],
-  },
-  {
-    id: "wh-noida",
-    name: "Noida Central Depot",
-    distanceKm: 28.1,
-    transferTimeMins: 75,
-    priority: "Tier 2" as const,
-    contacts: [
-      {
-        id: "wc-3",
-        name: "Imran Qureshi",
-        role: "Warehouse Manager",
-        availability: "on-duty" as const,
-        phone: "+91 98100 22003",
-      },
-    ],
-  },
-  {
-    id: "wh-manesar",
-    name: "Manesar Fulfillment Hub",
-    distanceKm: 18.6,
-    transferTimeMins: 55,
-    priority: "Tier 1" as const,
-    contacts: [
-      {
-        id: "wc-4",
-        name: "Neha Kapoor",
-        role: "Ops Lead",
-        availability: "off-duty" as const,
-        phone: "+91 98100 22004",
-      },
-    ],
-  },
-] as const;
+/** @deprecated Prefer MAIN_WAREHOUSE — multi-warehouse selection removed. */
+export const HUB_WAREHOUSE_OPTIONS = [MAIN_WAREHOUSE] as const;
 
 export const PRODUCT_CATEGORY_OPTIONS = [
   "Construction Materials",
@@ -137,25 +108,11 @@ export const PRODUCT_CATEGORY_OPTIONS = [
 
 export const EXISTING_HUB_MANAGERS = [
   {
-    id: "mgr-amit",
-    fullName: "Amit Sharma",
-    employeeId: "BW-HUB-101",
-    phone: "9810011201",
-    email: "amit.sharma@bajriwala.in",
-  },
-  {
-    id: "mgr-sneha",
-    fullName: "Sneha Reddy",
-    employeeId: "BW-HUB-102",
-    phone: "9810011202",
-    email: "sneha.reddy@bajriwala.in",
-  },
-  {
-    id: "mgr-deepak",
-    fullName: "Deepak Gupta",
-    employeeId: "BW-HUB-104",
-    phone: "9810011204",
-    email: "deepak.gupta@bajriwala.in",
+    id: "mgr-rahul",
+    fullName: DEFAULT_HUB_MANAGER.fullName,
+    employeeId: DEFAULT_HUB_MANAGER.employeeId,
+    phone: DEFAULT_HUB_MANAGER.phone,
+    email: DEFAULT_HUB_MANAGER.email,
   },
 ] as const;
 
@@ -189,15 +146,45 @@ const STATE_CODE_MAP: Record<string, string> = {
   "West Bengal": "WB",
 };
 
+const CITY_CODE_MAP: Record<string, string> = {
+  kalyani: "KAL",
+  noida: "NOI",
+  kolkata: "KOL",
+  delhi: "DEL",
+  "new delhi": "DEL",
+  gurugram: "GGN",
+  gurgaon: "GGN",
+  mumbai: "MUM",
+  pune: "PUN",
+  jaipur: "JAI",
+  manesar: "MAN",
+  faridabad: "FAR",
+  bengaluru: "BLR",
+  bangalore: "BLR",
+  hyderabad: "HYD",
+  chennai: "CHN",
+  ahmedabad: "AMD",
+};
+
 export function getStateCode(state: string): string {
   return STATE_CODE_MAP[state] ?? "IN";
+}
+
+export function getCityCode(city: string, state: string): string {
+  const key = city.trim().toLowerCase();
+  if (CITY_CODE_MAP[key]) return CITY_CODE_MAP[key];
+  const cleaned = city.replace(/[^a-zA-Z]/g, "").toUpperCase();
+  if (cleaned.length >= 3) return cleaned.slice(0, 3);
+  return getStateCode(state);
 }
 
 export function generateHubCode(
   state: string,
   existingCodes: string[],
+  city = "",
 ): string {
-  const prefix = `HUB-${getStateCode(state)}-`;
+  const cityCode = getCityCode(city, state);
+  const prefix = `HUB-${cityCode}-`;
   let seq = 1;
 
   const used = new Set(
@@ -210,45 +197,40 @@ export function generateHubCode(
   return `${prefix}${String(seq).padStart(3, "0")}`;
 }
 
-export function buildDefaultInventorySkus(): HubInventorySkuDraft[] {
-  return INVENTORY_ITEMS.slice(0, 8).map((item, index) => {
-    const opening = Math.max(
-      Math.round(item.minimumStock * (0.4 + (index % 3) * 0.25)),
-      index === 3 ? 12 : item.minimumStock,
-    );
-    const reorder = Math.round(item.minimumStock * 0.8);
-    const safety = Math.round(item.minimumStock * 0.4);
+export function usernameFromFullName(fullName: string): string {
+  const parts = fullName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, "")
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return "hub.manager";
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]}.${parts[parts.length - 1]}`;
+}
 
-    return {
-      id: `hub-sku-${item.id}`,
-      materialId: item.id,
-      sku: item.sku,
-      category: item.category,
-      productName: item.productName,
-      variant: item.categorySlug,
-      unit: item.unit,
-      openingStock: opening,
-      reorderLevel: reorder,
-      safetyStock: safety,
-      maxStock: Math.max(item.minimumStock * 3, opening * 2),
-      selected: index < 5,
-    };
-  });
+export function passwordFromFullName(fullName: string): string {
+  const first = fullName.trim().split(/\s+/)[0] || "Hub";
+  return `${first.charAt(0).toUpperCase()}${first.slice(1).toLowerCase()}@123`;
+}
+
+export function buildDefaultInventorySkus(): HubInventorySkuDraft[] {
+  return [];
 }
 
 export function createEmptyHubDraft(existingCodes: string[] = []): HubDraft {
   const now = new Date().toISOString();
-  const warehouse = HUB_WAREHOUSE_OPTIONS[0];
+  const warehouse = MAIN_WAREHOUSE;
 
   return {
     id: `draft-${Date.now()}`,
     createdAt: now,
     updatedAt: now,
     currentStep: 1,
-    assignee: "Rohan Sharma",
+    assignee: "",
     basic: {
       hubName: "",
-      hubCode: generateHubCode("New Delhi", existingCodes),
+      hubCode: generateHubCode("New Delhi", existingCodes, ""),
       hubType: "distribution-center",
       capacityTier: "small",
       customCapacityMt: 2500,
@@ -265,6 +247,8 @@ export function createEmptyHubDraft(existingCodes: string[] = []): HubDraft {
       workingDays: ["mon", "tue", "wed", "thu", "fri"],
       shiftStart: "08:00",
       shiftEnd: "22:00",
+      latitude: 28.6139,
+      longitude: 77.209,
     },
     inventory: {
       skus: buildDefaultInventorySkus(),
@@ -278,22 +262,28 @@ export function createEmptyHubDraft(existingCodes: string[] = []): HubDraft {
       autoRestocking: true,
       restockThresholdPercent: 20,
       emergencyReplenishment: false,
-      allowedCategories: [
-        "Construction Materials",
-        "Safety Gear",
-        "Heavy Machinery",
-      ],
+      allowedCategories: ["Construction Materials"],
       contacts: [...warehouse.contacts],
     },
     manager: {
       mode: "create",
       existingManagerId: "",
-      fullName: "",
-      employeeId: "",
-      phone: "",
-      email: "",
-      permissions: ["orders", "inventory", "dispatch", "requisitions"],
-      credentialsGenerated: false,
+      fullName: DEFAULT_HUB_MANAGER.fullName,
+      employeeId: DEFAULT_HUB_MANAGER.employeeId,
+      phone: DEFAULT_HUB_MANAGER.phone,
+      email: DEFAULT_HUB_MANAGER.email,
+      permissions: [
+        "orders",
+        "inventory",
+        "dispatch",
+        "drivers",
+        "reports",
+        "payments",
+        "requisitions",
+      ],
+      credentialsGenerated: true,
+      generatedUsername: DEFAULT_HUB_MANAGER.username,
+      generatedPassword: DEFAULT_HUB_MANAGER.password,
       sendWhatsAppWelcome: true,
     },
     fleet: {
@@ -301,23 +291,31 @@ export function createEmptyHubDraft(existingCodes: string[] = []): HubDraft {
         {
           id: "drv-draft-1",
           name: "Rajesh Kumar",
-          phone: "+91 98765 43210",
-          licenseNo: "DL-0420110045678",
+          phone: "9876543211",
+          licenseNo: "WB12AB1234",
+          vehicleType: "Bike",
           avatarInitials: "RK",
         },
         {
           id: "drv-draft-2",
-          name: "Amit Singh",
-          phone: "+91 98765 43211",
-          licenseNo: "HR-1420110098765",
-          avatarInitials: "AS",
+          name: "Sanjay Singh",
+          phone: "9876543212",
+          licenseNo: "WB20XY9988",
+          vehicleType: "Pickup",
+          avatarInitials: "SS",
         },
       ],
       vehicles: [
         {
           id: "veh-draft-1",
-          vehicleType: "Tata Prima 4028.S",
-          regNumber: "HR-55-AN-4028",
+          vehicleType: "Bike",
+          regNumber: "WB12AB1234",
+          status: "active",
+        },
+        {
+          id: "veh-draft-2",
+          vehicleType: "Pickup",
+          regNumber: "WB20XY9988",
           status: "active",
         },
       ],
@@ -334,13 +332,15 @@ export function createEmptyHubDraft(existingCodes: string[] = []): HubDraft {
         { x: 35, y: 75 },
       ],
       estimatedCustomers: 14280,
-      nearbyHubs: 3,
-      nearbyHubLabel: "Gurugram",
-      conflictPercent: 8,
-      conflictHubName: "Hub NH-48",
+      nearbyHubs: 0,
+      nearbyHubLabel: "—",
+      conflictPercent: 0,
+      conflictHubName: "",
       avgTransitMins: 22,
       peakDelayMins: 14,
       fuelEfficiency: "high",
+      latitude: 28.6139,
+      longitude: 77.209,
     },
   };
 }
@@ -354,7 +354,7 @@ export function computeCoverageMetrics(radiusKm: number) {
   const scale = radiusKm / 12.5;
   return {
     estimatedCustomers: Math.round(14_280 * scale),
-    conflictPercent: Math.min(25, Math.round(8 * scale)),
+    conflictPercent: 0,
     avgTransitMins: Math.round(22 * Math.max(0.7, scale * 0.85)),
     peakDelayMins: Math.round(14 * Math.max(0.6, scale * 0.9)),
   };

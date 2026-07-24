@@ -3,7 +3,8 @@
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { SubHubStatsCard } from "@/components/sub-hub/SubHubStatsCard";
 import { SubHubSummaryCard } from "@/components/sub-hub/SubHubSummaryCard";
@@ -16,18 +17,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ROUTES } from "@/constants/routes";
-import { normalizeHubInventory, resolveSubHubs } from "@/store/sub-hub-state";
-import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
-import type { SubHubOperationalStatus, SubHubSummary } from "@/types/erp.types";
-import {
-  computeSubHubDashboardKpis,
-  computeSubHubSummaries,
-  computeSubHubTableRows,
-} from "@/utils/sub-hub-metrics";
+import { hubsService, type AdminHubListItem } from "@/services/hubs.service";
+import type {
+  SubHubOperationalStatus,
+  SubHubStat,
+  SubHubSummary,
+  SubHubTableRow,
+} from "@/types/erp.types";
 
 type RegionFilter = "all" | string;
 type StatusFilter = "all" | SubHubOperationalStatus;
-type SyncFilter = "all" | "30-days";
 
 const STATUS_PRIORITY: Record<SubHubOperationalStatus, number> = {
   critical: 0,
@@ -49,256 +48,294 @@ const fadeIn = {
   transition: { duration: 0.25 },
 };
 
-function sortByCriticality(summaries: SubHubSummary[]) {
+function mapOperationalStatus(hub: AdminHubListItem): SubHubOperationalStatus {
+  if (!hub.isActive || hub.operationalStatus !== "ENABLED") return "critical";
+  return "healthy";
+}
+
+function toSummary(hub: AdminHubListItem): SubHubSummary {
+  const status = mapOperationalStatus(hub);
+  return {
+    hubId: hub.id,
+    name: hub.name,
+    city: hub.city,
+    managerName: hub.manager?.fullName || hub.manager?.name || "Unassigned",
+    stockValue: 0,
+    stockValueLabel: "—",
+    pendingOrders: hub.pendingOrders ?? hub.orderCount ?? 0,
+    pendingRequisitions: 0,
+    incomingTransfers: 0,
+    outgoingTransfers: 0,
+    inventoryHealth: hub.isActive ? 90 : 40,
+    healthScore: hub.isActive ? 88 : 35,
+    lastInventorySync: hub.updatedAt,
+    status,
+  };
+}
+
+function toTableRow(hub: AdminHubListItem): SubHubTableRow {
+  const status = mapOperationalStatus(hub);
+  return {
+    hubId: hub.id,
+    name: hub.name,
+    nodeId: hub.code,
+    managerName: hub.manager?.fullName || hub.manager?.name || "Unassigned",
+    city: hub.city,
+    region: hub.state,
+    inventoryHealth: hub.isActive ? 90 : 40,
+    healthScore: hub.isActive ? 88 : 35,
+    pendingOrders: hub.pendingOrders ?? hub.orderCount ?? 0,
+    pendingRequisitions: 0,
+    incomingTransfers: 0,
+    outgoingTransfers: 0,
+    transfersInTransit: 0,
+    status,
+    isActive: hub.isActive,
+  };
+}
+
+function sortByOperationalPriority(summaries: SubHubSummary[]) {
   return [...summaries].sort((left, right) => {
+    // Active / healthy hubs first so Admin opens the live Kalyani hub
+    const leftActive = left.status === "healthy" ? 0 : 1;
+    const rightActive = right.status === "healthy" ? 0 : 1;
+    if (leftActive !== rightActive) return leftActive - rightActive;
+
     const statusDiff =
       STATUS_PRIORITY[left.status] - STATUS_PRIORITY[right.status];
-    if (statusDiff !== 0) {
-      return statusDiff;
-    }
-    return left.healthScore - right.healthScore;
+    if (statusDiff !== 0) return statusDiff;
+    return right.pendingOrders - left.pendingOrders;
   });
 }
 
 export function SubHubNetworkDashboard() {
-  const [isLoading, setIsLoading] = useState(true);
   const [regionFilter, setRegionFilter] = useState<RegionFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [syncFilter, setSyncFilter] = useState<SyncFilter>("30-days");
   const [showAllHubs, setShowAllHubs] = useState(false);
 
-  const subHubs = useWarehouseErpStore((state) => state.subHubs);
-  const hubInventory = useWarehouseErpStore((state) => state.hubInventory);
-  const requisitions = useWarehouseErpStore((state) => state.requisitions);
-  const transfers = useWarehouseErpStore((state) => state.transfers);
+  const hubsQuery = useQuery({
+    queryKey: ["admin-hubs", "list"],
+    queryFn: () => hubsService.list({ page: 1, limit: 100 }),
+    refetchInterval: 15000,
+    retry: 2,
+  });
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 500);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  const resolvedSubHubs = useMemo(() => resolveSubHubs(subHubs), [subHubs]);
-
-  const resolvedHubInventory = useMemo(
-    () => normalizeHubInventory(hubInventory),
-    [hubInventory],
-  );
-
-  const kpis = useMemo(
-    () =>
-      computeSubHubDashboardKpis(
-        resolvedSubHubs,
-        resolvedHubInventory,
-        requisitions,
-      ),
-    [resolvedSubHubs, resolvedHubInventory, requisitions],
-  );
-
-  const allSummaries = useMemo(
-    () =>
-      computeSubHubSummaries(
-        resolvedSubHubs,
-        resolvedHubInventory,
-        transfers,
-        requisitions,
-      ),
-    [resolvedSubHubs, resolvedHubInventory, transfers, requisitions],
-  );
-
-  const tableRows = useMemo(
-    () =>
-      computeSubHubTableRows(
-        resolvedSubHubs,
-        resolvedHubInventory,
-        transfers,
-        requisitions,
-      ),
-    [resolvedSubHubs, resolvedHubInventory, transfers, requisitions],
-  );
+  const hubs = hubsQuery.data?.data ?? [];
+  const isLoading = hubsQuery.isLoading;
+  const loadError = hubsQuery.isError;
+  const errorStatus = (() => {
+    const err = hubsQuery.error;
+    if (
+      err &&
+      typeof err === "object" &&
+      "response" in err &&
+      err.response &&
+      typeof err.response === "object" &&
+      "status" in err.response
+    ) {
+      return Number((err.response as { status?: number }).status);
+    }
+    return null;
+  })();
+  const isAuthError = errorStatus === 401 || errorStatus === 403;
 
   const regions = useMemo(
-    () =>
-      Array.from(new Set(resolvedSubHubs.map((hub) => hub.region))).sort(
-        (a, b) => a.localeCompare(b),
-      ),
-    [resolvedSubHubs],
+    () => Array.from(new Set(hubs.map((hub) => hub.state))).sort(),
+    [hubs],
   );
 
-  const filteredTableRows = useMemo(() => {
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    return tableRows.filter((row) => {
-      if (regionFilter !== "all" && row.region !== regionFilter) {
+  const filteredHubs = useMemo(() => {
+    return hubs.filter((hub) => {
+      if (regionFilter !== "all" && hub.state !== regionFilter) return false;
+      if (
+        statusFilter !== "all" &&
+        mapOperationalStatus(hub) !== statusFilter
+      ) {
         return false;
       }
-
-      if (statusFilter !== "all" && row.status !== statusFilter) {
-        return false;
-      }
-
-      if (syncFilter === "30-days") {
-        const hub = resolvedSubHubs.find((entry) => entry.id === row.hubId);
-        if (hub && new Date(hub.lastInventorySync) < thirtyDaysAgo) {
-          return false;
-        }
-      }
-
       return true;
     });
-  }, [regionFilter, resolvedSubHubs, statusFilter, syncFilter, tableRows]);
+  }, [hubs, regionFilter, statusFilter]);
 
-  const filteredSummaries = useMemo(() => {
-    const allowedHubIds = new Set(filteredTableRows.map((row) => row.hubId));
-    return sortByCriticality(
-      allSummaries.filter((summary) => allowedHubIds.has(summary.hubId)),
-    );
-  }, [allSummaries, filteredTableRows]);
-
-  const visibleSummaries = useMemo(
-    () =>
-      showAllHubs
-        ? filteredSummaries
-        : filteredSummaries.slice(0, DASHBOARD_CARD_LIMIT),
-    [filteredSummaries, showAllHubs],
+  const summaries = useMemo(
+    () => sortByOperationalPriority(filteredHubs.map(toSummary)),
+    [filteredHubs],
   );
+  const tableRows = useMemo(() => filteredHubs.map(toTableRow), [filteredHubs]);
 
-  const hasMoreHubs = filteredSummaries.length > DASHBOARD_CARD_LIMIT;
+  const activeCount = hubs.filter(
+    (h) => h.isActive && h.operationalStatus === "ENABLED",
+  ).length;
+  const totalDrivers = hubs.reduce((sum, h) => sum + (h.driverCount ?? 0), 0);
+  const totalOrders = hubs.reduce((sum, h) => sum + (h.orderCount ?? 0), 0);
 
-  const criticalCount = filteredSummaries.filter(
-    (hub) => hub.status === "critical",
-  ).length;
-  const warningCount = filteredSummaries.filter(
-    (hub) => hub.status === "warning",
-  ).length;
+  const kpis: SubHubStat[] = [
+    {
+      id: "active-hubs",
+      label: "Total Active Hubs",
+      value: String(activeCount),
+      subtitle: `${hubs.length} hubs in network`,
+      icon: "active-hubs",
+    },
+    {
+      id: "inventory-health",
+      label: "Network Orders",
+      value: String(totalOrders),
+      subtitle: "Assigned across hubs",
+      icon: "inventory-health",
+    },
+    {
+      id: "pending-requisitions",
+      label: "Active Drivers",
+      value: String(totalDrivers),
+      subtitle: "Fleet capacity",
+      icon: "pending-requisitions",
+    },
+    {
+      id: "low-stock-hubs",
+      label: "Inactive / Suspended",
+      value: String(hubs.length - activeCount),
+      subtitle: "Needs attention",
+      icon: "low-stock-hubs",
+      variant: hubs.length - activeCount > 0 ? "warning" : "default",
+    },
+  ];
+
+  const visibleCards = showAllHubs
+    ? summaries
+    : summaries.slice(0, DASHBOARD_CARD_LIMIT);
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="space-y-6">
+      <motion.div
+        {...fadeUp}
+        className="flex flex-wrap items-end justify-between gap-4"
+      >
+        <div>
+          <h1 className="text-2xl font-bold text-[#1A1A1A]">Sub-Hub Network</h1>
+          <p className="mt-1 text-sm text-[#64748B]">
+            Live hubs from the operations backend — create once, sync
+            everywhere.
+          </p>
+        </div>
+        <Link
+          href={ROUTES.SUB_HUB_ADD}
+          className="bg-primary inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white"
+        >
+          Create Hub
+          <ArrowRight className="size-4" />
+        </Link>
+      </motion.div>
+
+      <motion.div
+        {...fadeIn}
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+      >
         {kpis.map((stat) => (
           <SubHubStatsCard key={stat.id} stat={stat} isLoading={isLoading} />
         ))}
-      </div>
-
-      <div className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm lg:flex-row lg:items-center">
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-          <Select
-            value={regionFilter}
-            onValueChange={(value) => setRegionFilter(value ?? "all")}
-          >
-            <SelectTrigger className="h-10 w-full min-w-[160px] sm:w-[180px]">
-              <SelectValue placeholder="All Regions" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Regions</SelectItem>
-              {regions.map((region) => (
-                <SelectItem key={region} value={region}>
-                  {region}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={statusFilter}
-            onValueChange={(value) =>
-              setStatusFilter((value ?? "all") as StatusFilter)
-            }
-          >
-            <SelectTrigger className="h-10 w-full min-w-[160px] sm:w-[180px]">
-              <SelectValue placeholder="Alert Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alert Status</SelectItem>
-              <SelectItem value="healthy">Healthy</SelectItem>
-              <SelectItem value="warning">Warning</SelectItem>
-              <SelectItem value="critical">Critical</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={syncFilter}
-            onValueChange={(value) =>
-              setSyncFilter((value ?? "30-days") as SyncFilter)
-            }
-          >
-            <SelectTrigger className="h-10 w-full min-w-[160px] sm:w-[180px]">
-              <SelectValue placeholder="Last 30 Days" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="30-days">Last 30 Days</SelectItem>
-              <SelectItem value="all">All Time</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <motion.section className="min-w-0" {...fadeUp}>
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-[#1A1A1A]">
-              Top Critical Hubs
-            </h2>
-            {!isLoading ? (
-              <p className="mt-1 text-sm text-[#64748B]">
-                {criticalCount > 0 || warningCount > 0
-                  ? `${criticalCount} critical · ${warningCount} warning across ${filteredSummaries.length} hubs`
-                  : `${filteredSummaries.length} hubs in view · all healthy`}
-              </p>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {isLoading
-            ? Array.from({ length: DASHBOARD_CARD_LIMIT }, (_, index) => (
-                <SubHubSummaryCard
-                  key={`loading-${index}`}
-                  hub={{} as never}
-                  isLoading
-                />
-              ))
-            : visibleSummaries.map((hub) => (
-                <SubHubSummaryCard key={hub.hubId} hub={hub} />
-              ))}
-        </div>
-
-        {hasMoreHubs && !isLoading ? (
-          <div className="mt-4 flex items-center gap-4">
-            {showAllHubs ? (
-              <button
-                type="button"
-                onClick={() => setShowAllHubs(false)}
-                className="text-primary inline-flex items-center gap-1.5 text-sm font-medium hover:underline"
-              >
-                Show Less
-              </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setShowAllHubs(true)}
-                  className="text-primary inline-flex items-center gap-1.5 text-sm font-medium hover:underline"
-                >
-                  View All Hubs
-                  <ArrowRight className="size-4" />
-                </button>
-                <Link
-                  href={ROUTES.SUB_HUB_NETWORK}
-                  className="text-sm text-[#64748B] hover:text-[#1A1A1A] hover:underline"
-                >
-                  Full hub directory
-                </Link>
-              </>
-            )}
-          </div>
-        ) : null}
-      </motion.section>
-
-      <motion.div className="w-full min-w-0" {...fadeIn}>
-        <SubHubTable rows={filteredTableRows} isLoading={isLoading} />
       </motion.div>
+
+      {loadError ? (
+        <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {isAuthError ? (
+            <>
+              Session expired or offline login is active.{" "}
+              <a href="/login" className="font-semibold underline">
+                Sign in again
+              </a>{" "}
+              with <code>superadmin@bajriwala.in</code> /{" "}
+              <code>Admin@1234</code> while the API is running on port 8000.
+            </>
+          ) : (
+            <>
+              Could not load hubs from the backend. Check that the API is
+              running on port 8000, then refresh this page.
+            </>
+          )}
+        </div>
+      ) : null}
+
+      <div className="flex flex-wrap gap-3">
+        <Select
+          value={regionFilter}
+          onValueChange={(v) => setRegionFilter(v ?? "all")}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Region" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All regions</SelectItem>
+            {regions.map((region) => (
+              <SelectItem key={region} value={region}>
+                {region}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => setStatusFilter((v as StatusFilter) ?? "all")}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="healthy">Healthy</SelectItem>
+            <SelectItem value="warning">Warning</SelectItem>
+            <SelectItem value="critical">Critical</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <motion.div
+        {...fadeUp}
+        className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+      >
+        {isLoading
+          ? Array.from({ length: 3 }).map((_, i) => (
+              <SubHubSummaryCard
+                key={i}
+                hub={
+                  summaries[0] ?? {
+                    hubId: "loading",
+                    name: "",
+                    city: "",
+                    managerName: "",
+                    stockValue: 0,
+                    stockValueLabel: "",
+                    pendingOrders: 0,
+                    pendingRequisitions: 0,
+                    incomingTransfers: 0,
+                    outgoingTransfers: 0,
+                    inventoryHealth: 0,
+                    healthScore: 0,
+                    lastInventorySync: "",
+                    status: "healthy",
+                  }
+                }
+                isLoading
+              />
+            ))
+          : visibleCards.map((hub) => (
+              <SubHubSummaryCard key={hub.hubId} hub={hub} />
+            ))}
+      </motion.div>
+
+      {!isLoading && summaries.length > DASHBOARD_CARD_LIMIT ? (
+        <button
+          type="button"
+          className="text-primary text-sm font-semibold"
+          onClick={() => setShowAllHubs((v) => !v)}
+        >
+          {showAllHubs
+            ? "Show fewer hubs"
+            : `Show all ${summaries.length} hubs`}
+        </button>
+      ) : null}
+
+      <SubHubTable rows={tableRows} isLoading={isLoading} />
     </div>
   );
 }

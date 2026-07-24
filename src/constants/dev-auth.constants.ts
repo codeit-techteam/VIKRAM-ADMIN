@@ -2,34 +2,35 @@ import { ROLES } from "@/constants/roles";
 import { ROLE_PERMISSIONS } from "@/constants/permissions";
 import type { User } from "@/types/auth";
 
+/** Matches backend prisma seed (`Admin@1234`). Offline mock fallback only. */
 export const DEV_ACCOUNTS = [
   {
     email: "superadmin@bajriwala.in",
-    password: "bajriwala123",
+    password: "Admin@1234",
     role: ROLES.SUPER_ADMIN,
     name: "Super Admin",
     id: "dev-super-admin",
   },
   {
     email: "warehouse@bajriwala.in",
-    password: "bajriwala123",
+    password: "Admin@1234",
     role: ROLES.WAREHOUSE_MANAGER,
     name: "Warehouse Manager",
     id: "dev-warehouse-manager",
   },
   {
     email: "executive@bajriwala.in",
-    password: "bajriwala123",
+    password: "Admin@1234",
     role: ROLES.CUSTOMER_EXECUTIVE,
     name: "Customer Executive",
     id: "dev-customer-executive",
   },
 ] as const;
 
-/** Legacy dev account */
+/** Legacy offline-only mock tokens (never accepted by the API) */
 export const DEV_AUTH = {
   email: "admin@bajriwala.in",
-  password: "bajriwala123",
+  password: "Admin@1234",
   accessToken: "dev-mock-access-token",
   refreshToken: "dev-mock-refresh-token",
 } as const;

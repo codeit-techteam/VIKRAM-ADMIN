@@ -9,6 +9,10 @@ import type {
 export interface CeDashboardStats {
   todayOrders: number;
   pendingOrders: number;
+  processingOrders: number;
+  readyToDispatch: number;
+  completedOrders: number;
+  cancelledOrders: number;
   pendingPayments: number;
   emergencyOrders: number;
   bulkEnquiries: number;

@@ -57,6 +57,14 @@ export function LoginForm() {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (searchParams.get("reason") === "live-api") {
+      notify.error(
+        "Your session cannot call live APIs. Sign in again with the backend running.",
+      );
+    }
+  }, [searchParams]);
+
   const {
     control,
     handleSubmit,
@@ -69,28 +77,16 @@ export function LoginForm() {
   const onSubmit = handleSubmit(async (values) => {
     setIsSubmitting(true);
 
-    try {
-      let user;
-      let tokens;
-      let usedDevAuth = false;
-
-      // Dev accounts: sign in locally without calling API (works when backend is offline)
-      if (validateDevCredentials(values)) {
-        const devResponse = getDevAuthResponse(values);
-        user = devResponse.user;
-        tokens = devResponse.tokens;
-        usedDevAuth = true;
-      } else {
-        const response = await authService.login(values);
-        user = response.user;
-        tokens = response.tokens;
-      }
-
-      login(user, tokens.accessToken, tokens.refreshToken);
-
+    const finishLogin = (
+      user: Parameters<typeof login>[0],
+      accessToken: string,
+      refreshToken: string,
+      usedDevAuth: boolean,
+    ) => {
+      login(user, accessToken, refreshToken);
       notify.success(
         usedDevAuth
-          ? "Signed in successfully (dev mode)"
+          ? "Signed in offline (dev mode) — live hub APIs need the backend"
           : "Signed in successfully",
       );
 
@@ -101,11 +97,49 @@ export function LoginForm() {
           : getDefaultRouteForRole(user.role);
       router.push(destination);
       router.refresh();
+    };
+
+    try {
+      // Always prefer live backend tokens so /admin/hubs and provision work.
+      // Mock tokens only when the API is unreachable (offline fallback).
+      try {
+        const response = await authService.login({
+          email: values.email,
+          password: values.password,
+          rememberMe: values.rememberMe,
+        });
+        finishLogin(
+          response.user,
+          response.tokens.accessToken,
+          response.tokens.refreshToken,
+          false,
+        );
+        return;
+      } catch (apiError) {
+        const message = getApiErrorMessage(apiError);
+        const isOffline =
+          message === "Network Error" ||
+          message.includes("ERR_CONNECTION") ||
+          message.includes("timeout");
+
+        if (isOffline && validateDevCredentials(values)) {
+          const devResponse = getDevAuthResponse(values);
+          finishLogin(
+            devResponse.user,
+            devResponse.tokens.accessToken,
+            devResponse.tokens.refreshToken,
+            true,
+          );
+          return;
+        }
+
+        throw apiError;
+      }
     } catch (error) {
       const message = getApiErrorMessage(error);
       if (message === "Network Error" || message.includes("ERR_CONNECTION")) {
         notify.error(
-          "Cannot reach the server. Start the backend on port 8000, or use a dev account (e.g. executive@bajriwala.in / bajriwala123).",
+          "Cannot reach the server. Start the backend on port 8000, then sign in with superadmin@bajriwala.in / Admin@1234.",
         );
       } else {
         notify.error(message || "Unable to sign in. Please try again.");

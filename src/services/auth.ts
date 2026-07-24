@@ -31,10 +31,13 @@ interface AdminLoginData {
 }
 
 export const authService = {
-  login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
+  login: async (
+    credentials: LoginCredentials & { rememberMe?: boolean },
+  ): Promise<AuthResponse> => {
+    const { email, password, rememberMe } = credentials;
     const { data } = await api.post<ApiResponse<AdminLoginData>>(
       API_ENDPOINTS.AUTH.LOGIN,
-      credentials,
+      { email, password },
     );
     const payload = data.data;
     const adminProfile = payload.user ?? payload.admin;
@@ -50,7 +53,12 @@ export const authService = {
     };
 
     setStoredTokens(tokens.accessToken, tokens.refreshToken);
-    setAuthCookies(tokens.accessToken, tokens.refreshToken, user.role);
+    setAuthCookies(
+      tokens.accessToken,
+      tokens.refreshToken,
+      user.role,
+      rememberMe ? 60 * 60 * 24 * 30 : undefined,
+    );
 
     return { user, tokens };
   },

@@ -5,6 +5,7 @@ import axios, {
 } from "axios";
 
 import { env } from "@/config/env";
+import { isDevMockToken } from "@/constants/dev-auth.constants";
 import { ROUTES } from "@/constants/routes";
 import {
   clearStoredTokens,
@@ -71,6 +72,16 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       // Never run refresh-token flow for login/auth endpoints
       if (isAuthRequest(originalRequest.url)) {
+        return Promise.reject(error);
+      }
+
+      // Offline mock session cannot call live APIs — force re-login
+      if (isDevMockToken(getStoredAccessToken())) {
+        useAuthStore.getState().logout();
+        clearStoredTokens();
+        if (typeof window !== "undefined") {
+          window.location.href = `${ROUTES.LOGIN}?reason=live-api`;
+        }
         return Promise.reject(error);
       }
 

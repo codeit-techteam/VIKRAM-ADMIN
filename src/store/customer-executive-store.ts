@@ -12,7 +12,6 @@ import {
   CE_HUBS,
   CE_NOTES,
   CE_NOTIFICATIONS,
-  CE_ORDERS,
   CE_PAYMENTS,
   CE_PRODUCTS,
   CE_VEHICLES,
@@ -32,6 +31,11 @@ import {
   queryOrders,
   queryPayments,
 } from "@/features/customer-executive/mock/queries";
+import {
+  mapBackendOrderToCeOrder,
+  type BackendAdminOrder,
+} from "@/features/customer-executive/utils/map-backend-order";
+import { customerExecutiveService } from "@/services/customerExecutive";
 import type {
   CeActivity,
   CeComplaint,
@@ -121,6 +125,9 @@ interface CustomerExecutiveStore {
     draft: CeCreatePaymentLinkDraft,
   ) => CePayment | null;
   markNotificationRead: (notificationId: string) => void;
+  loadOrdersFromApi: () => Promise<void>;
+  ordersLoading: boolean;
+  ordersError: string | null;
 }
 
 function addActivity(
@@ -134,7 +141,7 @@ function addActivity(
 export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
   (set, get) => ({
     customers: [...CE_CUSTOMERS],
-    orders: [...CE_ORDERS],
+    orders: [],
     payments: [...CE_PAYMENTS],
     complaints: [...CE_COMPLAINTS],
     activities: [...CE_ACTIVITIES],
@@ -146,6 +153,8 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
     vehicles: CE_VEHICLES,
     hubs: CE_HUBS,
     executives: CE_EXECUTIVES,
+    ordersLoading: false,
+    ordersError: null,
 
     queryCustomers: (params) => queryCustomers(get().customers, params),
     queryOrders: (params) => queryOrders(get().orders, params),
@@ -604,6 +613,31 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
           n.id === notificationId ? { ...n, read: true } : n,
         ),
       }));
+    },
+
+    loadOrdersFromApi: async () => {
+      set({ ordersLoading: true, ordersError: null });
+      try {
+        const result = await customerExecutiveService.getOrders({
+          page: 1,
+          limit: 100,
+        });
+
+        const rows = (result?.data ?? []) as BackendAdminOrder[];
+        const mapped = rows.map(mapBackendOrderToCeOrder);
+
+        set({
+          orders: mapped,
+          ordersLoading: false,
+          ordersError: null,
+        });
+      } catch (err) {
+        set({
+          ordersLoading: false,
+          ordersError:
+            err instanceof Error ? err.message : "Failed to load orders",
+        });
+      }
     },
   }),
 );

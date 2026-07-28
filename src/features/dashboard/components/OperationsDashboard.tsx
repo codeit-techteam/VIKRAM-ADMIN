@@ -40,17 +40,23 @@ interface OperationsDashboardProps {
 
 function mapBackendStatus(status: string): RecentOrder["status"] {
   switch ((status || "").toUpperCase()) {
-    case "DISPATCHED":
-      return "DISPATCHED";
     case "DELIVERED":
       return "DELIVERED";
+    case "DRIVER_ASSIGNED":
+    case "OUT_FOR_DELIVERY":
+    case "DISPATCHED":
+      return "DISPATCHED";
+    case "PENDING":
+    case "CONFIRMED":
     case "HUB_ASSIGNED":
     case "AWAITING_HUB_ALLOCATION":
       return "AWAITING HUB";
-    case "PROCESSING":
+    case "ACCEPTED_BY_HUB":
+    case "PICKING":
     case "PACKED":
+    case "PROCESSING":
     case "READY_FOR_DISPATCH":
-      return "PROCESSING";
+    case "CANCELLED":
     default:
       return "PROCESSING";
   }
@@ -61,6 +67,8 @@ function buildLiveDashboard(
 ): ExecutiveDashboardData {
   const orders = payload.orders;
   const revenue = Number(payload.revenue.total ?? 0);
+  const processingCount = orders.accepted ?? orders.processing;
+  const completedCount = orders.delivered ?? orders.completed;
 
   const statCards: StatCardData[] = [
     {
@@ -84,7 +92,7 @@ function buildLiveDashboard(
     },
     {
       label: "Processing",
-      value: String(orders.processing),
+      value: String(processingCount),
       subtext: "Accepted / packing",
       href: NAV_FILTER_PRESETS.ordersByStatus("HUB_PROCESSING"),
       icon: Warehouse,
@@ -94,8 +102,8 @@ function buildLiveDashboard(
     {
       label: "Ready To Dispatch",
       value: String(orders.readyToDispatch),
-      subtext: "Packed & waiting",
-      href: NAV_FILTER_PRESETS.ordersByStatus("HUB_PROCESSING"),
+      subtext: "Out for delivery bucket",
+      href: NAV_FILTER_PRESETS.ordersInTransit(),
       icon: Truck,
       iconContainerClassName: "bg-emerald-50",
       iconClassName: "text-emerald-600",
@@ -105,7 +113,7 @@ function buildLiveDashboard(
   const customerFeatureCards: StatCardData[] = [
     {
       label: "Completed",
-      value: String(orders.completed),
+      value: String(completedCount),
       subtext: "Delivered orders",
       href: NAV_FILTER_PRESETS.ordersByStatus("DELIVERED"),
       icon: Package,
@@ -163,10 +171,10 @@ function buildLiveDashboard(
     {
       id: "ready-dispatch",
       title: "Ready To Dispatch",
-      subtitle: "Packed and waiting for vehicle",
+      subtitle: "Driver assigned / out for delivery",
       count: orders.readyToDispatch,
       priority: orders.readyToDispatch > 0 ? "high" : "medium",
-      href: NAV_FILTER_PRESETS.ordersByStatus("HUB_PROCESSING"),
+      href: NAV_FILTER_PRESETS.ordersInTransit(),
       icon: Truck,
     },
     {

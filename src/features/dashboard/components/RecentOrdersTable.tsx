@@ -155,10 +155,10 @@ export function RecentOrdersTable({
         cell: (info) => {
           const status = info.getValue();
           const statusMap: Record<string, string> = {
-            PROCESSING: "ACTIVE",
+            PROCESSING: "HUB_PROCESSING",
             DISPATCHED: "IN_TRANSIT",
             DELIVERED: "DELIVERED",
-            "AWAITING HUB": "HUB_PROCESSING",
+            "AWAITING HUB": "ACTIVE",
           };
           const filterHref = NAV_FILTER_PRESETS.ordersByStatus(
             statusMap[status] ?? "ALL",

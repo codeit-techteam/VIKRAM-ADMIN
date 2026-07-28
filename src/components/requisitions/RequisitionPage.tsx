@@ -13,10 +13,9 @@ import { RequisitionTable } from "@/components/requisitions/RequisitionTable";
 import { useAuth } from "@/hooks/use-auth";
 import {
   EMPTY_REQUISITION_ADVANCED_FILTERS,
-  fetchRequisitions,
   REQUISITION_PAGE_SIZE,
 } from "@/mock/requisitions";
-import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
+import { adminRequisitionsService } from "@/services/adminRequisitions";
 import type {
   RequisitionAdvancedFilters,
   RequisitionFilterChip,
@@ -33,14 +32,16 @@ const STAT_CHIP_MAP = {
 
 export function RequisitionPage() {
   const searchParams = useSearchParams();
-  const { user } = useAuth();
-  const requisitions = useWarehouseErpStore((state) => state.requisitions);
-  const approveRequisition = useWarehouseErpStore(
-    (state) => state.approveRequisition,
-  );
-  const rejectRequisition = useWarehouseErpStore(
-    (state) => state.rejectRequisition,
-  );
+  const { user: _user } = useAuth();
+  const [requisitions, setRequisitions] = useState<RequisitionListItem[]>([]);
+  const [stats, setStats] = useState({
+    pendingRequests: 0,
+    criticalRequests: 0,
+    awaitingAllocation: 0,
+    todaysRequests: 0,
+    total: 0,
+    totalPages: 1,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeChip, setActiveChip] = useState<RequisitionFilterChip>("all");
@@ -54,12 +55,6 @@ export function RequisitionPage() {
   const [drawerInitialAction, setDrawerInitialAction] = useState<
     "approve" | "reject" | null
   >(null);
-
-  useEffect(() => {
-    // TODO: Replace simulated loading with requisition API fetch
-    const timer = window.setTimeout(() => setIsLoading(false), 600);
-    return () => window.clearTimeout(timer);
-  }, []);
 
   useEffect(() => {
     const statusParam = searchParams.get("status");
@@ -85,15 +80,57 @@ export function RequisitionPage() {
     }
   }, [searchParams]);
 
+  const loadRequisitions = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [list, apiStats] = await Promise.all([
+        adminRequisitionsService.list({
+          page: currentPage,
+          limit: REQUISITION_PAGE_SIZE,
+          search: advancedFilters.search || undefined,
+          status:
+            activeChip === "pending"
+              ? "PENDING_APPROVAL"
+              : activeChip === "critical"
+                ? undefined
+                : undefined,
+        }),
+        adminRequisitionsService.stats(),
+      ]);
+
+      setRequisitions(list.data);
+      setStats({
+        pendingRequests:
+          apiStats.pendingRequests ?? apiStats.pendingApproval ?? 0,
+        criticalRequests:
+          apiStats.criticalRequests ?? apiStats.delayedRequests?.value ?? 0,
+        awaitingAllocation: apiStats.awaitingAllocation ?? 0,
+        todaysRequests: list.meta.total,
+        total: list.meta.total,
+        totalPages: list.meta.totalPages,
+      });
+    } catch {
+      notify.error("Failed to load requisitions");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [activeChip, advancedFilters.search, currentPage]);
+
+  useEffect(() => {
+    void loadRequisitions();
+  }, [loadRequisitions]);
+
   const queryResult = useMemo(
-    () =>
-      fetchRequisitions(requisitions, {
+    () => ({
+      data: requisitions,
+      meta: {
         page: currentPage,
-        limit: REQUISITION_PAGE_SIZE,
-        chip: activeChip,
-        advanced: advancedFilters,
-      }),
-    [requisitions, activeChip, advancedFilters, currentPage],
+        totalPages: stats.totalPages,
+        total: stats.total,
+      },
+      stats,
+    }),
+    [requisitions, currentPage, stats],
   );
 
   useEffect(() => {
@@ -192,18 +229,27 @@ export function RequisitionPage() {
       setIsSubmitting(true);
 
       try {
-        // TODO: Replace with requisition approval API
-        await new Promise((resolve) => window.setTimeout(resolve, 400));
+        const detail = await adminRequisitionsService.getById(
+          selectedRequisition.id,
+        );
+        const materials =
+          (detail.materials as Array<{
+            id: string;
+            requestedQty: number;
+          }>) ?? [];
 
-        const adminName = user?.name ?? "Super Admin";
-        approveRequisition(selectedRequisition.id, {
-          adminName,
-          remarks: remarks || undefined,
+        await adminRequisitionsService.approve(selectedRequisition.id, {
+          items: materials.map((material) => ({
+            itemId: material.id,
+            approvedQty: material.requestedQty,
+          })),
+          comment: remarks || undefined,
         });
 
         setIsDetailDrawerOpen(false);
         setSelectedRequisition(null);
         notify.success("Requisition Approved Successfully.");
+        await loadRequisitions();
       } catch {
         notify.error(
           "Approval failed",
@@ -213,7 +259,7 @@ export function RequisitionPage() {
         setIsSubmitting(false);
       }
     },
-    [selectedRequisition, user?.name, approveRequisition],
+    [selectedRequisition, loadRequisitions],
   );
 
   const handleReject = useCallback(
@@ -223,18 +269,15 @@ export function RequisitionPage() {
       setIsSubmitting(true);
 
       try {
-        // TODO: Replace with requisition rejection API
-        await new Promise((resolve) => window.setTimeout(resolve, 400));
-
-        const adminName = user?.name ?? "Super Admin";
-        rejectRequisition(selectedRequisition.id, {
-          adminName,
-          remarks,
+        await adminRequisitionsService.reject(selectedRequisition.id, {
+          reason: remarks || "Rejected by warehouse",
+          comment: remarks || undefined,
         });
 
         setIsDetailDrawerOpen(false);
         setSelectedRequisition(null);
         notify.success("Requisition Rejected Successfully.");
+        await loadRequisitions();
       } catch {
         notify.error(
           "Rejection failed",
@@ -244,7 +287,7 @@ export function RequisitionPage() {
         setIsSubmitting(false);
       }
     },
-    [selectedRequisition, user?.name, rejectRequisition],
+    [selectedRequisition, loadRequisitions],
   );
 
   const handleExport = useCallback(() => {

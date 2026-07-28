@@ -19,9 +19,11 @@ export interface AdminDashboardOrders {
   today: number;
   pending: number;
   processing: number;
+  accepted?: number;
   readyToDispatch: number;
   completed: number;
   cancelled: number;
+  delivered?: number;
 }
 
 export interface AdminDashboardPayload {
@@ -44,6 +46,7 @@ export interface AdminDashboardPayload {
     id: string;
     orderNumber: string;
     orderStatus: string;
+    statusLabel?: string;
     paymentStatus?: string;
     grandTotal?: number | string;
     createdAt: string;

@@ -16,6 +16,12 @@ export const API_ENDPOINTS = {
   ADMIN_ORDERS: {
     BASE: "/admin/orders",
     BY_ID: (id: string) => `/admin/orders/${id}`,
+    TIMELINE: (id: string) => `/admin/orders/${id}/timeline`,
+    TRACKING: (id: string) => `/admin/orders/${id}/tracking`,
+    STATUS: (id: string) => `/admin/orders/${id}/status`,
+    ASSIGN_DRIVER: (id: string) => `/admin/orders/${id}/assign-driver`,
+    INVOICE: (id: string) => `/admin/orders/${id}/invoice`,
+    INVOICE_PDF: (id: string) => `/admin/orders/${id}/invoice/pdf`,
   },
   USERS: {
     BASE: "/users",
@@ -42,6 +48,17 @@ export const API_ENDPOINTS = {
   WAREHOUSE: {
     BASE: "/warehouse",
     BY_ID: (id: string) => `/warehouse/${id}`,
+  },
+  ADMIN_REQUISITIONS: {
+    BASE: "/admin/requisitions",
+    STATS: "/admin/requisitions/stats",
+    BY_ID: (id: string) => `/admin/requisitions/${id}`,
+    APPROVE: (id: string) => `/admin/requisitions/${id}/approve`,
+    REJECT: (id: string) => `/admin/requisitions/${id}/reject`,
+    ALLOCATE: (id: string) => `/admin/requisitions/${id}/allocate`,
+    DISPATCH: (id: string) => `/admin/requisitions/${id}/dispatch`,
+    EXPORT: (id: string) => `/admin/requisitions/${id}/export`,
+    COMMENTS: (id: string) => `/admin/requisitions/${id}/comments`,
   },
   SUBHUB: {
     BASE: "/admin/hubs",

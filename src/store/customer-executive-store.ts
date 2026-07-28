@@ -35,7 +35,7 @@ import {
   mapBackendOrderToCeOrder,
   type BackendAdminOrder,
 } from "@/features/customer-executive/utils/map-backend-order";
-import { customerExecutiveService } from "@/services/customerExecutive";
+import { adminOrdersService } from "@/services/adminOrders";
 import type {
   CeActivity,
   CeComplaint,
@@ -126,6 +126,7 @@ interface CustomerExecutiveStore {
   ) => CePayment | null;
   markNotificationRead: (notificationId: string) => void;
   loadOrdersFromApi: () => Promise<void>;
+  loadOrderDetailFromApi: (id: string) => Promise<CeOrder | null>;
   ordersLoading: boolean;
   ordersError: string | null;
 }
@@ -618,7 +619,7 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
     loadOrdersFromApi: async () => {
       set({ ordersLoading: true, ordersError: null });
       try {
-        const result = await customerExecutiveService.getOrders({
+        const result = await adminOrdersService.list({
           page: 1,
           limit: 100,
         });
@@ -637,6 +638,24 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
           ordersError:
             err instanceof Error ? err.message : "Failed to load orders",
         });
+      }
+    },
+
+    loadOrderDetailFromApi: async (id) => {
+      try {
+        const detail = await adminOrdersService.getById(id);
+        const mapped = mapBackendOrderToCeOrder(detail as BackendAdminOrder);
+        set((state) => {
+          const exists = state.orders.some((o) => o.id === mapped.id);
+          return {
+            orders: exists
+              ? state.orders.map((o) => (o.id === mapped.id ? mapped : o))
+              : [mapped, ...state.orders],
+          };
+        });
+        return mapped;
+      } catch {
+        return get().getOrder(id) ?? null;
       }
     },
   }),

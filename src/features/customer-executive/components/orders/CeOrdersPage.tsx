@@ -76,7 +76,7 @@ export function CeOrdersPage() {
     void loadOrdersFromApi();
     const timer = window.setInterval(() => {
       void loadOrdersFromApi();
-    }, 15_000);
+    }, 10_000);
     return () => window.clearInterval(timer);
   }, [loadOrdersFromApi]);
 
@@ -318,7 +318,10 @@ export function CeOrdersPage() {
                   <TableCell>{order.paymentMethod}</TableCell>
                   <TableCell>{formatCurrency(order.amount)}</TableCell>
                   <TableCell>
-                    <CeStatusBadge status={order.status} />
+                    <CeStatusBadge
+                      status={order.status}
+                      label={order.statusLabel}
+                    />
                   </TableCell>
                   <TableCell>
                     {new Date(order.createdAt).toLocaleString("en-IN", {

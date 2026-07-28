@@ -19,24 +19,65 @@ import { initiateCall } from "@/features/customer-executive/utils/communication"
 import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
 import type { TrackingStep } from "@/features/customer-executive/types";
 import { notify } from "@/utils/notify";
+import { formatDate } from "@/utils/format-date";
 import { cn } from "@/lib/utils";
 
 const TRACKING_STEPS: { key: TrackingStep; label: string }[] = [
   { key: "ORDER_CREATED", label: "Order Created" },
-  { key: "PAYMENT_RECEIVED", label: "Payment Received" },
+  { key: "PAYMENT_RECEIVED", label: "Confirmed" },
   { key: "ACCEPTED", label: "Accepted" },
   { key: "PACKED", label: "Packed" },
-  { key: "LOADED", label: "Loaded" },
-  { key: "DISPATCHED", label: "Dispatched" },
   { key: "DRIVER_ASSIGNED", label: "Driver Assigned" },
-  { key: "IN_TRANSIT", label: "In Transit" },
+  { key: "OUT_FOR_DELIVERY", label: "Out For Delivery" },
   { key: "DELIVERED", label: "Delivered" },
 ];
 
 const STEP_ORDER = TRACKING_STEPS.map((s) => s.key);
 
 function getStepIndex(step: TrackingStep): number {
-  return STEP_ORDER.indexOf(step);
+  const index = STEP_ORDER.indexOf(step);
+  if (index >= 0) return index;
+  if (step === "IN_TRANSIT" || step === "DISPATCHED" || step === "LOADED") {
+    return STEP_ORDER.indexOf("OUT_FOR_DELIVERY");
+  }
+  return -1;
+}
+
+function MapMock({ vehicleLabel }: { vehicleLabel: string }) {
+  return (
+    <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-gray-100">
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,#f0f0f0_25%,transparent_25%),linear-gradient(225deg,#f0f0f0_25%,transparent_25%),linear-gradient(45deg,#f0f0f0_25%,transparent_25%),linear-gradient(315deg,#f0f0f0_25%,#e8e8e8_25%)] bg-[length:20px_20px]" />
+      <svg className="absolute inset-0 size-full" viewBox="0 0 400 300">
+        <path
+          d="M 50 200 Q 150 100 250 150 T 350 80"
+          fill="none"
+          stroke="#ff6b00"
+          strokeWidth="3"
+          strokeDasharray="8 4"
+        />
+        <circle cx="280" cy="120" r="8" fill="#ff6b00" />
+        <circle cx="350" cy="80" r="6" fill="#1A1A1A" />
+      </svg>
+      <div className="absolute top-1/3 left-2/3 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center">
+        <div className="bg-primary rounded-lg px-2 py-1 text-[10px] font-semibold text-white">
+          {vehicleLabel}
+        </div>
+        <Truck className="text-primary size-6" />
+      </div>
+      <div className="absolute right-4 bottom-4 left-4 rounded-lg bg-white/90 p-2 text-xs shadow-sm">
+        <div className="flex gap-4">
+          <span className="flex items-center gap-1">
+            <span className="bg-primary size-2 rounded-full" />
+            Vehicle Location
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="size-2 rounded-full bg-[#1A1A1A]" />
+            Delivery Point
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function CeTrackingPage() {
@@ -47,14 +88,25 @@ export function CeTrackingPage() {
   const getOrderByNumber = useCustomerExecutiveStore((s) => s.getOrderByNumber);
   const orders = useCustomerExecutiveStore((s) => s.orders);
   const customers = useCustomerExecutiveStore((s) => s.customers);
-  const drivers = useCustomerExecutiveStore((s) => s.drivers);
-  const vehicles = useCustomerExecutiveStore((s) => s.vehicles);
-  const hubs = useCustomerExecutiveStore((s) => s.hubs);
+  const loadOrdersFromApi = useCustomerExecutiveStore(
+    (s) => s.loadOrdersFromApi,
+  );
+  const loadOrderDetailFromApi = useCustomerExecutiveStore(
+    (s) => s.loadOrderDetailFromApi,
+  );
 
   const [searchQuery, setSearchQuery] = useState(
     initialOrder || initialCustomer,
   );
   const [selectedOrderNumber, setSelectedOrderNumber] = useState(initialOrder);
+
+  useEffect(() => {
+    void loadOrdersFromApi();
+    const timer = window.setInterval(() => {
+      void loadOrdersFromApi();
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [loadOrdersFromApi]);
 
   useEffect(() => {
     if (initialOrder) {
@@ -77,10 +129,17 @@ export function CeTrackingPage() {
     return getOrderByNumber(selectedOrderNumber);
   }, [selectedOrderNumber, getOrderByNumber, orders]);
 
-  const driver = drivers.find((d) => d.id === order?.driverId);
-  const vehicle = vehicles.find((v) => v.id === order?.vehicleId);
-  const hub = hubs.find((h) => h.id === order?.hubId);
-  const currentStepIndex = order ? getStepIndex(order.trackingStep) : -1;
+  useEffect(() => {
+    if (!order?.id) return;
+    void loadOrderDetailFromApi(order.id);
+  }, [order?.id, loadOrderDetailFromApi]);
+
+  const liveOrder = order
+    ? (orders.find((o) => o.id === order.id) ?? order)
+    : null;
+  const currentStepIndex = liveOrder
+    ? getStepIndex(liveOrder.trackingStep)
+    : -1;
 
   const handleSearch = () => {
     const found =
@@ -93,6 +152,12 @@ export function CeTrackingPage() {
       notify.error("Order not found", "Check the order ID, phone, or name");
     }
   };
+
+  const driverName = liveOrder?.driverName;
+  const driverPhone = liveOrder?.driverPhone;
+  const vehicleNumber = liveOrder?.vehicleNumber;
+  const hubName = liveOrder?.hubName;
+  const hubCode = liveOrder?.hubCode;
 
   return (
     <CePageShell
@@ -119,7 +184,7 @@ export function CeTrackingPage() {
         </CardContent>
       </Card>
 
-      {order ? (
+      {liveOrder ? (
         <div className="space-y-5">
           <Card>
             <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
@@ -130,20 +195,28 @@ export function CeTrackingPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-primary text-lg font-bold">
-                      #{order.orderNumber}
+                      #{liveOrder.orderNumber}
                     </span>
                     <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
                       LIVE
                     </Badge>
+                    <CeStatusBadge
+                      status={liveOrder.status}
+                      label={liveOrder.statusLabel}
+                    />
                   </div>
-                  <p className="font-semibold">{order.company}</p>
-                  <p className="text-sm text-[#64748B]">{order.customerName}</p>
+                  <p className="font-semibold">{liveOrder.company}</p>
+                  <p className="text-sm text-[#64748B]">
+                    {liveOrder.customerName}
+                  </p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-xs text-[#64748B]">Estimated Arrival</p>
+                <p className="text-xs text-[#64748B]">Expected Delivery</p>
                 <p className="text-primary text-lg font-bold">
-                  {order.eta ?? "Calculating..."}
+                  {liveOrder.expectedDelivery
+                    ? formatDate(liveOrder.expectedDelivery)
+                    : (liveOrder.eta ?? "—")}
                 </p>
               </div>
             </CardContent>
@@ -151,7 +224,7 @@ export function CeTrackingPage() {
 
           <Card>
             <CardContent className="overflow-x-auto p-6">
-              <div className="flex min-w-[800px] items-center justify-between">
+              <div className="flex min-w-[700px] items-center justify-between">
                 {TRACKING_STEPS.map((step, index) => {
                   const isCompleted = index < currentStepIndex;
                   const isCurrent = index === currentStepIndex;
@@ -213,72 +286,125 @@ export function CeTrackingPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {driver && (
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{driver.name}</p>
-                      <p className="text-sm text-[#64748B]">Driver</p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-primary"
-                      onClick={() => initiateCall(driver.phone, driver.name)}
-                    >
-                      <Phone className="size-4" />
-                      Call Driver
-                    </Button>
-                  </div>
-                )}
-                {vehicle && (
+                <div className="grid grid-cols-2 gap-3 rounded-lg border border-gray-100 p-3">
                   <div>
-                    <p className="text-sm text-[#64748B]">Vehicle</p>
+                    <p className="text-xs text-[#64748B]">Current Status</p>
                     <p className="font-medium">
-                      {vehicle.registration} — {vehicle.model} (
-                      {vehicle.payload} Payload)
+                      {liveOrder.statusLabel ??
+                        liveOrder.trackingStep.replaceAll("_", " ")}
                     </p>
                   </div>
-                )}
-                {hub && (
+                  <div>
+                    <p className="text-xs text-[#64748B]">Order Age</p>
+                    <p className="font-medium">
+                      {liveOrder.orderAgeHours != null
+                        ? `${liveOrder.orderAgeHours} hrs`
+                        : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#64748B]">Last Updated</p>
+                    <p className="font-medium">
+                      {liveOrder.lastUpdated
+                        ? formatDate(liveOrder.lastUpdated)
+                        : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#64748B]">Expected Delivery</p>
+                    <p className="font-medium">
+                      {liveOrder.expectedDelivery
+                        ? formatDate(liveOrder.expectedDelivery)
+                        : "—"}
+                    </p>
+                  </div>
+                </div>
+
+                {driverName ? (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">{driverName}</p>
+                      <p className="text-sm text-[#64748B]">Driver</p>
+                    </div>
+                    {driverPhone ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-primary"
+                        onClick={() => initiateCall(driverPhone, driverName)}
+                      >
+                        <Phone className="size-4" />
+                        Call Driver
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+                {vehicleNumber ? (
+                  <div>
+                    <p className="text-sm text-[#64748B]">Vehicle</p>
+                    <p className="font-medium">{vehicleNumber}</p>
+                  </div>
+                ) : null}
+                {hubName ? (
                   <div>
                     <p className="text-sm text-[#64748B]">Fulfillment Hub</p>
-                    <p className="font-medium">{hub.name}</p>
-                    {hub.lastScannedAt && (
-                      <p className="text-xs text-[#64748B]">
-                        Last scanned{" "}
-                        {new Date(hub.lastScannedAt).toLocaleString("en-IN")}
-                      </p>
-                    )}
+                    <p className="font-medium">
+                      {hubName}
+                      {hubCode ? ` (${hubCode})` : ""}
+                    </p>
                   </div>
-                )}
-                <div className="flex items-start gap-2">
-                  <span className="bg-primary mt-1.5 size-2 shrink-0 rounded-full" />
-                  <p className="text-sm">
-                    En route via NH-48 (Delhi-Jaipur Expressway)
-                  </p>
-                </div>
-                <div className="rounded-lg bg-[#1A1A1A] p-4 text-white">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs text-gray-400">CURRENT SPEED</p>
-                      <p className="text-primary text-xl font-bold">42 km/h</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-400">
-                        REMAINING DISTANCE
-                      </p>
-                      <p className="text-primary text-xl font-bold">12.4 km</p>
-                    </div>
+                ) : null}
+                {liveOrder.managerName ? (
+                  <div>
+                    <p className="text-sm text-[#64748B]">Hub Manager</p>
+                    <p className="font-medium">{liveOrder.managerName}</p>
                   </div>
-                </div>
+                ) : null}
                 <div>
                   <p className="text-sm text-[#64748B]">Delivery Address</p>
-                  <p className="font-medium">{order.deliveryAddress}</p>
+                  <p className="font-medium">{liveOrder.deliveryAddress}</p>
                   <p className="text-sm text-[#64748B]">
-                    PIN: {order.deliveryPincode}
+                    PIN: {liveOrder.deliveryPincode}
                   </p>
                 </div>
-                <CeStatusBadge status={order.status} />
+
+                {liveOrder.timeline && liveOrder.timeline.length > 0 ? (
+                  <div>
+                    <p className="mb-2 text-sm font-medium">Timeline</p>
+                    <ol className="max-h-48 space-y-2 overflow-y-auto">
+                      {liveOrder.timeline.map((entry, index) => (
+                        <li
+                          key={
+                            entry.id ??
+                            `${entry.status}-${entry.createdAt}-${index}`
+                          }
+                          className="border-b border-gray-50 pb-2 last:border-0"
+                        >
+                          <p className="text-sm font-medium">
+                            {entry.statusLabel ??
+                              entry.status?.replaceAll("_", " ") ??
+                              "Update"}
+                          </p>
+                          {entry.message ? (
+                            <p className="text-xs text-[#64748B]">
+                              {entry.message}
+                            </p>
+                          ) : null}
+                          {entry.createdAt ? (
+                            <p className="text-[11px] text-gray-400">
+                              {formatDate(entry.createdAt)}
+                            </p>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ) : null}
+
+                <CeStatusBadge
+                  status={liveOrder.status}
+                  label={liveOrder.statusLabel}
+                />
               </CardContent>
             </Card>
 
@@ -290,41 +416,7 @@ export function CeTrackingPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-gray-100">
-                  <div className="absolute inset-0 bg-[linear-gradient(135deg,#f0f0f0_25%,transparent_25%),linear-gradient(225deg,#f0f0f0_25%,transparent_25%),linear-gradient(45deg,#f0f0f0_25%,transparent_25%),linear-gradient(315deg,#f0f0f0_25%,#e8e8e8_25%)] bg-[length:20px_20px]" />
-                  <svg
-                    className="absolute inset-0 size-full"
-                    viewBox="0 0 400 300"
-                  >
-                    <path
-                      d="M 50 200 Q 150 100 250 150 T 350 80"
-                      fill="none"
-                      stroke="#ff6b00"
-                      strokeWidth="3"
-                      strokeDasharray="8 4"
-                    />
-                    <circle cx="280" cy="120" r="8" fill="#ff6b00" />
-                    <circle cx="350" cy="80" r="6" fill="#1A1A1A" />
-                  </svg>
-                  <div className="absolute top-1/3 left-2/3 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center">
-                    <div className="bg-primary rounded-lg px-2 py-1 text-[10px] font-semibold text-white">
-                      {vehicle?.registration ?? "Vehicle"}
-                    </div>
-                    <Truck className="text-primary size-6" />
-                  </div>
-                  <div className="absolute right-4 bottom-4 left-4 rounded-lg bg-white/90 p-2 text-xs shadow-sm">
-                    <div className="flex gap-4">
-                      <span className="flex items-center gap-1">
-                        <span className="bg-primary size-2 rounded-full" />
-                        Vehicle Location
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <span className="size-2 rounded-full bg-[#1A1A1A]" />
-                        Delivery Point
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                <MapMock vehicleLabel={vehicleNumber ?? "Vehicle"} />
               </CardContent>
             </Card>
           </div>

@@ -1,7 +1,8 @@
 "use client";
 
-import { MapPin, Package, Truck } from "lucide-react";
+import { Download, MapPin, Package, ShieldCheck, Truck } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,9 +24,11 @@ import {
 import { ROUTES } from "@/constants/routes";
 import { CeStatusBadge } from "@/features/customer-executive/components/shared/CeStatusBadge";
 import type { CeOrder } from "@/features/customer-executive/types";
+import { downloadAdminOrderInvoicePdf } from "@/services/adminOrders";
 import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
 import { formatCurrency } from "@/utils/format-currency";
 import { formatDate } from "@/utils/format-date";
+import { notify } from "@/utils/notify";
 import { formatPaymentMethodLabel } from "@/utils/payment-method-labels";
 
 interface CeOrderDetailSheetProps {
@@ -71,6 +74,13 @@ function DetailField({
   );
 }
 
+function paymentStatusDisplay(order: CeOrder): string {
+  if (order.paymentStatus) {
+    return order.paymentStatus.replaceAll("_", " ");
+  }
+  return "—";
+}
+
 export function CeOrderDetailSheet({
   open,
   onOpenChange,
@@ -79,20 +89,48 @@ export function CeOrderDetailSheet({
   const hubs = useCustomerExecutiveStore((s) => s.hubs);
   const drivers = useCustomerExecutiveStore((s) => s.drivers);
   const vehicles = useCustomerExecutiveStore((s) => s.vehicles);
+  const loadOrderDetailFromApi = useCustomerExecutiveStore(
+    (s) => s.loadOrderDetailFromApi,
+  );
+  const getOrder = useCustomerExecutiveStore((s) => s.getOrder);
+  const [downloadingInvoice, setDownloadingInvoice] = useState(false);
 
-  if (!order) {
+  useEffect(() => {
+    if (!open || !order?.id) return;
+    void loadOrderDetailFromApi(order.id);
+  }, [open, order?.id, loadOrderDetailFromApi]);
+
+  const liveOrder = order ? (getOrder(order.id) ?? order) : null;
+
+  if (!liveOrder) {
     return null;
   }
 
-  const hub = hubs.find((h) => h.id === order.hubId);
-  const driver = drivers.find((d) => d.id === order.driverId);
-  const vehicle = vehicles.find((v) => v.id === order.vehicleId);
-  const hubName = order.hubName || hub?.name;
-  const driverName = order.driverName || driver?.name;
-  const driverPhone = order.driverPhone || driver?.phone;
-  const vehicleNumber = order.vehicleNumber || vehicle?.registration;
-  const paymentStatus =
-    order.paymentMethod === "CASH" ? "Pending COD" : "PENDING";
+  const hub = hubs.find((h) => h.id === liveOrder.hubId);
+  const driver = drivers.find((d) => d.id === liveOrder.driverId);
+  const vehicle = vehicles.find((v) => v.id === liveOrder.vehicleId);
+  const hubName = liveOrder.hubName || hub?.name;
+  const driverName = liveOrder.driverName || driver?.name;
+  const driverPhone = liveOrder.driverPhone || driver?.phone;
+  const vehicleNumber = liveOrder.vehicleNumber || vehicle?.registration;
+  const paymentStatus = paymentStatusDisplay(liveOrder);
+  const paymentTone =
+    liveOrder.paymentStatus === "PAID" ? "text-emerald-600" : "text-amber-600";
+
+  const handleDownloadInvoice = async () => {
+    setDownloadingInvoice(true);
+    try {
+      await downloadAdminOrderInvoicePdf(liveOrder.id);
+      notify.success(
+        "Invoice downloaded",
+        liveOrder.invoiceNumber ?? liveOrder.orderNumber,
+      );
+    } catch {
+      notify.error("Invoice unavailable", "Could not download order invoice");
+    } finally {
+      setDownloadingInvoice(false);
+    }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -103,53 +141,78 @@ export function CeOrderDetailSheet({
         <SheetHeader className="border-b border-gray-100 p-5">
           <div className="flex flex-wrap items-center gap-3 pr-8">
             <SheetTitle className="text-lg text-[#1A1A1A]">
-              #{order.orderNumber}
+              #{liveOrder.orderNumber}
             </SheetTitle>
-            <CeStatusBadge status={order.status} />
+            <CeStatusBadge
+              status={liveOrder.status}
+              label={liveOrder.statusLabel}
+            />
           </div>
           <SheetDescription>
-            Placed on {formatDate(order.createdAt)} ·{" "}
-            {formatCurrency(order.amount)}
+            Placed on {formatDate(liveOrder.createdAt)} ·{" "}
+            {formatCurrency(liveOrder.amount)}
           </SheetDescription>
         </SheetHeader>
 
         <div className="space-y-8 p-5">
           <Section title="Order Summary" icon={Package}>
             <div className="grid gap-4 rounded-lg border border-gray-100 bg-gray-50/50 p-4 sm:grid-cols-2">
-              <DetailField label="Order ID" value={`#${order.orderNumber}`} />
+              <DetailField
+                label="Order ID"
+                value={`#${liveOrder.orderNumber}`}
+              />
               <DetailField
                 label="Order Date"
-                value={formatDate(order.createdAt)}
+                value={formatDate(liveOrder.createdAt)}
               />
               <DetailField
                 label="Amount"
-                value={formatCurrency(order.amount)}
+                value={formatCurrency(liveOrder.amount)}
               />
-              <DetailField label="ETA" value={order.eta ?? "—"} />
+              <DetailField
+                label="ETA"
+                value={
+                  liveOrder.expectedDelivery
+                    ? formatDate(liveOrder.expectedDelivery)
+                    : (liveOrder.eta ?? "—")
+                }
+              />
               <DetailField
                 label="Payment"
-                value={<span className="text-amber-600">{paymentStatus}</span>}
+                value={<span className={paymentTone}>{paymentStatus}</span>}
               />
               <DetailField
                 label="Payment Method"
-                value={formatPaymentMethodLabel(order.paymentMethod)}
+                value={formatPaymentMethodLabel(liveOrder.paymentMethod)}
               />
               <DetailField
                 label="Tracking"
-                value={order.trackingStep.replaceAll("_", " ")}
+                value={
+                  liveOrder.statusLabel ??
+                  liveOrder.trackingStep.replaceAll("_", " ")
+                }
               />
+              {liveOrder.lastUpdated ? (
+                <DetailField
+                  label="Last Updated"
+                  value={formatDate(liveOrder.lastUpdated)}
+                />
+              ) : null}
             </div>
           </Section>
 
           <Section title="Customer" icon={Package}>
             <div className="grid gap-4 rounded-lg border border-gray-100 p-4 sm:grid-cols-2">
-              <DetailField label="Company" value={order.company} />
-              <DetailField label="Contact" value={order.customerName} />
+              <DetailField label="Company" value={liveOrder.company} />
+              <DetailField label="Contact" value={liveOrder.customerName} />
               <DetailField
                 label="Source"
-                value={<CeStatusBadge status={order.orderSource} />}
+                value={<CeStatusBadge status={liveOrder.orderSource} />}
               />
-              <DetailField label="Priority" value={order.deliveryPriority} />
+              <DetailField
+                label="Priority"
+                value={liveOrder.deliveryPriority}
+              />
             </div>
           </Section>
 
@@ -168,7 +231,7 @@ export function CeOrderDetailSheet({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {order.items.map((item) => (
+                  {liveOrder.items.map((item) => (
                     <TableRow key={`${item.productId}-${item.productName}`}>
                       <TableCell>
                         <p className="text-sm font-medium">
@@ -191,9 +254,9 @@ export function CeOrderDetailSheet({
 
           <Section title="Delivery Address" icon={MapPin}>
             <div className="rounded-lg border border-gray-100 p-4 text-sm">
-              <p className="text-[#1A1A1A]">{order.deliveryAddress}</p>
+              <p className="text-[#1A1A1A]">{liveOrder.deliveryAddress}</p>
               <p className="mt-1 text-[#64748B]">
-                PIN: {order.deliveryPincode}
+                PIN: {liveOrder.deliveryPincode}
               </p>
             </div>
           </Section>
@@ -204,9 +267,12 @@ export function CeOrderDetailSheet({
                 <DetailField label="Hub" value={hubName} />
                 <DetailField
                   label="Code"
-                  value={order.hubCode || hub?.city || "—"}
+                  value={liveOrder.hubCode || hub?.city || "—"}
                 />
-                <DetailField label="Manager" value={order.managerName || "—"} />
+                <DetailField
+                  label="Manager"
+                  value={liveOrder.managerName || "—"}
+                />
               </div>
             </Section>
           ) : null}
@@ -222,6 +288,126 @@ export function CeOrderDetailSheet({
               </div>
             </Section>
           ) : null}
+
+          {liveOrder.deliveryVerification ? (
+            <Section title="Delivery Verification" icon={ShieldCheck}>
+              <div className="grid gap-4 rounded-lg border border-gray-100 p-4 sm:grid-cols-2">
+                <DetailField
+                  label="Driver Reached"
+                  value={
+                    liveOrder.deliveryVerification.driverReached
+                      ? liveOrder.deliveryVerification.driverReachedAt
+                        ? formatDate(
+                            liveOrder.deliveryVerification.driverReachedAt,
+                          )
+                        : "Yes"
+                      : "No"
+                  }
+                />
+                <DetailField
+                  label="OTP Generated"
+                  value={
+                    liveOrder.deliveryVerification.otpGenerated
+                      ? liveOrder.deliveryVerification.otpGeneratedAt
+                        ? formatDate(
+                            liveOrder.deliveryVerification.otpGeneratedAt,
+                          )
+                        : "Yes"
+                      : "No"
+                  }
+                />
+                <DetailField
+                  label="OTP Verified"
+                  value={
+                    liveOrder.deliveryVerification.otpVerified ? "Yes" : "No"
+                  }
+                />
+                <DetailField
+                  label="Verified By"
+                  value={liveOrder.deliveryVerification.verifiedBy || "—"}
+                />
+                <DetailField
+                  label="Verification Time"
+                  value={
+                    liveOrder.deliveryVerification.verifiedAt
+                      ? formatDate(liveOrder.deliveryVerification.verifiedAt)
+                      : "—"
+                  }
+                />
+                <DetailField
+                  label="Delivered"
+                  value={
+                    liveOrder.deliveryVerification.delivered
+                      ? liveOrder.deliveryVerification.deliveredAt
+                        ? formatDate(liveOrder.deliveryVerification.deliveredAt)
+                        : "Yes"
+                      : "No"
+                  }
+                />
+                <DetailField
+                  label="Driver"
+                  value={
+                    liveOrder.deliveryVerification.driver?.name ||
+                    driverName ||
+                    "—"
+                  }
+                />
+                <DetailField
+                  label="Vehicle"
+                  value={
+                    liveOrder.deliveryVerification.vehicle?.registration ||
+                    vehicleNumber ||
+                    "—"
+                  }
+                />
+                <DetailField
+                  label="Hub"
+                  value={
+                    liveOrder.deliveryVerification.hub?.name || hubName || "—"
+                  }
+                />
+                {liveOrder.deliveryVerification.paymentCollectedAt ? (
+                  <DetailField
+                    label="Payment Collected"
+                    value={formatDate(
+                      liveOrder.deliveryVerification.paymentCollectedAt,
+                    )}
+                  />
+                ) : null}
+              </div>
+            </Section>
+          ) : null}
+
+          {liveOrder.timeline && liveOrder.timeline.length > 0 ? (
+            <Section title="Timeline" icon={Package}>
+              <ol className="space-y-3 rounded-lg border border-gray-100 p-4">
+                {liveOrder.timeline.map((entry, index) => (
+                  <li
+                    key={
+                      entry.id ?? `${entry.status}-${entry.createdAt}-${index}`
+                    }
+                    className="border-b border-gray-50 pb-3 last:border-0 last:pb-0"
+                  >
+                    <p className="text-sm font-medium text-[#1A1A1A]">
+                      {entry.statusLabel ??
+                        entry.status?.replaceAll("_", " ") ??
+                        "Update"}
+                    </p>
+                    {entry.message ? (
+                      <p className="mt-0.5 text-xs text-[#64748B]">
+                        {entry.message}
+                      </p>
+                    ) : null}
+                    {entry.createdAt ? (
+                      <p className="mt-1 text-[11px] text-gray-400">
+                        {formatDate(entry.createdAt)}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ol>
+            </Section>
+          ) : null}
         </div>
 
         <SheetFooter className="flex-col gap-2 border-t border-gray-100 p-5 sm:flex-row">
@@ -233,12 +419,24 @@ export function CeOrderDetailSheet({
           >
             Close
           </Button>
+          {(liveOrder.invoiceId || liveOrder.status === "DELIVERED") && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              disabled={downloadingInvoice}
+              onClick={() => void handleDownloadInvoice()}
+            >
+              <Download className="size-4" />
+              Invoice PDF
+            </Button>
+          )}
           <Button
             type="button"
             className="w-full sm:w-auto"
             render={
               <Link
-                href={`${ROUTES.CUSTOMER_EXECUTIVE_ORDERS}?order=${order.id}`}
+                href={`${ROUTES.CUSTOMER_EXECUTIVE_ORDERS}?order=${liveOrder.id}`}
               />
             }
           >

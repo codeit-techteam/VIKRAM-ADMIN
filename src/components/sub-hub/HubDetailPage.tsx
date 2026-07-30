@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { MapPin } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { HubActivityTimeline } from "@/components/sub-hub/HubActivityTimeline";
@@ -12,17 +12,26 @@ import { HubManagerCard } from "@/components/sub-hub/HubManagerCard";
 import { HubPerformanceStrip } from "@/components/sub-hub/HubPerformanceStrip";
 import { HubProfileHeader } from "@/components/sub-hub/HubProfileHeader";
 import { HubProfileKpiGrid } from "@/components/sub-hub/HubProfileKpiGrid";
+import { HubCustomerOrdersPanel } from "@/components/sub-hub/orders/HubCustomerOrdersPanel";
+import { HubOrderAnalyticsSection } from "@/components/sub-hub/orders/HubOrderAnalyticsSection";
+import { HubOrderDashboardCards } from "@/components/sub-hub/orders/HubOrderDashboardCards";
 import { DashboardCard } from "@/components/shared/DashboardCard";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PageHeader } from "@/components/shared/PageHeader";
+import {
+  SubModuleTabs,
+  type SubModuleTab,
+} from "@/components/shared/SubModuleTabs";
 import { buttonVariants } from "@/components/ui/button";
 import { ROUTES } from "@/constants/routes";
 import { hubsService } from "@/services/hubs.service";
+import { hubOrdersService } from "@/services/hubOrders.service";
 import type {
   HubActivityEvent,
   SubHub,
   SubHubOperationalStatus,
 } from "@/types/erp.types";
+import type { HubOrderTab } from "@/types/hub-orders.types";
 import type {
   HubInventoryRow,
   HubManagerProfile,
@@ -36,6 +45,13 @@ interface HubDetailPageProps {
   initialTab?: string;
 }
 
+type HubPageTab = "overview" | "orders";
+
+const HUB_DETAIL_TABS: SubModuleTab[] = [
+  { id: "overview", label: "Overview" },
+  { id: "orders", label: "Customer Orders" },
+];
+
 const fadeUp = {
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0 },
@@ -46,23 +62,63 @@ function formatStockValue(value: number) {
   return `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
-export function HubDetailPage({ hubId }: HubDetailPageProps) {
+function resolvePageTab(initialTab?: string): HubPageTab {
+  if (initialTab === "orders" || initialTab === "customer-orders")
+    return "orders";
+  return "overview";
+}
+
+function resolveOrderTab(initialTab?: string): HubOrderTab | undefined {
+  const orderTabs: HubOrderTab[] = [
+    "all",
+    "active",
+    "completed",
+    "cancelled",
+    "pending_dispatch",
+    "out_for_delivery",
+  ];
+  if (initialTab && orderTabs.includes(initialTab as HubOrderTab)) {
+    return initialTab as HubOrderTab;
+  }
+  return undefined;
+}
+
+export function HubDetailPage({ hubId, initialTab }: HubDetailPageProps) {
+  const [activePageTab, setActivePageTab] = useState<HubPageTab>(
+    resolvePageTab(initialTab),
+  );
+  const [orderFilterTab, setOrderFilterTab] = useState<HubOrderTab | undefined>(
+    resolveOrderTab(initialTab),
+  );
+
   const hubQuery = useQuery({
     queryKey: ["admin-hubs", hubId],
     queryFn: () => hubsService.getById(hubId),
-    refetchInterval: 15000,
+    refetchInterval: 15_000,
   });
 
   const inventoryQuery = useQuery({
     queryKey: ["admin-hubs", hubId, "inventory"],
     queryFn: () => hubsService.getInventory(hubId),
-    refetchInterval: 15000,
+    refetchInterval: 15_000,
   });
 
   const performanceQuery = useQuery({
     queryKey: ["admin-hubs", hubId, "performance"],
     queryFn: () => hubsService.getPerformance(hubId),
-    refetchInterval: 15000,
+    refetchInterval: 15_000,
+  });
+
+  const orderDashboardQuery = useQuery({
+    queryKey: ["hub-orders-dashboard", hubId],
+    queryFn: () => hubOrdersService.getDashboard(hubId),
+    refetchInterval: 10_000,
+  });
+
+  const orderAnalyticsQuery = useQuery({
+    queryKey: ["hub-orders-analytics", hubId],
+    queryFn: () => hubOrdersService.getAnalytics(hubId),
+    refetchInterval: 10_000,
   });
 
   const isLoading = hubQuery.isLoading;
@@ -115,25 +171,29 @@ export function HubDetailPage({ hubId }: HubDetailPageProps) {
 
   const topKpis: HubProfileKpiCards | null = useMemo(() => {
     if (!detail) return null;
+    const dashboard = orderDashboardQuery.data;
     const inventoryValue = inventory?.stockValue ?? 0;
     return {
       inventoryValue,
       inventoryValueLabel: formatStockValue(inventoryValue),
-      customerOrdersPending: detail.pendingOrders ?? 0,
+      customerOrdersPending:
+        dashboard?.activeOrders.value ?? detail.pendingOrders ?? 0,
       pendingRequisitions: 0,
       incomingTransfers: 0,
     };
-  }, [detail, inventory]);
+  }, [detail, inventory, orderDashboardQuery.data]);
 
   const performance: HubPerformanceKpis | null = useMemo(() => {
     if (!detail) return null;
+    const dashboard = orderDashboardQuery.data;
     return {
-      todaysOrders: performanceRaw?.todaysOrders ?? 0,
-      todaysDispatches: 0,
+      todaysOrders:
+        dashboard?.todaysOrders.value ?? performanceRaw?.todaysOrders ?? 0,
+      todaysDispatches: dashboard?.ordersOutForDelivery.value ?? 0,
       incomingTransfers: 0,
       pendingRequisitions: 0,
     };
-  }, [detail, performanceRaw]);
+  }, [detail, performanceRaw, orderDashboardQuery.data]);
 
   const inventoryRows: HubInventoryRow[] = useMemo(() => {
     const items = (inventory?.items ?? []) as Array<{
@@ -183,6 +243,7 @@ export function HubDetailPage({ hubId }: HubDetailPageProps) {
 
   const managerProfile: HubManagerProfile | null = useMemo(() => {
     if (!hub || !detail) return null;
+    const dashboard = orderDashboardQuery.data;
     return {
       name: hub.managerName,
       phone: hub.managerPhone || "—",
@@ -197,10 +258,10 @@ export function HubDetailPage({ hubId }: HubDetailPageProps) {
       capacityLabel: hub.capacityMt ? `${hub.capacityMt} MT` : "—",
       storageUtilization: inventory?.inventoryHealth ?? 80,
       workingHours: hub.workingHours || "—",
-      activeOrders: detail.pendingOrders ?? 0,
+      activeOrders: dashboard?.activeOrders.value ?? detail.pendingOrders ?? 0,
       performanceScore: performanceRaw?.fulfillmentPercent ?? 90,
     };
-  }, [hub, detail, inventory, performanceRaw]);
+  }, [hub, detail, inventory, performanceRaw, orderDashboardQuery.data]);
 
   const activityEvents: HubActivityEvent[] = useMemo(() => {
     if (!detail) return [];
@@ -214,6 +275,11 @@ export function HubDetailPage({ hubId }: HubDetailPageProps) {
       },
     ];
   }, [detail]);
+
+  const handleDashboardTabFilter = (tab: HubOrderTab) => {
+    setOrderFilterTab(tab);
+    setActivePageTab("orders");
+  };
 
   if (hubQuery.isError) {
     return (
@@ -241,16 +307,7 @@ export function HubDetailPage({ hubId }: HubDetailPageProps) {
     return (
       <div className="space-y-6 pb-8">
         <PageHeader title="Loading hub…" subtitle="Fetching live hub data" />
-        <HubProfileKpiGrid
-          kpis={{
-            inventoryValue: 0,
-            inventoryValueLabel: "—",
-            customerOrdersPending: 0,
-            pendingRequisitions: 0,
-            incomingTransfers: 0,
-          }}
-          isLoading
-        />
+        <HubOrderDashboardCards isLoading />
       </div>
     );
   }
@@ -259,29 +316,70 @@ export function HubDetailPage({ hubId }: HubDetailPageProps) {
     <div className="space-y-6 pb-8">
       <HubProfileHeader hub={hub} status={operationalStatus} />
 
-      <HubProfileKpiGrid kpis={topKpis} isLoading={isLoading} />
+      <SubModuleTabs
+        backHref={ROUTES.SUB_HUB_NETWORK}
+        backLabel="All Sub-Hubs"
+        tabs={HUB_DETAIL_TABS}
+        activeTab={activePageTab}
+        onTabChange={(tabId) => setActivePageTab(tabId as HubPageTab)}
+      />
 
-      <HubPerformanceStrip kpis={performance} />
+      {activePageTab === "overview" ? (
+        <>
+          <motion.div {...fadeUp}>
+            <HubOrderDashboardCards
+              dashboard={orderDashboardQuery.data}
+              isLoading={orderDashboardQuery.isLoading}
+              activeTab={orderFilterTab}
+              onFilterTab={handleDashboardTabFilter}
+            />
+          </motion.div>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
-        <motion.div className="xl:col-span-4" {...fadeUp}>
-          <HubManagerCard profile={managerProfile} />
+          <motion.div {...fadeUp} transition={{ delay: 0.05 }}>
+            <HubOrderAnalyticsSection
+              analytics={orderAnalyticsQuery.data}
+              isLoading={orderAnalyticsQuery.isLoading}
+            />
+          </motion.div>
+
+          <motion.div {...fadeUp} transition={{ delay: 0.08 }}>
+            <HubProfileKpiGrid kpis={topKpis} isLoading={isLoading} />
+          </motion.div>
+
+          <HubPerformanceStrip kpis={performance} />
+
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+            <motion.div className="xl:col-span-4" {...fadeUp}>
+              <HubManagerCard profile={managerProfile} />
+            </motion.div>
+
+            <motion.div
+              className="xl:col-span-8"
+              {...fadeUp}
+              transition={{ duration: 0.25, delay: 0.05 }}
+            >
+              <HubInventoryOverviewTable hubId={hubId} rows={inventoryRows} />
+            </motion.div>
+          </div>
+
+          <motion.div {...fadeUp} transition={{ duration: 0.25, delay: 0.08 }}>
+            <DashboardCard title="Recent Activity" contentClassName="mt-5">
+              <HubActivityTimeline
+                events={activityEvents}
+                isLoading={isLoading}
+              />
+            </DashboardCard>
+          </motion.div>
+        </>
+      ) : (
+        <motion.div {...fadeUp}>
+          <HubCustomerOrdersPanel
+            hubId={hubId}
+            hubCode={hub.nodeId}
+            initialTab={orderFilterTab}
+          />
         </motion.div>
-
-        <motion.div
-          className="xl:col-span-8"
-          {...fadeUp}
-          transition={{ duration: 0.25, delay: 0.05 }}
-        >
-          <HubInventoryOverviewTable hubId={hubId} rows={inventoryRows} />
-        </motion.div>
-      </div>
-
-      <motion.div {...fadeUp} transition={{ duration: 0.25, delay: 0.08 }}>
-        <DashboardCard title="Recent Activity" contentClassName="mt-5">
-          <HubActivityTimeline events={activityEvents} isLoading={isLoading} />
-        </DashboardCard>
-      </motion.div>
+      )}
 
       <div className="flex justify-end">
         <Link

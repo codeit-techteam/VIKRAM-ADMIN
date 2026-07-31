@@ -126,8 +126,22 @@ export function HubOrdersTable({
                 <TableCell className="text-sm whitespace-nowrap">
                   {formatPaymentMethodLabel(order.paymentMethod)}
                 </TableCell>
-                <TableCell className="text-sm whitespace-nowrap capitalize">
-                  {order.paymentStatus?.toLowerCase() ?? "—"}
+                <TableCell className="text-sm whitespace-nowrap">
+                  {order.paymentStatus ? (
+                    <span
+                      className={
+                        order.paymentStatus.toUpperCase() === "PAID"
+                          ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
+                          : order.paymentStatus.toUpperCase() === "PENDING"
+                            ? "inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"
+                            : "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 capitalize"
+                      }
+                    >
+                      {order.paymentStatus.replaceAll("_", " ").toLowerCase()}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
                 </TableCell>
                 <TableCell>
                   <HubOrderStatusBadge

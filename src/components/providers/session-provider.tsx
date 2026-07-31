@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { isDevMockToken } from "@/constants/dev-auth.constants";
 import { authService } from "@/services/auth";
 import { useAuthStore } from "@/store/auth-store";
+import { useSidebarStore } from "@/store/sidebar-store";
 import { setAuthCookies } from "@/utils/auth-cookies";
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
@@ -13,8 +14,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const setUser = useAuthStore((state) => state.setUser);
   const setLoading = useAuthStore((state) => state.setLoading);
   const logout = useAuthStore((state) => state.logout);
+  const hasHydrated = useAuthStore((state) => state.hasHydrated);
+
+  // Rehydrate persisted stores only after mount so SSR HTML and client
+  // hydration share the same tree (fixes Base UI useId mismatches).
+  useEffect(() => {
+    void useAuthStore.persist.rehydrate();
+    void useSidebarStore.persist.rehydrate();
+  }, []);
 
   useEffect(() => {
+    if (!hasHydrated) return;
+
     const validateSession = async () => {
       if (!isAuthenticated) {
         setLoading(false);
@@ -42,8 +53,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    validateSession();
-  }, [accessToken, isAuthenticated, setUser, setLoading, logout]);
+    void validateSession();
+  }, [accessToken, hasHydrated, isAuthenticated, setUser, setLoading, logout]);
 
   return children;
 }

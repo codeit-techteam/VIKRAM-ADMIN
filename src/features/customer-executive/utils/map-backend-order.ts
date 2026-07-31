@@ -34,6 +34,11 @@ export interface BackendAdminOrder {
   statusLabel?: string;
   grandTotal?: number | string;
   amount?: number | string;
+  subtotal?: number | string;
+  gstAmount?: number | string;
+  deliveryCharge?: number | string;
+  discountAmount?: number | string;
+  loyaltyPointsUsed?: number;
   createdAt: string;
   updatedAt?: string;
   paymentMethod?: string;
@@ -46,19 +51,26 @@ export interface BackendAdminOrder {
     line1?: string;
     line2?: string;
     city?: string;
+    state?: string;
     pincode?: string;
     address?: string;
+    country?: string;
   } | null;
   address?: {
     line1?: string;
     line2?: string;
     city?: string;
+    state?: string;
     pincode?: string;
   } | null;
   customer?: {
     id?: string;
     fullName?: string | null;
     phone?: string;
+    profile?: {
+      gstNumber?: string;
+      companyName?: string;
+    };
   } | null;
   customerId?: string;
   hub?: { id?: string; code?: string; name?: string } | null;
@@ -81,6 +93,8 @@ export interface BackendAdminOrder {
     unitPrice?: number | string;
     quantity?: number;
     sku?: string;
+    variant?: string;
+    subtotal?: number | string;
   }>;
   isEmergency?: boolean;
   priorityOrder?: boolean;

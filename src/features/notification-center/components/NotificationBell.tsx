@@ -23,6 +23,8 @@ import { useNotificationStore } from "@/store/notification-store";
 import { ROUTES } from "@/constants/routes";
 import type { EnterpriseNotification } from "@/features/notification-center/types";
 
+const NOTIFICATION_BELL_ID = "admin-notification-bell";
+
 interface NotificationBellProps {
   className?: string;
 }
@@ -31,6 +33,8 @@ export function NotificationBell({ className }: NotificationBellProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
+  /** Keep SSR + first client paint identical (always Sheet), then adapt. */
+  const [mounted, setMounted] = useState(false);
 
   const initialize = useNotificationStore((state) => state.initialize);
   const notifications = useNotificationStore((state) => state.notifications);
@@ -40,6 +44,10 @@ export function NotificationBell({ className }: NotificationBellProps) {
   const clearNotifications = useNotificationStore(
     (state) => state.clearNotifications,
   );
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     initialize();
@@ -84,15 +92,18 @@ export function NotificationBell({ className }: NotificationBellProps) {
       onClearAll={clearNotifications}
       onNavigate={handleNavigate}
       onViewAll={handleViewAll}
-      className={isMobile ? "max-h-[70vh]" : "h-full"}
-      listClassName={isMobile ? "max-h-[calc(70vh-9rem)]" : undefined}
+      className={mounted && isMobile ? "max-h-[70vh]" : "h-full"}
+      listClassName={
+        mounted && isMobile ? "max-h-[calc(70vh-9rem)]" : undefined
+      }
     />
   );
 
-  if (isMobile) {
+  // After mount on mobile: Popover. Before that (SSR/hydration): Sheet only.
+  if (mounted && isMobile) {
     return (
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger render={triggerButton} />
+        <PopoverTrigger id={NOTIFICATION_BELL_ID} render={triggerButton} />
         <PopoverContent
           align="end"
           side="bottom"
@@ -107,7 +118,7 @@ export function NotificationBell({ className }: NotificationBellProps) {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger render={triggerButton} />
+      <SheetTrigger id={NOTIFICATION_BELL_ID} render={triggerButton} />
       <SheetContent
         side="right"
         showCloseButton

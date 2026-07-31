@@ -20,6 +20,7 @@ import {
 } from "@/constants/route-access";
 import { useAuth, usePermissions } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/store/auth-store";
 import { useSidebarStore } from "@/store/sidebar-store";
 
 function filterNavItem(
@@ -50,11 +51,17 @@ export function AppSidebar() {
   const { can } = usePermissions();
   const { role } = useAuth();
   const homeHref = role ? getDefaultRouteForRole(role) : "/dashboard";
-  const visibleSections = filterNavSections(NAV_SECTIONS, (permission) =>
-    can(permission as Parameters<typeof can>[0]),
-  );
-  const isCollapsed = useSidebarStore((state) => state.isCollapsed);
+  const authHydrated = useAuthStore((state) => state.hasHydrated);
+  const persistedCollapsed = useSidebarStore((state) => state.isCollapsed);
+  const sidebarHydrated = useSidebarStore((state) => state.hasHydrated);
   const setCollapsed = useSidebarStore((state) => state.setCollapsed);
+  // Until auth rehydrates, render the full nav skeleton so Base UI useId slots
+  // match between server HTML and the client's first paint.
+  const visibleSections = filterNavSections(NAV_SECTIONS, (permission) =>
+    authHydrated ? can(permission as Parameters<typeof can>[0]) : true,
+  );
+  // Keep SSR + hydration on the default expanded tree; apply persist after mount.
+  const isCollapsed = sidebarHydrated ? persistedCollapsed : false;
   const [expandedHref, setExpandedHref] = useState<string | null>(
     () => findActiveNavParent(pathname)?.href ?? null,
   );

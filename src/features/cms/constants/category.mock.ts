@@ -25,7 +25,7 @@ export const CATEGORY_MOCK_ROWS: Category[] = [
   {
     id: "cat-003",
     thumbnailUrl: "https://picsum.photos/seed/bricks-category/80/80",
-    name: "Bricks & Masonry",
+    name: "Bricks",
     displayOrder: 3,
     productCount: 54,
     isVisible: true,

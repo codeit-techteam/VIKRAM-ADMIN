@@ -7,9 +7,10 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { ExternalLink, MousePointerClick, Pencil } from "lucide-react";
-import Image from "next/image";
+import Link from "next/link";
 import { useMemo } from "react";
 
+import { SafeRemoteImage } from "@/components/shared/SafeRemoteImage";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,9 +30,7 @@ interface VideoCtaTableProps {
 const columnHelper = createColumnHelper<Video>();
 
 function getCtaAppStatus(video: Video): "ACTIVE" | "INACTIVE" {
-  return video.cta.enabled && video.status === "PUBLISHED"
-    ? "ACTIVE"
-    : "INACTIVE";
+  return video.liveOnApp ? "ACTIVE" : "INACTIVE";
 }
 
 const DESTINATION_LABELS: Record<Video["cta"]["destinationType"], string> = {
@@ -44,7 +43,7 @@ const DESTINATION_LABELS: Record<Video["cta"]["destinationType"], string> = {
 export function VideoCtaTable({ videos }: VideoCtaTableProps) {
   const columns = useMemo(
     () => [
-      columnHelper.accessor("thumbnailUrl", {
+      columnHelper.accessor("title", {
         header: "Video",
         cell: (info) => {
           const row = info.row.original;
@@ -52,7 +51,7 @@ export function VideoCtaTable({ videos }: VideoCtaTableProps) {
           return (
             <div className="flex min-w-0 items-center gap-3">
               <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-md bg-gray-100">
-                <Image
+                <SafeRemoteImage
                   src={row.thumbnailUrl}
                   alt={row.title}
                   fill
@@ -135,20 +134,34 @@ export function VideoCtaTable({ videos }: VideoCtaTableProps) {
               variant="ghost"
               size="icon-sm"
               className="size-8 text-gray-400 hover:text-gray-600"
+              render={
+                <Link
+                  href={`/customer-app-cms/videos/upload?edit=${row.original.id}`}
+                />
+              }
             >
               <Pencil className="size-4" />
               <span className="sr-only">Edit CTA for {row.original.title}</span>
             </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="size-8 text-gray-400 hover:text-gray-600"
-            >
-              <ExternalLink className="size-4" />
-              <span className="sr-only">
-                Preview CTA for {row.original.title}
-              </span>
-            </Button>
+            {row.original.videoUrl ? (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="size-8 text-gray-400 hover:text-gray-600"
+                render={
+                  <a
+                    href={row.original.videoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  />
+                }
+              >
+                <ExternalLink className="size-4" />
+                <span className="sr-only">
+                  Preview video for {row.original.title}
+                </span>
+              </Button>
+            ) : null}
           </div>
         ),
       }),

@@ -7,10 +7,10 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { GripVertical, Pencil, Trash2 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useMemo } from "react";
 
+import { SafeRemoteImage } from "@/components/shared/SafeRemoteImage";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
@@ -71,7 +71,7 @@ export function CategoryTable({ categories, onDelete }: CategoryTableProps) {
           return (
             <div className="flex items-center gap-3">
               <div className="relative size-10 shrink-0 overflow-hidden rounded-lg bg-gray-100">
-                <Image
+                <SafeRemoteImage
                   src={category.thumbnailUrl}
                   alt={category.name}
                   fill

@@ -85,13 +85,15 @@ export function OfferTable({
         header: "Banner",
         cell: ({ row }) => (
           <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-md bg-gray-100">
-            <Image
-              src={row.original.mobileBanner}
-              alt={row.original.name}
-              fill
-              className="object-cover"
-              sizes="80px"
-            />
+            {row.original.mobileBanner || row.original.desktopBanner ? (
+              <Image
+                src={row.original.mobileBanner || row.original.desktopBanner}
+                alt={row.original.name}
+                fill
+                className="object-cover"
+                sizes="80px"
+              />
+            ) : null}
           </div>
         ),
       }),
@@ -116,7 +118,7 @@ export function OfferTable({
         header: "Products",
         cell: ({ row }) => (
           <span className="text-sm font-medium text-[#1A1A1A]">
-            {row.original.products.length}
+            {row.original.products?.length ?? 0}
           </span>
         ),
       }),
@@ -227,12 +229,12 @@ export function OfferTable({
   );
 
   const table = useReactTable({
-    data: offers,
+    data: offers ?? [],
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
 
-  if (offers.length === 0) {
+  if ((offers ?? []).length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-gray-200 px-6 py-16 text-center">
         <p className="text-base font-semibold text-[#1A1A1A]">

@@ -1,124 +1,284 @@
-import {
-  INITIAL_OFFERS,
-  OFFER_PRODUCT_CATALOG,
-  computeOfferStats,
-} from "@/features/cms/constants/offer.mock";
 import type { OfferFormSchema } from "@/features/cms/schema/offer-form.schema";
 import type {
   Offer,
   OfferListFilters,
   OfferProduct,
   OfferStats,
+  OfferStatus,
+  OfferType,
 } from "@/features/cms/types/offer.types";
+import { catalogService } from "@/services/catalog.service";
+import { API_ENDPOINTS } from "@/constants/api-endpoints";
+import api from "@/services/api";
+import type { ApiResponse } from "@/types/api";
 
-/** In-memory mock store — frontend only. Replace with real API later. */
-let offersStore: Offer[] = structuredClone(INITIAL_OFFERS);
-let nextId = INITIAL_OFFERS.length + 1;
-
-function delay(ms = 120): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
+interface AdminOffer {
+  id: string;
+  slug: string;
+  title: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  offerType: string;
+  badge?: string | null;
+  isFeatured: boolean;
+  displayOrder: number;
+  priority: number;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  status: string;
+  isVisible: boolean;
+  products?: Array<{
+    product: {
+      id: string;
+      name: string;
+      sku?: string | null;
+      brand?: string | null;
+      retailPrice?: number | string;
+      category?: { name?: string } | null;
+      images?: Array<{ url: string }>;
+    };
+  }>;
 }
 
-function resolveProducts(productIds: string[]): OfferProduct[] {
-  return productIds
-    .map((id) => OFFER_PRODUCT_CATALOG.find((product) => product.id === id))
-    .filter((product): product is OfferProduct => Boolean(product));
+function mapStatus(row: AdminOffer): OfferStatus {
+  if (row.status === "ACTIVE" && row.isVisible) return "ACTIVE";
+  if (row.status === "DRAFT") return "DRAFT";
+  if (row.endsAt && new Date(row.endsAt).getTime() < Date.now())
+    return "EXPIRED";
+  if (row.startsAt && new Date(row.startsAt).getTime() > Date.now())
+    return "SCHEDULED";
+  return "DRAFT";
 }
 
-function formToOffer(
-  data: OfferFormSchema,
-  id: string,
-  existing?: Offer,
-): Offer {
+function mapOfferType(row: AdminOffer): OfferType {
+  return row.isFeatured ? "featured" : "home-carousel";
+}
+
+function mapOffer(row: AdminOffer): Offer {
   return {
-    id,
-    name: data.name,
-    slug: data.slug,
-    description: data.description,
-    desktopBanner:
-      data.desktopBanner ||
-      existing?.desktopBanner ||
-      `https://picsum.photos/seed/${data.slug}-desk/1200/400`,
-    mobileBanner:
-      data.mobileBanner ||
-      existing?.mobileBanner ||
-      `https://picsum.photos/seed/${data.slug}-mob/800/600`,
-    offerType: data.offerType,
-    products: resolveProducts(data.productIds),
-    priority: data.priority,
-    status: data.status,
-    startDate: data.startDate,
-    endDate: data.endDate,
-    ctaLabel: data.ctaLabel,
+    id: row.id,
+    name: row.title,
+    slug: row.slug,
+    description: row.description || "",
+    desktopBanner: row.imageUrl || "",
+    mobileBanner: row.imageUrl || "",
+    offerType: mapOfferType(row),
+    products: (row.products || []).map((p) => ({
+      id: p.product.id,
+      name: p.product.name,
+      sku: p.product.sku || "—",
+      brand: p.product.brand || "—",
+      category: p.product.category?.name || "—",
+      price: Number(p.product.retailPrice || 0),
+      priceUnit: "Bag",
+      thumbnailUrl: p.product.images?.[0]?.url || "",
+    })),
+    priority: row.priority ?? row.displayOrder ?? 0,
+    status: mapStatus(row),
+    startDate: row.startsAt
+      ? new Date(row.startsAt).toISOString().slice(0, 10)
+      : "",
+    endDate: row.endsAt ? new Date(row.endsAt).toISOString().slice(0, 10) : "",
+    ctaLabel: "Shop Now",
+  };
+}
+
+export function computeOfferStats(offers: Offer[]): OfferStats {
+  return {
+    total: offers.length,
+    active: offers.filter((o) => o.status === "ACTIVE").length,
+    scheduled: offers.filter((o) => o.status === "SCHEDULED").length,
+    expired: offers.filter((o) => o.status === "EXPIRED").length,
   };
 }
 
 export async function getOffers(): Promise<Offer[]> {
-  await delay();
-  return structuredClone(offersStore);
+  try {
+    const { data } = await api.get<
+      ApiResponse<{ data: AdminOffer[]; meta: unknown } | AdminOffer[]>
+    >(API_ENDPOINTS.ADMIN_CMS.OFFERS, { params: { page: 1, limit: 100 } });
+
+    const payload = data.data;
+    const rows = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.data)
+        ? payload.data
+        : [];
+
+    return rows.map(mapOffer);
+  } catch {
+    return [];
+  }
 }
 
 export async function getOfferById(id: string): Promise<Offer | null> {
-  await delay();
-  const offer = offersStore.find((item) => item.id === id);
-  return offer ? structuredClone(offer) : null;
+  const { data } = await api.get<ApiResponse<AdminOffer>>(
+    API_ENDPOINTS.ADMIN_CMS.OFFER_BY_ID(id),
+  );
+  return data.data ? mapOffer(data.data) : null;
 }
 
 export async function getOfferStats(): Promise<OfferStats> {
-  await delay();
-  return computeOfferStats(offersStore);
+  const offers = await getOffers();
+  return computeOfferStats(offers);
 }
 
 export async function getPublishedCarouselOffers(): Promise<Offer[]> {
-  await delay();
-  return structuredClone(
-    offersStore
-      .filter(
-        (offer) =>
-          offer.status === "ACTIVE" && offer.offerType === "home-carousel",
-      )
-      .sort((a, b) => b.priority - a.priority),
+  const offers = await getOffers();
+  return offers.filter(
+    (offer) => offer.status === "ACTIVE" && offer.offerType === "home-carousel",
   );
 }
 
-export async function getPublishedFeaturedOffers(): Promise<Offer[]> {
-  await delay();
-  return structuredClone(
-    offersStore
-      .filter(
-        (offer) => offer.status === "ACTIVE" && offer.offerType === "featured",
-      )
-      .sort((a, b) => b.priority - a.priority),
+export async function getOfferProductsCatalog(): Promise<OfferProduct[]> {
+  const page = await catalogService.listProducts({ page: 1, limit: 100 });
+  return page.data.map((p) => ({
+    id: p.id,
+    name: p.name,
+    sku: p.sku || "—",
+    brand: p.brand || "—",
+    category: p.category?.name || "—",
+    price: Number(p.retailPrice || 0),
+    priceUnit: p.unit || "Bag",
+    thumbnailUrl: p.images?.[0]?.url || "",
+  }));
+}
+
+export async function createOffer(data: OfferFormSchema): Promise<Offer> {
+  const { data: res } = await api.post<ApiResponse<AdminOffer>>(
+    API_ENDPOINTS.ADMIN_CMS.OFFERS,
+    {
+      title: data.name,
+      slug: data.slug,
+      description: data.description,
+      imageUrl: data.desktopBanner || data.mobileBanner,
+      offerType: "BUNDLE",
+      isFeatured: data.offerType === "featured",
+      priority: data.priority,
+      displayOrder: data.priority,
+      startsAt: data.startDate
+        ? new Date(data.startDate).toISOString()
+        : undefined,
+      endsAt: data.endDate ? new Date(data.endDate).toISOString() : undefined,
+      badge: data.ctaLabel,
+    },
   );
+  const created = res.data;
+  if (data.productIds?.length) {
+    await api.patch(
+      `${API_ENDPOINTS.ADMIN_CMS.OFFER_BY_ID(created.id)}/products`,
+      { productIds: data.productIds },
+    );
+  }
+  if (data.status === "ACTIVE") {
+    await api.patch(
+      `${API_ENDPOINTS.ADMIN_CMS.OFFER_BY_ID(created.id)}/activate`,
+    );
+  }
+  return (await getOfferById(created.id))!;
+}
+
+export async function updateOffer(
+  id: string,
+  data: OfferFormSchema,
+): Promise<Offer | null> {
+  await api.patch(API_ENDPOINTS.ADMIN_CMS.OFFER_BY_ID(id), {
+    title: data.name,
+    description: data.description,
+    imageUrl: data.desktopBanner || data.mobileBanner,
+    isFeatured: data.offerType === "featured",
+    priority: data.priority,
+    displayOrder: data.priority,
+    startsAt: data.startDate
+      ? new Date(data.startDate).toISOString()
+      : undefined,
+    endsAt: data.endDate ? new Date(data.endDate).toISOString() : undefined,
+    badge: data.ctaLabel,
+  });
+  if (data.productIds) {
+    await api.patch(`${API_ENDPOINTS.ADMIN_CMS.OFFER_BY_ID(id)}/products`, {
+      productIds: data.productIds,
+    });
+  }
+  if (data.status === "ACTIVE") {
+    await api.patch(`${API_ENDPOINTS.ADMIN_CMS.OFFER_BY_ID(id)}/activate`);
+  } else {
+    await api.patch(`${API_ENDPOINTS.ADMIN_CMS.OFFER_BY_ID(id)}/deactivate`);
+  }
+  return getOfferById(id);
+}
+
+export async function deleteOffer(id: string): Promise<boolean> {
+  await api.delete(API_ENDPOINTS.ADMIN_CMS.OFFER_BY_ID(id));
+  return true;
+}
+
+export async function publishOffer(id: string): Promise<Offer | null> {
+  await api.patch(`${API_ENDPOINTS.ADMIN_CMS.OFFER_BY_ID(id)}/activate`);
+  return getOfferById(id);
+}
+
+export async function unpublishOffer(id: string): Promise<Offer | null> {
+  await api.patch(`${API_ENDPOINTS.ADMIN_CMS.OFFER_BY_ID(id)}/deactivate`);
+  return getOfferById(id);
+}
+
+export async function duplicateOffer(id: string): Promise<Offer | null> {
+  const existing = await getOfferById(id);
+  if (!existing) return null;
+
+  const slug = `${existing.slug}-copy-${Date.now()}`.slice(0, 100);
+  const { data: res } = await api.post<ApiResponse<AdminOffer>>(
+    API_ENDPOINTS.ADMIN_CMS.OFFERS,
+    {
+      title: `${existing.name} (Copy)`,
+      slug,
+      description: existing.description,
+      imageUrl: existing.desktopBanner || existing.mobileBanner,
+      offerType: "BUNDLE",
+      isFeatured: existing.offerType === "featured",
+      priority: existing.priority,
+      displayOrder: existing.priority,
+      startsAt: existing.startDate
+        ? new Date(existing.startDate).toISOString()
+        : undefined,
+      endsAt: existing.endDate
+        ? new Date(existing.endDate).toISOString()
+        : undefined,
+      badge: existing.ctaLabel,
+    },
+  );
+
+  const created = res.data;
+  const productIds = existing.products.map((p) => p.id);
+  if (productIds.length) {
+    await api.patch(
+      `${API_ENDPOINTS.ADMIN_CMS.OFFER_BY_ID(created.id)}/products`,
+      { productIds },
+    );
+  }
+
+  return getOfferById(created.id);
 }
 
 export function queryOffers(
   offers: Offer[],
   filters: OfferListFilters,
 ): { rows: Offer[]; total: number } {
-  let rows = [...offers];
+  const search = filters.search.trim().toLowerCase();
+  let rows = (offers ?? []).filter((offer) => {
+    const matchesSearch =
+      !search ||
+      offer.name.toLowerCase().includes(search) ||
+      offer.slug.toLowerCase().includes(search);
+    const matchesStatus =
+      filters.status === "all" || offer.status === filters.status;
+    const matchesType =
+      filters.offerType === "all" || offer.offerType === filters.offerType;
+    return matchesSearch && matchesStatus && matchesType;
+  });
 
-  if (filters.search.trim()) {
-    const query = filters.search.trim().toLowerCase();
-    rows = rows.filter(
-      (offer) =>
-        offer.name.toLowerCase().includes(query) ||
-        offer.slug.toLowerCase().includes(query) ||
-        offer.description.toLowerCase().includes(query),
-    );
-  }
-
-  if (filters.status !== "all") {
-    rows = rows.filter((offer) => offer.status === filters.status);
-  }
-
-  if (filters.offerType !== "all") {
-    rows = rows.filter((offer) => offer.offerType === filters.offerType);
-  }
-
-  rows.sort((a, b) =>
+  rows = [...rows].sort((a, b) =>
     filters.sortByPriority === "asc"
       ? a.priority - b.priority
       : b.priority - a.priority,
@@ -126,96 +286,8 @@ export function queryOffers(
 
   const total = rows.length;
   const start = (filters.page - 1) * filters.pageSize;
-  const paged = rows.slice(start, start + filters.pageSize);
-
-  return { rows: paged, total };
-}
-
-export async function createOffer(data: OfferFormSchema): Promise<Offer> {
-  await delay();
-  const id = `offer-${String(nextId).padStart(3, "0")}`;
-  nextId += 1;
-  const offer = formToOffer(data, id);
-  offersStore = [offer, ...offersStore];
-  return structuredClone(offer);
-}
-
-export async function updateOffer(
-  id: string,
-  data: OfferFormSchema,
-): Promise<Offer | null> {
-  await delay();
-  const index = offersStore.findIndex((item) => item.id === id);
-  if (index === -1) return null;
-
-  const updated = formToOffer(data, id, offersStore[index]);
-  offersStore = [
-    ...offersStore.slice(0, index),
-    updated,
-    ...offersStore.slice(index + 1),
-  ];
-  return structuredClone(updated);
-}
-
-export async function deleteOffer(id: string): Promise<boolean> {
-  await delay();
-  const before = offersStore.length;
-  offersStore = offersStore.filter((item) => item.id !== id);
-  return offersStore.length < before;
-}
-
-export async function duplicateOffer(id: string): Promise<Offer | null> {
-  await delay();
-  const source = offersStore.find((item) => item.id === id);
-  if (!source) return null;
-
-  const newId = `offer-${String(nextId).padStart(3, "0")}`;
-  nextId += 1;
-  const duplicate: Offer = {
-    ...structuredClone(source),
-    id: newId,
-    name: `${source.name} (Copy)`,
-    slug: `${source.slug}-copy-${newId}`,
-    status: "DRAFT",
+  return {
+    rows: rows.slice(start, start + filters.pageSize),
+    total,
   };
-  offersStore = [duplicate, ...offersStore];
-  return structuredClone(duplicate);
-}
-
-export async function publishOffer(id: string): Promise<Offer | null> {
-  await delay();
-  const index = offersStore.findIndex((item) => item.id === id);
-  if (index === -1) return null;
-
-  const updated: Offer = { ...offersStore[index], status: "ACTIVE" };
-  offersStore = [
-    ...offersStore.slice(0, index),
-    updated,
-    ...offersStore.slice(index + 1),
-  ];
-  return structuredClone(updated);
-}
-
-export async function unpublishOffer(id: string): Promise<Offer | null> {
-  await delay();
-  const index = offersStore.findIndex((item) => item.id === id);
-  if (index === -1) return null;
-
-  const updated: Offer = { ...offersStore[index], status: "DRAFT" };
-  offersStore = [
-    ...offersStore.slice(0, index),
-    updated,
-    ...offersStore.slice(index + 1),
-  ];
-  return structuredClone(updated);
-}
-
-export function getOfferProductCatalog(): OfferProduct[] {
-  return structuredClone(OFFER_PRODUCT_CATALOG);
-}
-
-/** Reset store — useful for tests / hard refresh scenarios */
-export function resetOffersStore(): void {
-  offersStore = structuredClone(INITIAL_OFFERS);
-  nextId = INITIAL_OFFERS.length + 1;
 }

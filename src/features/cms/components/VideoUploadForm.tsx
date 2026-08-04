@@ -37,7 +37,6 @@ import { ThumbnailPicker } from "@/features/cms/components/ThumbnailPicker";
 import {
   CTA_DESTINATION_OPTIONS,
   CTA_REDIRECT_OPTIONS,
-  MOCK_UPLOAD_FILE,
   PLACEMENT_OPTIONS,
   THUMBNAIL_FRAMES,
   VIDEO_AUDIENCE_OPTIONS,
@@ -47,18 +46,36 @@ import {
   videoUploadSchema,
   type VideoUploadSchema,
 } from "@/features/cms/schema/video-upload.schema";
+import { videosService } from "@/services/videos.service";
+import { useInvalidateCmsVideos } from "@/hooks/useCmsVideos";
+import { notify } from "@/utils/notify";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const fieldLabelClassName =
   "text-[11px] font-semibold tracking-wider text-gray-400 uppercase";
 
+function mapPlacementsToApi(placements: string[]): string {
+  if (placements.includes("home-screen-hero")) return "HOME_HERO_VIDEO";
+  if (placements.includes("product-detail-pages")) return "PRODUCT";
+  if (placements.includes("category-landing-pages")) return "CATEGORY";
+  if (placements.includes("featured-videos")) return "HOME";
+  return "HOME_HERO_VIDEO";
+}
+
 export function VideoUploadForm() {
-  const [uploadFile, setUploadFile] = useState<MockUploadFile | null>(
-    MOCK_UPLOAD_FILE,
-  );
+  const router = useRouter();
+  const invalidateVideos = useInvalidateCmsVideos();
+  const [uploadFile, setUploadFile] = useState<MockUploadFile | null>(null);
+  const [rawFile, setRawFile] = useState<File | null>(null);
+  const [posterFile, setPosterFile] = useState<File | null>(null);
+  const [posterMeta, setPosterMeta] = useState<MockUploadFile | null>(null);
   const [selectedThumbnailId, setSelectedThumbnailId] = useState(
     THUMBNAIL_FRAMES[0]?.id ?? "",
   );
+  const [thumbnailUrl, setThumbnailUrl] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const { control, handleSubmit, watch } = useForm<VideoUploadSchema>({
     resolver: zodResolver(videoUploadSchema),
@@ -69,11 +86,11 @@ export function VideoUploadForm() {
       targetAudience: "all-users",
       placements: ["home-screen-hero", "product-detail-pages"],
       priorityLevel: 8,
-      publishImmediately: false,
+      publishImmediately: true,
       scheduledAt: "",
       ctaEnabled: true,
-      ctaLabel: "",
-      ctaPath: "",
+      ctaLabel: "Shop Now",
+      ctaPath: "/(tabs)/catalog",
       ctaDestinationType: "category",
     },
   });
@@ -82,8 +99,54 @@ export function VideoUploadForm() {
   const ctaPath = watch("ctaPath");
   const showCustomPath = ctaPath === "custom";
 
-  const onSubmit = (data: VideoUploadSchema) => {
-    console.log("Publish video:", { ...data, uploadFile, selectedThumbnailId });
+  const onSubmit = async (data: VideoUploadSchema) => {
+    if (!rawFile) {
+      notify.error("Select an MP4 / MOV / WEBM file to upload");
+      return;
+    }
+    setSaving(true);
+    setUploadProgress(0);
+    try {
+      const frameThumb = THUMBNAIL_FRAMES.find(
+        (f) => f.id === selectedThumbnailId,
+      )?.imageUrl;
+      await videosService.upload(
+        {
+          file: rawFile,
+          thumbnailFile: posterFile,
+          title: data.title,
+          description: data.description,
+          placement: mapPlacementsToApi(data.placements),
+          linkUrl: data.ctaEnabled
+            ? data.ctaPath === "custom"
+              ? undefined
+              : data.ctaPath
+            : undefined,
+          ctaLabel: data.ctaEnabled ? data.ctaLabel : undefined,
+          priority: data.priorityLevel,
+          publish: data.publishImmediately,
+          thumbnailUrl: thumbnailUrl.trim() || frameThumb,
+        },
+        (percent) => {
+          setUploadProgress(percent);
+          setUploadFile((prev) =>
+            prev ? { ...prev, progress: percent } : prev,
+          );
+        },
+      );
+
+      await invalidateVideos();
+      notify.success(
+        "Video uploaded to Cloudflare R2 — Customer App will refresh from CMS",
+      );
+      router.push("/customer-app-cms/videos");
+    } catch (error) {
+      notify.error(
+        error instanceof Error ? error.message : "Failed to upload video",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -104,14 +167,62 @@ export function VideoUploadForm() {
           <Button type="button" variant="outline" className="h-10 px-5">
             Discard
           </Button>
-          <Button type="submit" className="h-10 px-5">
-            Publish Video
+          <Button type="submit" className="h-10 px-5" disabled={saving}>
+            {saving
+              ? uploadProgress > 0 && uploadProgress < 100
+                ? `Uploading ${uploadProgress}%…`
+                : "Publishing…"
+              : "Publish Video"}
           </Button>
         </div>
       </div>
 
       <FormSectionCard icon={Clapperboard} title="Video Asset Ingestion">
-        <FileDropzone selectedFile={uploadFile} onFileSelect={setUploadFile} />
+        <div className="space-y-4">
+          <FileDropzone
+            selectedFile={uploadFile}
+            onFileSelect={setUploadFile}
+            onFileChange={(file) => {
+              setRawFile(file);
+              if (file) {
+                setUploadFile({ name: file.name, progress: 0 });
+              }
+            }}
+            accept={{
+              "video/mp4": [".mp4"],
+              "video/quicktime": [".mov"],
+              "video/webm": [".webm"],
+            }}
+            helperText="Supported formats: MP4, MOV, WEBM (Max 500MB). Uploads to Cloudflare R2."
+          />
+          <div className="space-y-2">
+            <Label className={fieldLabelClassName}>
+              Poster image (optional)
+            </Label>
+            <FileDropzone
+              variant="compact"
+              selectedFile={posterMeta}
+              onFileSelect={setPosterMeta}
+              onFileChange={setPosterFile}
+              accept={{
+                "image/jpeg": [".jpg", ".jpeg"],
+                "image/png": [".png"],
+                "image/webp": [".webp"],
+              }}
+              helperText="JPEG / PNG / WEBP poster stored in thumbnails/"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className={fieldLabelClassName}>
+              Poster / Thumbnail URL (optional fallback)
+            </Label>
+            <Input
+              value={thumbnailUrl}
+              onChange={(e) => setThumbnailUrl(e.target.value)}
+              placeholder="https://cdn.example.com/poster.jpg"
+            />
+          </div>
+        </div>
       </FormSectionCard>
 
       <FormSectionCard icon={FileText} title="Content Details">

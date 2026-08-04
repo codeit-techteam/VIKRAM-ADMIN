@@ -36,6 +36,10 @@ import {
   updateBanner,
 } from "@/features/cms/services/banner.mock-api";
 import type { Banner } from "@/features/cms/types/banner.types";
+import {
+  assertRemoteMediaUrl,
+  uploadMediaFile,
+} from "@/services/media.service";
 import { notify } from "@/utils/notify";
 
 interface AddBannerDialogProps {
@@ -64,7 +68,9 @@ export function AddBannerDialog({
   const isEdit = Boolean(editBanner);
   const [isSaving, setIsSaving] = useState(false);
   const [imageUpload, setImageUpload] = useState<MockUploadFile | null>(null);
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [r2ImageUrl, setR2ImageUrl] = useState<string | null>(null);
 
   const {
     control,
@@ -82,10 +88,14 @@ export function AddBannerDialog({
     if (editBanner) {
       reset(bannerToFormValues(editBanner));
       setPreviewUrl(editBanner.thumbnailUrl);
+      setR2ImageUrl(editBanner.thumbnailUrl || null);
+      setPendingImageFile(null);
       setImageUpload(null);
     } else {
       reset(BANNER_FORM_DEFAULT_VALUES);
       setPreviewUrl(null);
+      setR2ImageUrl(null);
+      setPendingImageFile(null);
       setImageUpload(null);
     }
   }, [open, editBanner, reset]);
@@ -106,19 +116,47 @@ export function AddBannerDialog({
   const onSubmit = async (data: BannerFormSchema) => {
     setIsSaving(true);
     try {
+      let imageUrl = r2ImageUrl;
+
+      if (pendingImageFile) {
+        setImageUpload({
+          name: pendingImageFile.name,
+          progress: 0,
+        });
+        const uploaded = await uploadMediaFile(pendingImageFile, "banners", {
+          replaceKey: isEdit ? editBanner?.thumbnailUrl : undefined,
+          onProgress: (percent) => {
+            setImageUpload({
+              name: pendingImageFile.name,
+              progress: percent,
+            });
+          },
+        });
+        imageUrl = uploaded.publicUrl;
+        setR2ImageUrl(uploaded.publicUrl);
+        setPreviewUrl(uploaded.publicUrl);
+        setPendingImageFile(null);
+      }
+
+      if (!isEdit) {
+        assertRemoteMediaUrl(imageUrl);
+      }
+
       if (isEdit && editBanner) {
-        await updateBanner(editBanner.id, data, previewUrl ?? undefined);
+        await updateBanner(editBanner.id, data, imageUrl ?? undefined);
         notify.success("Banner updated", `${data.title} has been saved.`);
       } else {
-        await createBanner(data, previewUrl ?? undefined);
+        await createBanner(data, assertRemoteMediaUrl(imageUrl));
         notify.success("Banner created", `${data.title} has been added.`);
       }
       onSaved();
       onOpenChange(false);
-    } catch {
+    } catch (error) {
       notify.error(
         isEdit ? "Update failed" : "Create failed",
-        "Something went wrong. Please try again.",
+        error instanceof Error
+          ? error.message
+          : "Something went wrong. Please try again.",
       );
     } finally {
       setIsSaving(false);
@@ -157,21 +195,70 @@ export function AddBannerDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="banner-location">Location / Targeting</Label>
+            <Label>Placement</Label>
             <Controller
               name="location"
               control={control}
               render={({ field }) => (
-                <Input
-                  id="banner-location"
-                  placeholder="e.g. Regional - Maharashtra"
-                  {...field}
-                />
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select placement" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="HOME_HERO">Hero Banner</SelectItem>
+                    <SelectItem value="HOME_PROMO">Home Promo</SelectItem>
+                    <SelectItem value="EMERGENCY_DELIVERY">
+                      Emergency Delivery
+                    </SelectItem>
+                    <SelectItem value="BULK_PROCUREMENT">
+                      Bulk Procurement
+                    </SelectItem>
+                    <SelectItem value="CATEGORY">Category</SelectItem>
+                  </SelectContent>
+                </Select>
               )}
             />
             {errors.location ? (
               <p className="text-xs text-red-500">{errors.location.message}</p>
             ) : null}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="banner-subtitle">Subtitle</Label>
+            <Controller
+              name="subtitle"
+              control={control}
+              render={({ field }) => (
+                <Input
+                  id="banner-subtitle"
+                  placeholder="e.g. Bulk Cement Offers"
+                  {...field}
+                />
+              )}
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="banner-starts">Start Date</Label>
+              <Controller
+                name="startsAt"
+                control={control}
+                render={({ field }) => (
+                  <Input id="banner-starts" type="datetime-local" {...field} />
+                )}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="banner-ends">End Date</Label>
+              <Controller
+                name="endsAt"
+                control={control}
+                render={({ field }) => (
+                  <Input id="banner-ends" type="datetime-local" {...field} />
+                )}
+              />
+            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -260,17 +347,20 @@ export function AddBannerDialog({
                   URL.revokeObjectURL(previewUrl);
                 }
                 if (!file) {
-                  setPreviewUrl(editBanner?.thumbnailUrl ?? null);
+                  setPendingImageFile(null);
+                  setPreviewUrl(r2ImageUrl ?? editBanner?.thumbnailUrl ?? null);
                   return;
                 }
+                setPendingImageFile(file);
                 setPreviewUrl(URL.createObjectURL(file));
-                setImageUpload({ name: file.name, progress: 100 });
+                setImageUpload({ name: file.name, progress: 0 });
               }}
               onClear={() => {
                 if (previewUrl?.startsWith("blob:")) {
                   URL.revokeObjectURL(previewUrl);
                 }
-                setPreviewUrl(editBanner?.thumbnailUrl ?? null);
+                setPendingImageFile(null);
+                setPreviewUrl(r2ImageUrl ?? editBanner?.thumbnailUrl ?? null);
                 setImageUpload(null);
               }}
             />

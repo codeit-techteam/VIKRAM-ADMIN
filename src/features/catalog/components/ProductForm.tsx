@@ -8,6 +8,8 @@ import {
   Package,
   Plus,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
@@ -27,39 +29,228 @@ import {
 import { BulkPricingTierRow } from "@/features/catalog/components/BulkPricingTierRow";
 import { MediaUploadGrid } from "@/features/catalog/components/MediaUploadGrid";
 import {
-  BRAND_OPTIONS,
-  CATEGORY_OPTIONS,
   DELIVERY_SLA_OPTIONS,
   LAST_SAVED_LABEL,
-  PLACEHOLDER_GALLERY_IMAGES,
   PRODUCT_FORM_DEFAULT_VALUES,
 } from "@/features/catalog/constants/product-form.mock";
 import {
   productFormSchema,
   type ProductFormSchema,
 } from "@/features/catalog/schema/product-form.schema";
+import {
+  catalogService,
+  type CatalogCategory,
+  type CatalogProduct,
+} from "@/services/catalog.service";
+import { notify } from "@/utils/notify";
 
 const fieldLabelClassName =
   "text-[11px] font-semibold tracking-wider text-gray-400 uppercase";
 
-export function ProductForm() {
-  const { control, handleSubmit } = useForm<ProductFormSchema>({
-    resolver: zodResolver(productFormSchema),
-    defaultValues: PRODUCT_FORM_DEFAULT_VALUES,
-  });
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 100);
+}
+
+function toNumber(value: number | string | null | undefined, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function mapProductToFormValues(product: CatalogProduct): ProductFormSchema {
+  const retail = toNumber(product.retailPrice);
+  const mrp = toNumber(product.mrp, retail);
+  const httpImages = (product.images ?? []).filter((img) =>
+    img.url?.startsWith("http"),
+  );
+
+  return {
+    name: product.name ?? "",
+    brand: product.brand?.trim() || PRODUCT_FORM_DEFAULT_VALUES.brand,
+    category:
+      product.category?.id ||
+      product.categoryId ||
+      PRODUCT_FORM_DEFAULT_VALUES.category,
+    description:
+      product.description?.trim() ||
+      "<p>Update this product description for the Customer App.</p>",
+    images: httpImages.map((img, index) => ({
+      url: img.url,
+      isMain: img.isPrimary ?? index === 0,
+    })),
+    mrp: mrp > 0 ? Math.max(mrp, retail) : Math.max(retail, 1),
+    sellingPrice: retail > 0 ? retail : 1,
+    currentStock: Math.max(0, product.stockLeft ?? 0),
+    bulkTiers:
+      product.bulkPrice != null && toNumber(product.bulkPrice) > 0
+        ? [
+            {
+              minQty: Math.max(1, toNumber(product.bulkThreshold, 50)),
+              discountPrice: toNumber(product.bulkPrice),
+            },
+          ]
+        : [],
+    deliverySla: "same_day",
+  };
+}
+
+interface ProductFormProps {
+  productId?: string;
+}
+
+export function ProductForm({ productId }: ProductFormProps) {
+  const router = useRouter();
+  const isEdit = Boolean(productId);
+  const [categories, setCategories] = useState<CatalogCategory[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [loadingProduct, setLoadingProduct] = useState(isEdit);
+  const { control, handleSubmit, getValues, reset } =
+    useForm<ProductFormSchema>({
+      resolver: zodResolver(productFormSchema),
+      defaultValues: PRODUCT_FORM_DEFAULT_VALUES,
+    });
 
   const { fields, append, remove } = useFieldArray({
     control,
     name: "bulkTiers",
   });
 
+  useEffect(() => {
+    void catalogService
+      .listCategories()
+      .then(setCategories)
+      .catch((error) =>
+        notify.error(
+          error instanceof Error ? error.message : "Failed to load categories",
+        ),
+      );
+  }, []);
+
+  useEffect(() => {
+    if (!productId) return;
+
+    let cancelled = false;
+    setLoadingProduct(true);
+
+    void catalogService
+      .getProduct(productId)
+      .then((product) => {
+        if (cancelled) return;
+        reset(mapProductToFormValues(product));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        notify.error(
+          error instanceof Error ? error.message : "Failed to load product",
+        );
+        router.push("/customer-app-cms/catalog");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingProduct(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [productId, reset, router]);
+
+  const persist = async (data: ProductFormSchema, publish: boolean) => {
+    setSaving(true);
+    try {
+      const imagePayload = data.images.map((img) => ({
+        url: img.url,
+        isPrimary: img.isMain,
+      }));
+
+      if (!imagePayload.some((img) => img.isPrimary) && imagePayload[0]) {
+        imagePayload[0].isPrimary = true;
+      }
+
+      const firstTier = data.bulkTiers[0];
+      const coreFields = {
+        name: data.name.trim(),
+        categoryId: data.category,
+        brand: data.brand,
+        description: data.description,
+        retailPrice: data.sellingPrice,
+        mrp: data.mrp,
+        bulkPrice: firstTier?.discountPrice ?? null,
+        bulkThreshold: firstTier?.minQty ?? 50,
+        isVisible: publish,
+        entityStatus: publish ? "ACTIVE" : "DRAFT",
+      };
+
+      if (isEdit && productId) {
+        await catalogService.updateProduct(productId, coreFields);
+        await catalogService.setImages(productId, imagePayload);
+        notify.success(
+          publish
+            ? "Product updated — changes will show in the Customer App"
+            : "Draft saved",
+        );
+      } else {
+        const created = await catalogService.createProduct({
+          name: coreFields.name,
+          slug: slugify(data.name) || `product-${Date.now()}`,
+          categoryId: coreFields.categoryId,
+          brand: coreFields.brand,
+          description: coreFields.description,
+          retailPrice: coreFields.retailPrice,
+          mrp: coreFields.mrp,
+          bulkPrice: coreFields.bulkPrice ?? undefined,
+          bulkThreshold: coreFields.bulkThreshold,
+          unit: "Bag",
+          imageUrls: data.images.map((img) => img.url),
+          isVisible: publish,
+          isFeatured: false,
+        });
+
+        if (!publish) {
+          await catalogService.updateProduct(created.id, {
+            entityStatus: "DRAFT",
+            isVisible: false,
+          });
+        }
+
+        if (imagePayload.length) {
+          await catalogService.setImages(created.id, imagePayload);
+        }
+
+        notify.success(
+          publish ? "Product published to Customer App" : "Draft saved",
+        );
+      }
+
+      router.push("/customer-app-cms/catalog");
+    } catch (error) {
+      notify.error(
+        error instanceof Error ? error.message : "Failed to save product",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const onSaveDraft = () => {
-    console.log("Save draft");
+    const data = getValues();
+    void persist(data, false);
   };
 
   const onPublish = (data: ProductFormSchema) => {
-    console.log("Publish product:", data);
+    void persist(data, true);
   };
+
+  if (loadingProduct) {
+    return (
+      <p className="text-muted-foreground px-6 py-10 text-sm">
+        Loading product…
+      </p>
+    );
+  }
 
   return (
     <form
@@ -70,12 +261,12 @@ export function ProductForm() {
         <Breadcrumbs
           items={[
             { label: "Products", href: "/customer-app-cms/catalog" },
-            { label: "Add New Product" },
+            { label: isEdit ? "Edit Product" : "Add New Product" },
           ]}
         />
 
         <h1 className="text-2xl font-bold text-[#1A1A1A]">
-          Create Industrial Product
+          {isEdit ? "Edit Industrial Product" : "Create Industrial Product"}
         </h1>
 
         <FormSectionCard icon={Package} title="Product Information">
@@ -109,18 +300,11 @@ export function ProductForm() {
                 render={({ field, fieldState }) => (
                   <div className="space-y-2">
                     <Label className={fieldLabelClassName}>Brand</Label>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger aria-invalid={!!fieldState.error}>
-                        <SelectValue placeholder="Select brand" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {BRAND_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      {...field}
+                      placeholder="e.g. UltraTech"
+                      aria-invalid={!!fieldState.error}
+                    />
                     {fieldState.error && (
                       <p className="text-destructive text-sm">
                         {fieldState.error.message}
@@ -141,9 +325,9 @@ export function ProductForm() {
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
-                        {CATEGORY_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
+                        {categories.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -189,7 +373,6 @@ export function ProductForm() {
                 <MediaUploadGrid
                   images={field.value}
                   onChange={field.onChange}
-                  placeholderUrls={PLACEHOLDER_GALLERY_IMAGES}
                 />
                 {fieldState.error && (
                   <p className="text-destructive text-sm">
@@ -281,6 +464,12 @@ export function ProductForm() {
                         field.onChange(Number(event.target.value))
                       }
                       aria-invalid={!!fieldState.error}
+                      disabled={isEdit}
+                      title={
+                        isEdit
+                          ? "Stock is managed via hub inventory"
+                          : undefined
+                      }
                     />
                     {fieldState.error && (
                       <p className="text-destructive text-sm">
@@ -341,12 +530,13 @@ export function ProductForm() {
             type="button"
             variant="outline"
             className="h-10 px-5"
+            disabled={saving}
             onClick={onSaveDraft}
           >
             Save Draft
           </Button>
-          <Button type="submit" className="h-10 px-5">
-            Publish Product
+          <Button type="submit" className="h-10 px-5" disabled={saving}>
+            {saving ? "Saving…" : isEdit ? "Update Product" : "Publish Product"}
           </Button>
         </div>
       </div>

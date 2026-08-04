@@ -99,6 +99,26 @@ export const NAV_SECTIONS: NavSection[] = [
               { label: "Offer Management", href: "/customer-app-cms/offers" },
               { label: "Video Management", href: "/customer-app-cms/videos" },
               {
+                label: "Brand Advertisements",
+                href: "/customer-app-cms/brand-ads",
+              },
+              {
+                label: "Emergency Banner",
+                href: "/customer-app-cms/emergency-banner",
+              },
+              {
+                label: "Quick Actions",
+                href: "/customer-app-cms/quick-actions",
+              },
+              {
+                label: "Homepage Layout",
+                href: "/customer-app-cms/homepage-layout",
+              },
+              {
+                label: "Campaign Scheduler",
+                href: "/customer-app-cms/campaigns",
+              },
+              {
                 label: "Push Notifications",
                 href: "/customer-app-cms/push-notifications",
               },

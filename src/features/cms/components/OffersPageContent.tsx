@@ -84,13 +84,19 @@ export function OffersPageContent() {
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
-    const [nextOffers, nextStats] = await Promise.all([
-      getOffers(),
-      getOfferStats(),
-    ]);
-    setOffers(nextOffers);
-    setStats(nextStats);
-    setIsLoading(false);
+    try {
+      const [nextOffers, nextStats] = await Promise.all([
+        getOffers(),
+        getOfferStats(),
+      ]);
+      setOffers(nextOffers ?? []);
+      setStats(nextStats ?? { total: 0, active: 0, scheduled: 0, expired: 0 });
+    } catch {
+      setOffers([]);
+      setStats({ total: 0, active: 0, scheduled: 0, expired: 0 });
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => {

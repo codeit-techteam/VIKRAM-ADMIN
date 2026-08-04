@@ -10,9 +10,9 @@ import {
   Pencil,
   Play,
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 
+import { SafeRemoteImage } from "@/components/shared/SafeRemoteImage";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -47,9 +47,7 @@ function formatCount(value: number): string {
 }
 
 function getCtaAppStatus(video: Video): "ACTIVE" | "INACTIVE" {
-  return video.cta.enabled && video.status === "PUBLISHED"
-    ? "ACTIVE"
-    : "INACTIVE";
+  return video.liveOnApp ? "ACTIVE" : "INACTIVE";
 }
 
 function DetailSection({
@@ -106,7 +104,7 @@ export function VideoDetailDrawer({
         <SheetHeader className="shrink-0 space-y-0 border-b border-gray-100 px-6 py-5 pr-14 text-left">
           <div className="flex items-start gap-4">
             <div className="relative h-20 w-32 shrink-0 overflow-hidden rounded-lg bg-gray-100">
-              <Image
+              <SafeRemoteImage
                 src={video.thumbnailUrl}
                 alt={video.title}
                 fill
@@ -123,6 +121,11 @@ export function VideoDetailDrawer({
               </SheetTitle>
               <SheetDescription className="mt-2 flex flex-wrap items-center gap-2">
                 <StatusBadge status={video.status} />
+                {video.liveOnApp ? (
+                  <span className="bg-primary rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white uppercase">
+                    Live on App
+                  </span>
+                ) : null}
                 <span className="inline-flex items-center gap-1 text-sm text-[#64748B]">
                   <Clock className="size-3.5" />
                   {video.duration}
@@ -241,10 +244,23 @@ export function VideoDetailDrawer({
         </div>
 
         <div className="flex shrink-0 items-center gap-3 border-t border-gray-100 bg-white px-6 py-4">
-          <Button variant="outline" className="flex-1 gap-2">
-            <Play className="size-4" />
-            Preview Video
-          </Button>
+          {video.videoUrl ? (
+            <Button
+              variant="outline"
+              className="flex-1 gap-2"
+              render={
+                <a href={video.videoUrl} target="_blank" rel="noreferrer" />
+              }
+            >
+              <Play className="size-4" />
+              Preview Video
+            </Button>
+          ) : (
+            <Button variant="outline" className="flex-1 gap-2" disabled>
+              <Play className="size-4" />
+              Preview Video
+            </Button>
+          )}
           <Link
             href={`/customer-app-cms/videos/upload?edit=${video.id}`}
             className={cn(
@@ -260,6 +276,9 @@ export function VideoDetailDrawer({
               variant="ghost"
               size="icon"
               aria-label="Open CTA destination"
+              render={
+                <a href={video.cta.path} target="_blank" rel="noreferrer" />
+              }
             >
               <ExternalLink className="size-4" />
             </Button>

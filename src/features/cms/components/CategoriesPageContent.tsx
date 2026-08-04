@@ -45,13 +45,19 @@ export function CategoriesPageContent() {
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
-    const [nextCategories, nextStats] = await Promise.all([
-      getCategories(),
-      getCategoryStats(),
-    ]);
-    setCategories(nextCategories);
-    setStats(nextStats);
-    setIsLoading(false);
+    try {
+      const [nextCategories, nextStats] = await Promise.all([
+        getCategories(),
+        getCategoryStats(),
+      ]);
+      setCategories(nextCategories);
+      setStats(nextStats);
+    } catch {
+      setCategories([]);
+      setStats(EMPTY_STATS);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => {

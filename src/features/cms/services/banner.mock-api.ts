@@ -1,7 +1,8 @@
 import {
-  BANNER_MODIFICATIONS,
-  BANNERS,
-} from "@/features/cms/constants/banner.mock";
+  bannersService,
+  toUiBanner,
+  type CreateAdminBannerInput,
+} from "@/services/cms-banners.service";
 import type { BannerFormSchema } from "@/features/cms/schema/banner-form.schema";
 import type {
   Banner,
@@ -10,25 +11,13 @@ import type {
   ModificationStatus,
 } from "@/features/cms/types/banner.types";
 
-/** In-memory mock store — frontend only. Replace with real API later. */
-let bannersStore: Banner[] = structuredClone(BANNERS);
-let modificationsStore: BannerModification[] =
-  structuredClone(BANNER_MODIFICATIONS);
-let nextBannerId = BANNERS.length + 1;
-let nextModificationId = BANNER_MODIFICATIONS.length + 1;
-
-function delay(ms = 120): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
 function slugify(value: string): string {
   return value
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+    .replace(/^-|-$/g, "")
+    .slice(0, 100);
 }
 
 function statusToModificationStatus(status: BannerStatus): ModificationStatus {
@@ -36,53 +25,80 @@ function statusToModificationStatus(status: BannerStatus): ModificationStatus {
 }
 
 export async function getBanners(): Promise<Banner[]> {
-  await delay();
-  return structuredClone(bannersStore);
+  const items = await bannersService.list();
+  return items.map((item) => {
+    const ui = toUiBanner(item);
+    return {
+      id: ui.id,
+      thumbnailUrl: ui.thumbnailUrl,
+      title: ui.title,
+      location: ui.location,
+      ctaLabel: ui.ctaLabel,
+      ctaPath: ui.ctaPath,
+      status: ui.status,
+    };
+  });
 }
 
 export async function getBannerModifications(): Promise<BannerModification[]> {
-  await delay();
-  return structuredClone(modificationsStore);
+  const items = await bannersService.list();
+  return items.map((item) => {
+    const ui = toUiBanner(item);
+    return {
+      id: ui.id,
+      thumbnailUrl: ui.thumbnailUrl,
+      name: ui.title,
+      hubTargeting: ui.location,
+      status: statusToModificationStatus(ui.status),
+      clicks: 0,
+      updatedBy: "Super Admin",
+      updatedByAvatar: "https://picsum.photos/seed/super-admin/32/32",
+    };
+  });
 }
 
 export async function createBanner(
   data: BannerFormSchema,
   thumbnailUrl?: string,
 ): Promise<Banner> {
-  await delay();
-
-  const id = String(nextBannerId);
-  nextBannerId += 1;
-  const slug = slugify(data.title) || `banner-${id}`;
-
-  const banner: Banner = {
-    id,
-    thumbnailUrl:
-      thumbnailUrl ?? `https://picsum.photos/seed/${slug}-banner/120/72`,
+  const payload: CreateAdminBannerInput = {
     title: data.title.trim(),
-    location: data.location.trim(),
+    slug: slugify(data.title) || `banner-${Date.now()}`,
+    imageUrl: thumbnailUrl || data.imageUrl || "",
+    mobileUrl: data.mobileUrl || thumbnailUrl,
+    tabletUrl: data.tabletUrl,
+    desktopUrl: data.desktopUrl,
+    subtitle: data.subtitle,
+    badge: data.badge,
     ctaLabel: data.ctaLabel.trim(),
-    ctaPath: data.ctaPath.trim(),
+    ctaColor: data.ctaColor,
+    backgroundColor: data.backgroundColor,
+    linkUrl: data.ctaPath.trim(),
+    linkType: data.linkType || "ROUTE",
+    linkTarget: data.ctaPath.trim(),
+    placement: data.placement || data.location || "HOME_HERO",
+    bannerType: data.bannerType || "IMAGE",
+    displayOrder: data.displayOrder ?? 0,
+    priority: data.priority ?? 0,
+    startsAt: data.startsAt ? new Date(data.startsAt).toISOString() : undefined,
+    endsAt: data.endsAt ? new Date(data.endsAt).toISOString() : undefined,
+    publish: data.status === "LIVE",
+  };
+
+  const created = await bannersService.create(payload);
+  if (data.status === "LIVE") {
+    await bannersService.publish(created.id);
+  }
+  const ui = toUiBanner(created);
+  return {
+    id: ui.id,
+    thumbnailUrl: ui.thumbnailUrl,
+    title: ui.title,
+    location: ui.location,
+    ctaLabel: ui.ctaLabel,
+    ctaPath: ui.ctaPath,
     status: data.status,
   };
-
-  bannersStore = [banner, ...bannersStore];
-
-  const modification: BannerModification = {
-    id: String(nextModificationId),
-    thumbnailUrl:
-      thumbnailUrl ?? `https://picsum.photos/seed/${slug}-mod/80/80`,
-    name: banner.title,
-    hubTargeting: banner.location,
-    status: statusToModificationStatus(banner.status),
-    clicks: 0,
-    updatedBy: "Super Admin",
-    updatedByAvatar: "https://picsum.photos/seed/super-admin/32/32",
-  };
-  nextModificationId += 1;
-  modificationsStore = [modification, ...modificationsStore];
-
-  return structuredClone(banner);
 }
 
 export async function updateBanner(
@@ -90,34 +106,49 @@ export async function updateBanner(
   data: BannerFormSchema,
   thumbnailUrl?: string,
 ): Promise<Banner | null> {
-  await delay();
-
-  const index = bannersStore.findIndex((banner) => banner.id === id);
-  if (index === -1) return null;
-
-  const existing = bannersStore[index];
-  const updated: Banner = {
-    ...existing,
+  const updated = await bannersService.update(id, {
     title: data.title.trim(),
-    location: data.location.trim(),
+    imageUrl: thumbnailUrl || data.imageUrl,
+    mobileUrl: data.mobileUrl || thumbnailUrl,
+    tabletUrl: data.tabletUrl,
+    desktopUrl: data.desktopUrl,
+    subtitle: data.subtitle,
+    badge: data.badge,
     ctaLabel: data.ctaLabel.trim(),
-    ctaPath: data.ctaPath.trim(),
+    ctaColor: data.ctaColor,
+    backgroundColor: data.backgroundColor,
+    linkUrl: data.ctaPath.trim(),
+    linkType: data.linkType || "ROUTE",
+    linkTarget: data.ctaPath.trim(),
+    placement: data.placement || data.location || "HOME_HERO",
+    bannerType: data.bannerType || "IMAGE",
+    displayOrder: data.displayOrder,
+    priority: data.priority,
+    startsAt: data.startsAt ? new Date(data.startsAt).toISOString() : undefined,
+    endsAt: data.endsAt ? new Date(data.endsAt).toISOString() : undefined,
+  });
+
+  if (data.status === "LIVE") {
+    await bannersService.publish(id);
+  } else {
+    await bannersService.unpublish(id);
+  }
+
+  const ui = toUiBanner(updated);
+  return {
+    id: ui.id,
+    thumbnailUrl: thumbnailUrl || ui.thumbnailUrl,
+    title: ui.title,
+    location: ui.location,
+    ctaLabel: ui.ctaLabel,
+    ctaPath: ui.ctaPath,
     status: data.status,
-    thumbnailUrl: thumbnailUrl ?? existing.thumbnailUrl,
   };
-
-  bannersStore = bannersStore.map((banner) =>
-    banner.id === id ? updated : banner,
-  );
-
-  return structuredClone(updated);
 }
 
 export async function deleteBanner(id: string): Promise<boolean> {
-  await delay();
-  const before = bannersStore.length;
-  bannersStore = bannersStore.filter((banner) => banner.id !== id);
-  return bannersStore.length < before;
+  await bannersService.remove(id);
+  return true;
 }
 
 export function queryBanners(

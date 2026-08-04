@@ -11,12 +11,12 @@ import {
   Package,
   Tag,
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
+import { SafeRemoteImage } from "@/components/shared/SafeRemoteImage";
 import {
   FileDropzone,
   type MockUploadFile,
@@ -51,6 +51,11 @@ import {
   updateOffer,
 } from "@/features/cms/services/offer.mock-api";
 import type { Offer, OfferProduct } from "@/features/cms/types/offer.types";
+import {
+  assertRemoteMediaUrl,
+  uploadMediaFile,
+} from "@/services/media.service";
+import { notify } from "@/utils/notify";
 
 const fieldLabelClassName =
   "text-[11px] font-semibold tracking-wider text-gray-400 uppercase";
@@ -98,6 +103,8 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
     null,
   );
   const [mobileUpload, setMobileUpload] = useState<MockUploadFile | null>(null);
+  const [desktopFile, setDesktopFile] = useState<File | null>(null);
+  const [mobileFile, setMobileFile] = useState<File | null>(null);
   const [desktopPreviewUrl, setDesktopPreviewUrl] = useState(
     initialOffer?.desktopBanner ?? "",
   );
@@ -145,39 +152,85 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
 
   const handleDesktopFile = (file: File | null) => {
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setDesktopPreviewUrl(url);
-    setValue("desktopBanner", url, { shouldValidate: true });
+    if (desktopPreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(desktopPreviewUrl);
+    }
+    setDesktopFile(file);
+    setDesktopPreviewUrl(URL.createObjectURL(file));
+    setDesktopUpload({ name: file.name, progress: 0 });
   };
 
   const handleMobileFile = (file: File | null) => {
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setMobilePreviewUrl(url);
-    setValue("mobileBanner", url, { shouldValidate: true });
+    if (mobilePreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(mobilePreviewUrl);
+    }
+    setMobileFile(file);
+    setMobilePreviewUrl(URL.createObjectURL(file));
+    setMobileUpload({ name: file.name, progress: 0 });
   };
 
   const onSave = async (data: OfferFormSchema, publish: boolean) => {
     setIsSubmitting(true);
-    const payload: OfferFormSchema = {
-      ...data,
-      status: publish
-        ? "ACTIVE"
-        : data.status === "ACTIVE"
-          ? "ACTIVE"
-          : "DRAFT",
-      desktopBanner: data.desktopBanner || desktopPreviewUrl,
-      mobileBanner: data.mobileBanner || mobilePreviewUrl,
-    };
-
     try {
+      let desktopBanner = data.desktopBanner || desktopPreviewUrl;
+      let mobileBanner = data.mobileBanner || mobilePreviewUrl;
+
+      if (desktopFile) {
+        const uploaded = await uploadMediaFile(desktopFile, "offers", {
+          replaceKey: mode === "edit" ? initialOffer?.desktopBanner : undefined,
+          onProgress: (percent) => {
+            setDesktopUpload({ name: desktopFile.name, progress: percent });
+          },
+        });
+        desktopBanner = uploaded.publicUrl;
+        setDesktopPreviewUrl(uploaded.publicUrl);
+        setValue("desktopBanner", uploaded.publicUrl, { shouldValidate: true });
+        setDesktopFile(null);
+      }
+
+      if (mobileFile) {
+        const uploaded = await uploadMediaFile(mobileFile, "offers", {
+          replaceKey: mode === "edit" ? initialOffer?.mobileBanner : undefined,
+          onProgress: (percent) => {
+            setMobileUpload({ name: mobileFile.name, progress: percent });
+          },
+        });
+        mobileBanner = uploaded.publicUrl;
+        setMobilePreviewUrl(uploaded.publicUrl);
+        setValue("mobileBanner", uploaded.publicUrl, { shouldValidate: true });
+        setMobileFile(null);
+      }
+
+      const payload: OfferFormSchema = {
+        ...data,
+        status: publish
+          ? "ACTIVE"
+          : data.status === "ACTIVE"
+            ? "ACTIVE"
+            : "DRAFT",
+        desktopBanner: assertRemoteMediaUrl(desktopBanner),
+        mobileBanner: mobileBanner
+          ? assertRemoteMediaUrl(mobileBanner)
+          : assertRemoteMediaUrl(desktopBanner),
+      };
+
       if (mode === "edit" && initialOffer) {
         await updateOffer(initialOffer.id, payload);
       } else {
         await createOffer(payload);
       }
+      notify.success(
+        publish ? "Offer published" : "Offer saved",
+        "Customer App will pick up the R2 image automatically.",
+      );
       router.push("/customer-app-cms/offers");
       router.refresh();
+    } catch (error) {
+      notify.error(
+        "Save failed",
+        error instanceof Error ? error.message : "Could not save offer",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -394,17 +447,12 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
                 />
                 {desktopPreviewUrl || watchedDesktopBanner ? (
                   <div className="relative aspect-[3/1] overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
-                    <Image
-                      src={desktopPreviewUrl || watchedDesktopBanner || ""}
+                    <SafeRemoteImage
+                      src={desktopPreviewUrl || watchedDesktopBanner || null}
                       alt="Desktop banner preview"
                       fill
                       className="object-cover"
                       sizes="600px"
-                      unoptimized={(
-                        desktopPreviewUrl ||
-                        watchedDesktopBanner ||
-                        ""
-                      ).startsWith("blob:")}
                     />
                   </div>
                 ) : null}
@@ -437,17 +485,12 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
                 />
                 {mobilePreviewUrl || watchedMobileBanner ? (
                   <div className="relative aspect-[4/3] overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
-                    <Image
-                      src={mobilePreviewUrl || watchedMobileBanner || ""}
+                    <SafeRemoteImage
+                      src={mobilePreviewUrl || watchedMobileBanner || null}
                       alt="Mobile banner preview"
                       fill
                       className="object-cover"
                       sizes="400px"
-                      unoptimized={(
-                        mobilePreviewUrl ||
-                        watchedMobileBanner ||
-                        ""
-                      ).startsWith("blob:")}
                     />
                   </div>
                 ) : null}

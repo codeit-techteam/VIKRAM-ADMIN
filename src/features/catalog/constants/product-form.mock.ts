@@ -28,25 +28,15 @@ export const DELIVERY_SLA_OPTIONS = [
 ];
 
 export const PRODUCT_FORM_DEFAULT_VALUES: ProductFormSchema = {
-  name: "UltraTech Concrete - Premium Grade",
+  name: "",
   brand: "ultratech-cement",
   category: "construction-materials",
-  description:
-    "<p>High-performance ready-mix concrete designed for structural applications. Engineered for superior durability, faster setting times, and excellent workability in demanding construction environments.</p>",
-  images: [
-    {
-      url: PLACEHOLDER_GALLERY_IMAGES[0],
-      isMain: true,
-    },
-    {
-      url: PLACEHOLDER_GALLERY_IMAGES[1],
-      isMain: false,
-    },
-  ],
-  mrp: 450,
-  sellingPrice: 415,
-  currentStock: 1250,
-  bulkTiers: [{ minQty: 100, discountPrice: 390 }],
+  description: "",
+  images: [],
+  mrp: 0,
+  sellingPrice: 0,
+  currentStock: 0,
+  bulkTiers: [],
   deliverySla: "same_day",
 };
 

@@ -41,6 +41,7 @@ export interface AdminDashboardPayload {
     activeVideos: number;
     banners: number;
     notifications: number;
+    activeOffers?: number;
   };
   recentOrders?: Array<{
     id: string;

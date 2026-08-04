@@ -2,7 +2,12 @@ export { AddBannerDialog } from "@/features/cms/components/AddBannerDialog";
 export { BannerModificationsTable } from "@/features/cms/components/BannerModificationsTable";
 export { BannerPreviewTable } from "@/features/cms/components/BannerPreviewTable";
 export { BannersPageContent } from "@/features/cms/components/BannersPageContent";
+export { BrandAdsPageContent } from "@/features/cms/components/BrandAdsPageContent";
+export { CampaignsPageContent } from "@/features/cms/components/CampaignsPageContent";
 export { CategoriesPageContent } from "@/features/cms/components/CategoriesPageContent";
+export { EmergencyBannerPageContent } from "@/features/cms/components/EmergencyBannerPageContent";
+export { HomepageLayoutPageContent } from "@/features/cms/components/HomepageLayoutPageContent";
+export { QuickActionsPageContent } from "@/features/cms/components/QuickActionsPageContent";
 export { CategoryForm } from "@/features/cms/components/CategoryForm";
 export { CategoryTable } from "@/features/cms/components/CategoryTable";
 export { ContentUpdatesTable } from "@/features/cms/components/ContentUpdatesTable";
@@ -33,7 +38,6 @@ export {
   queryBanners,
   updateBanner,
 } from "@/features/cms/services/banner.mock-api";
-export { VIDEOS } from "@/features/cms/constants/video.mock";
 export {
   CATEGORY_FILTER_TABS,
   CATEGORY_MOCK_ROWS,

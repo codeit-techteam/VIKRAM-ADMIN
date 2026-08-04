@@ -13,6 +13,9 @@ export const API_ENDPOINTS = {
     RECENT_ACTIVITY: "/dashboard/recent-activity",
     ADMIN: "/admin/dashboard",
   },
+  ADMIN_AUDIT: {
+    BASE: "/admin/audit-logs",
+  },
   ADMIN_ORDERS: {
     BASE: "/admin/orders",
     BY_ID: (id: string) => `/admin/orders/${id}`,
@@ -44,6 +47,44 @@ export const API_ENDPOINTS = {
   CMS: {
     BASE: "/cms",
     BY_ID: (id: string) => `/cms/${id}`,
+  },
+  ADMIN_CMS: {
+    BANNERS: "/admin/banners",
+    BANNER_BY_ID: (id: string) => `/admin/banners/${id}`,
+    BANNER_PUBLISH: (id: string) => `/admin/banners/${id}/publish`,
+    BANNER_UNPUBLISH: (id: string) => `/admin/banners/${id}/unpublish`,
+    BANNERS_REORDER: "/admin/banners/reorder",
+    OFFERS: "/admin/offers",
+    OFFER_BY_ID: (id: string) => `/admin/offers/${id}`,
+    VIDEOS: "/admin/videos",
+    VIDEO_UPLOAD: "/admin/videos/upload",
+    VIDEO_BY_ID: (id: string) => `/admin/videos/${id}`,
+    VIDEO_PUBLISH: (id: string) => `/admin/videos/${id}/publish`,
+    VIDEO_UNPUBLISH: (id: string) => `/admin/videos/${id}/unpublish`,
+    VIDEO_ARCHIVE: (id: string) => `/admin/videos/${id}/archive`,
+    VIDEOS_REORDER: "/admin/videos/reorder",
+    MEDIA_UPLOAD: "/admin/media/upload",
+    MEDIA_DELETE: "/admin/media",
+    ADVERTISEMENTS: "/admin/advertisements",
+    ADVERTISEMENT_BY_ID: (id: string) => `/admin/advertisements/${id}`,
+    ADVERTISEMENT_ACTIVATE: (id: string) =>
+      `/admin/advertisements/${id}/activate`,
+    ADVERTISEMENT_DEACTIVATE: (id: string) =>
+      `/admin/advertisements/${id}/deactivate`,
+    PROMOTIONAL_CARDS: "/admin/promotional-cards",
+    PROMOTIONAL_CARD_BY_ID: (id: string) => `/admin/promotional-cards/${id}`,
+    PROMOTIONAL_CARD_ACTIVATE: (id: string) =>
+      `/admin/promotional-cards/${id}/activate`,
+    PROMOTIONAL_CARD_DEACTIVATE: (id: string) =>
+      `/admin/promotional-cards/${id}/deactivate`,
+    HOME_SECTIONS: "/admin/home-sections",
+    HOME_SECTION_BY_ID: (id: string) => `/admin/home-sections/${id}`,
+    HOME_SECTION_TOGGLE: (id: string) => `/admin/home-sections/${id}/toggle`,
+    HOME_SECTIONS_REORDER: "/admin/home-sections/reorder",
+    QUICK_ACTIONS: "/admin/quick-actions",
+    QUICK_ACTION_BY_ID: (id: string) => `/admin/quick-actions/${id}`,
+    QUICK_ACTIONS_REORDER: "/admin/quick-actions/reorder",
+    HOME_SEQUENCE: "/admin/cms/home-sequence",
   },
   WAREHOUSE: {
     BASE: "/warehouse",

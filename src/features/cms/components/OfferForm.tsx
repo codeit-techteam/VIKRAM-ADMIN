@@ -38,7 +38,6 @@ import { OfferProductSelector } from "@/features/cms/components/OfferProductSele
 import { PrioritySlider } from "@/features/cms/components/PrioritySlider";
 import {
   OFFER_CTA_OPTIONS,
-  OFFER_PRODUCT_CATALOG,
   OFFER_TYPE_OPTIONS,
   slugifyOfferName,
 } from "@/features/cms/constants/offer.mock";
@@ -48,6 +47,7 @@ import {
 } from "@/features/cms/schema/offer-form.schema";
 import {
   createOffer,
+  getOfferProductsCatalog,
   updateOffer,
 } from "@/features/cms/services/offer.mock-api";
 import type { Offer, OfferProduct } from "@/features/cms/types/offer.types";
@@ -113,6 +113,9 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
   );
   const [slugTouched, setSlugTouched] = useState(mode === "edit");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [productCatalog, setProductCatalog] = useState<OfferProduct[]>(
+    initialOffer?.products ?? [],
+  );
 
   const { control, handleSubmit, watch, setValue } = useForm<OfferFormSchema>({
     resolver: zodResolver(offerFormSchema),
@@ -130,6 +133,32 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
   const watchedMobileBanner = watch("mobileBanner");
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const products = await getOfferProductsCatalog();
+        if (cancelled) return;
+        const byId = new Map(products.map((p) => [p.id, p]));
+        for (const product of initialOffer?.products ?? []) {
+          if (!byId.has(product.id)) byId.set(product.id, product);
+        }
+        setProductCatalog(Array.from(byId.values()));
+      } catch (error) {
+        if (!cancelled) {
+          notify.error(
+            error instanceof Error
+              ? error.message
+              : "Failed to load product catalog",
+          );
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialOffer?.products]);
+
+  useEffect(() => {
     if (!slugTouched && mode === "create") {
       setValue("slug", slugifyOfferName(watchedName), {
         shouldValidate: false,
@@ -139,9 +168,9 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
 
   const selectedProducts = useMemo(() => {
     return watchedProductIds
-      .map((id) => OFFER_PRODUCT_CATALOG.find((product) => product.id === id))
+      .map((id) => productCatalog.find((product) => product.id === id))
       .filter((product): product is OfferProduct => Boolean(product));
-  }, [watchedProductIds]);
+  }, [watchedProductIds, productCatalog]);
 
   const previewBanner =
     mobilePreviewUrl ||

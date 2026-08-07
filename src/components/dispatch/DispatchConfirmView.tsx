@@ -3,12 +3,14 @@
 import { AlertTriangle, CheckCircle2, MapPin, Rocket } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { TransferStatusBadge } from "@/components/transfers/TransferStatusBadge";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/constants/routes";
 import { formatTransferTime } from "@/mock/transfers";
+import { adminRequisitionsService } from "@/services/adminRequisitions";
 import { useTransferListStore } from "@/store/transfer-list-store";
 import type { TransferListItem } from "@/types/warehouse.types";
 import { notify } from "@/utils/notify";
@@ -26,6 +28,7 @@ const PREREQUISITES = [
 
 export function DispatchConfirmView({ transfer }: DispatchConfirmViewProps) {
   const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const confirmDispatch = useTransferListStore(
     (state) => state.confirmDispatch,
   );
@@ -39,8 +42,21 @@ export function DispatchConfirmView({ transfer }: DispatchConfirmViewProps) {
     ? `${transfer.estimatedWeightKg.toLocaleString("en-IN")} KG`
     : "";
 
-  const handleDispatch = () => {
+  const handleDispatch = async () => {
+    setIsSubmitting(true);
     try {
+      if (transfer.requisitionId) {
+        await adminRequisitionsService.dispatch(transfer.requisitionId, {
+          vehicleId: transfer.vehicleId,
+          driverId: transfer.driverId,
+          vehicleNumber: transfer.vehicleNumber,
+          driverName: transfer.assignedDriver?.name,
+          eta: transfer.eta,
+          estimatedArrival: transfer.expectedArrival ?? transfer.eta,
+          dispatchDate: transfer.dispatchDate,
+        });
+      }
+
       confirmDispatch(transfer.transferId);
       notify.success(
         "Dispatch confirmed",
@@ -54,6 +70,8 @@ export function DispatchConfirmView({ transfer }: DispatchConfirmViewProps) {
         "Dispatch failed",
         error instanceof Error ? error.message : "Unable to confirm dispatch.",
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -164,13 +182,18 @@ export function DispatchConfirmView({ transfer }: DispatchConfirmViewProps) {
         <Button
           variant="outline"
           className="border-gray-200"
+          disabled={isSubmitting}
           render={<Link href={`${ROUTES.CENTRAL_WAREHOUSE}/dispatch`} />}
         >
           Back to Queue
         </Button>
-        <Button className="gap-2" onClick={handleDispatch}>
+        <Button
+          className="gap-2"
+          onClick={() => void handleDispatch()}
+          disabled={isSubmitting}
+        >
           <Rocket className="size-4" />
-          Dispatch Now
+          {isSubmitting ? "Dispatching..." : "Dispatch Now"}
         </Button>
       </div>
     </div>

@@ -11,14 +11,7 @@ import {
   Trash2,
   Video,
 } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ConfirmationDialog } from "@/components/allocation/ConfirmationDialog";
 import {
@@ -62,7 +55,9 @@ import {
   EMPTY_TESTIMONIAL_FILTERS,
   getTestimonialStats,
   getTestimonials,
+  publishTestimonial,
   TESTIMONIAL_PAGE_SIZE,
+  unpublishTestimonial,
   updateTestimonial,
   type CreateTestimonialPayload,
   type TestimonialFilters,
@@ -70,9 +65,12 @@ import {
 import type {
   CustomerTestimonial,
   TestimonialDashboardStats,
-  TestimonialStatus,
   TestimonialType,
-} from "@/mock/mockTestimonials";
+} from "@/features/testimonials/types/testimonial.types";
+import {
+  assertRemoteMediaUrl,
+  uploadMediaFile,
+} from "@/services/media.service";
 import { notify } from "@/utils/notify";
 
 type StatFilter = "videos" | "images" | "published" | "draft";
@@ -88,26 +86,6 @@ const VIDEO_ACCEPT: Record<string, string[]> = {
   "video/quicktime": [".mov"],
   "video/webm": [".webm"],
 };
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.readAsDataURL(file);
-  });
-}
-
-async function simulateUploadProgress(
-  setUpload: Dispatch<SetStateAction<MockUploadFile | null>>,
-  fileName: string,
-) {
-  setUpload({ name: fileName, progress: 0 });
-  for (let progress = 20; progress <= 100; progress += 20) {
-    await new Promise((resolve) => window.setTimeout(resolve, 80));
-    setUpload({ name: fileName, progress });
-  }
-}
 
 const EMPTY_FORM: CreateTestimonialPayload = {
   type: "IMAGE",
@@ -145,6 +123,8 @@ export function TestimonialsPageContent() {
   const [form, setForm] = useState<CreateTestimonialPayload>(EMPTY_FORM);
   const [formLoading, setFormLoading] = useState(false);
   const [activeStat, setActiveStat] = useState<StatFilter | null>(null);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [mediaUpload, setMediaUpload] = useState<MockUploadFile | null>(null);
   const [thumbnailUpload, setThumbnailUpload] = useState<MockUploadFile | null>(
     null,
@@ -155,6 +135,14 @@ export function TestimonialsPageContent() {
   );
 
   const resetUploadState = () => {
+    if (mediaPreviewUrl?.startsWith("blob:")) {
+      URL.revokeObjectURL(mediaPreviewUrl);
+    }
+    if (thumbnailPreviewUrl?.startsWith("blob:")) {
+      URL.revokeObjectURL(thumbnailPreviewUrl);
+    }
+    setMediaFile(null);
+    setThumbnailFile(null);
     setMediaUpload(null);
     setThumbnailUpload(null);
     setMediaPreviewUrl(null);
@@ -181,6 +169,11 @@ export function TestimonialsPageContent() {
       setTestimonials(queryResult.data);
       setTotal(queryResult.total);
       setTotalPages(queryResult.totalPages);
+    } catch (error) {
+      notify.error(
+        "Failed to load testimonials",
+        error instanceof Error ? error.message : "Please try again.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -225,45 +218,44 @@ export function TestimonialsPageContent() {
     setFormOpen(true);
   };
 
-  const handleMediaFileSelect = async (file: File | null) => {
+  const handleMediaFileSelect = (file: File | null) => {
+    if (mediaPreviewUrl?.startsWith("blob:")) {
+      URL.revokeObjectURL(mediaPreviewUrl);
+    }
+
     if (!file) {
+      setMediaFile(null);
       setMediaUpload(null);
       setMediaPreviewUrl(null);
       setForm((prev) => ({ ...prev, mediaUrl: "" }));
       return;
     }
 
-    try {
-      await simulateUploadProgress(setMediaUpload, file.name);
-      const dataUrl = await readFileAsDataUrl(file);
-      setForm((prev) => ({ ...prev, mediaUrl: dataUrl }));
-      setMediaPreviewUrl(file.type.startsWith("video/") ? null : dataUrl);
-      if (file.type.startsWith("video/") && !thumbnailPreviewUrl) {
-        setThumbnailPreviewUrl(null);
-      }
-    } catch {
-      notify.error("Upload failed", "Unable to read the selected file.");
-      setMediaUpload(null);
+    setMediaFile(file);
+    setMediaUpload({ name: file.name, progress: 0 });
+    if (file.type.startsWith("video/")) {
+      setMediaPreviewUrl(null);
+    } else {
+      setMediaPreviewUrl(URL.createObjectURL(file));
     }
   };
 
-  const handleThumbnailFileSelect = async (file: File | null) => {
+  const handleThumbnailFileSelect = (file: File | null) => {
+    if (thumbnailPreviewUrl?.startsWith("blob:")) {
+      URL.revokeObjectURL(thumbnailPreviewUrl);
+    }
+
     if (!file) {
+      setThumbnailFile(null);
       setThumbnailUpload(null);
       setThumbnailPreviewUrl(null);
       setForm((prev) => ({ ...prev, thumbnailUrl: "" }));
       return;
     }
 
-    try {
-      await simulateUploadProgress(setThumbnailUpload, file.name);
-      const dataUrl = await readFileAsDataUrl(file);
-      setForm((prev) => ({ ...prev, thumbnailUrl: dataUrl }));
-      setThumbnailPreviewUrl(dataUrl);
-    } catch {
-      notify.error("Upload failed", "Unable to read the thumbnail file.");
-      setThumbnailUpload(null);
-    }
+    setThumbnailFile(file);
+    setThumbnailUpload({ name: file.name, progress: 0 });
+    setThumbnailPreviewUrl(URL.createObjectURL(file));
   };
 
   const handleStatClick = (stat: StatFilter) => {
@@ -301,30 +293,78 @@ export function TestimonialsPageContent() {
   };
 
   const handleSave = async () => {
-    if (!form.customerName || !form.review || !form.mediaUrl) {
+    if (!form.customerName || !form.review) {
+      notify.error("Validation error", "Please fill all required fields.");
+      return;
+    }
+    if (!mediaFile && !form.mediaUrl) {
       notify.error(
         "Validation error",
-        `Please fill all required fields and upload a ${form.type === "VIDEO" ? "video" : "image"}.`,
+        `Please upload a ${form.type === "VIDEO" ? "video" : "image"} to Cloudflare R2.`,
       );
       return;
     }
-    if (form.type === "VIDEO" && !form.thumbnailUrl) {
+    if (form.type === "VIDEO" && !thumbnailFile && !form.thumbnailUrl) {
       notify.error("Validation error", "Please upload a video thumbnail.");
       return;
     }
+
     setFormLoading(true);
     try {
+      let mediaUrl = form.mediaUrl;
+      let thumbnailUrl = form.thumbnailUrl;
+
+      if (mediaFile) {
+        const uploaded = await uploadMediaFile(mediaFile, "testimonials", {
+          onProgress: (percent) => {
+            setMediaUpload({ name: mediaFile.name, progress: percent });
+          },
+        });
+        mediaUrl = uploaded.publicUrl;
+      }
+
+      if (form.type === "VIDEO" && thumbnailFile) {
+        const uploaded = await uploadMediaFile(thumbnailFile, "thumbnails", {
+          onProgress: (percent) => {
+            setThumbnailUpload({
+              name: thumbnailFile.name,
+              progress: percent,
+            });
+          },
+        });
+        thumbnailUrl = uploaded.publicUrl;
+      }
+
+      assertRemoteMediaUrl(mediaUrl);
+      if (form.type === "VIDEO") {
+        assertRemoteMediaUrl(thumbnailUrl);
+      }
+
+      const payload: CreateTestimonialPayload = {
+        ...form,
+        mediaUrl,
+        thumbnailUrl,
+      };
+
       if (editingTestimonial) {
-        await updateTestimonial(editingTestimonial.id, form);
+        await updateTestimonial(
+          editingTestimonial.id,
+          payload,
+          editingTestimonial.status,
+        );
         notify.success("Testimonial updated", "Changes saved successfully.");
       } else {
-        await createTestimonial(form);
+        await createTestimonial(payload);
         notify.success("Testimonial created", "New testimonial added.");
       }
       setFormOpen(false);
+      resetUploadState();
       await loadData();
-    } catch {
-      notify.error("Save failed", "Unable to save testimonial.");
+    } catch (error) {
+      notify.error(
+        "Save failed",
+        error instanceof Error ? error.message : "Unable to save testimonial.",
+      );
     } finally {
       setFormLoading(false);
     }
@@ -337,20 +377,32 @@ export function TestimonialsPageContent() {
       notify.success("Deleted", "Testimonial removed.");
       setDeleteTarget(null);
       await loadData();
-    } catch {
-      notify.error("Delete failed", "Unable to delete testimonial.");
+    } catch (error) {
+      notify.error(
+        "Delete failed",
+        error instanceof Error ? error.message : "Unable to delete testimonial.",
+      );
     }
   };
 
   const togglePublish = async (testimonial: CustomerTestimonial) => {
-    const newStatus: TestimonialStatus =
-      testimonial.status === "PUBLISHED" ? "DRAFT" : "PUBLISHED";
-    await updateTestimonial(testimonial.id, { status: newStatus });
-    notify.success(
-      newStatus === "PUBLISHED" ? "Published" : "Unpublished",
-      `Testimonial is now ${newStatus.toLowerCase()}.`,
-    );
-    await loadData();
+    try {
+      if (testimonial.status === "PUBLISHED") {
+        await unpublishTestimonial(testimonial.id);
+        notify.success("Unpublished", "Testimonial is now draft.");
+      } else {
+        await publishTestimonial(testimonial.id);
+        notify.success("Published", "Testimonial is now live.");
+      }
+      await loadData();
+    } catch (error) {
+      notify.error(
+        "Update failed",
+        error instanceof Error
+          ? error.message
+          : "Unable to update publish status.",
+      );
+    }
   };
 
   const breadcrumbs = useMemo(
@@ -734,11 +786,7 @@ export function TestimonialsPageContent() {
                   previewUrl={mediaPreviewUrl}
                   onFileSelect={setMediaUpload}
                   onFileChange={handleMediaFileSelect}
-                  onClear={() => {
-                    setMediaUpload(null);
-                    setMediaPreviewUrl(null);
-                    setForm((prev) => ({ ...prev, mediaUrl: "" }));
-                  }}
+                  onClear={() => handleMediaFileSelect(null)}
                 />
               </div>
             </div>
@@ -756,11 +804,7 @@ export function TestimonialsPageContent() {
                     previewUrl={thumbnailPreviewUrl}
                     onFileSelect={setThumbnailUpload}
                     onFileChange={handleThumbnailFileSelect}
-                    onClear={() => {
-                      setThumbnailUpload(null);
-                      setThumbnailPreviewUrl(null);
-                      setForm((prev) => ({ ...prev, thumbnailUrl: "" }));
-                    }}
+                    onClear={() => handleThumbnailFileSelect(null)}
                   />
                 </div>
               </div>

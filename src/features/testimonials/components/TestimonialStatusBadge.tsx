@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import type {
   TestimonialStatus,
   TestimonialType,
-} from "@/mock/mockTestimonials";
+} from "@/features/testimonials/types/testimonial.types";
 
 const statusVariants = cva(
   "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",

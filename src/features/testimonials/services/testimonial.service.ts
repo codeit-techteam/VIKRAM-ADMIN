@@ -1,13 +1,22 @@
+import type {
+  CustomerTestimonial,
+  TestimonialDashboardStats,
+  TestimonialStatus,
+  TestimonialType,
+} from "@/features/testimonials/types/testimonial.types";
 import {
-  computeTestimonialStats,
-  MOCK_TESTIMONIALS,
-  type CustomerTestimonial,
-  type TestimonialDashboardStats,
-  type TestimonialStatus,
-  type TestimonialType,
-} from "@/mock/mockTestimonials";
+  testimonialsService,
+  toUiTestimonial,
+  type CreateTestimonialPayload,
+} from "@/services/cms-testimonials.service";
 
-const MOCK_DELAY_MS = 300;
+export type { CreateTestimonialPayload };
+export type {
+  CustomerTestimonial,
+  TestimonialDashboardStats,
+  TestimonialStatus,
+  TestimonialType,
+};
 
 export const TESTIMONIAL_PAGE_SIZE = 8;
 
@@ -39,21 +48,11 @@ export interface TestimonialQueryResult {
   page: number;
 }
 
-let testimonialsStore = structuredClone(MOCK_TESTIMONIALS);
-
-function delay(ms = MOCK_DELAY_MS) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function filterTestimonials(
+function applyClientFilters(
   items: CustomerTestimonial[],
   filters: TestimonialFilters,
 ): CustomerTestimonial[] {
   let result = [...items];
-
-  if (filters.type !== "all") {
-    result = result.filter((t) => t.type === filters.type);
-  }
 
   if (filters.status !== "all") {
     result = result.filter((t) => t.status === filters.status);
@@ -65,109 +64,116 @@ function filterTestimonials(
       (t) =>
         t.customerName.toLowerCase().includes(q) ||
         t.city.toLowerCase().includes(q) ||
+        t.location.toLowerCase().includes(q) ||
         t.review.toLowerCase().includes(q),
     );
   }
 
-  return result.sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-  );
+  return result;
 }
 
-/** Future: GET /admin/testimonials */
+/** GET /admin/testimonials */
 export async function getTestimonials(
   params: TestimonialQueryParams,
 ): Promise<TestimonialQueryResult> {
-  await delay();
-  const filtered = filterTestimonials(testimonialsStore, params.filters);
-  const total = filtered.length;
-  const totalPages = Math.max(1, Math.ceil(total / params.limit));
-  const page = Math.min(params.page, totalPages);
-  const start = (page - 1) * params.limit;
+  const typeParam =
+    params.filters.type !== "all" ? params.filters.type : undefined;
 
-  return {
-    data: filtered.slice(start, start + params.limit),
-    total,
-    totalPages,
-    page,
-  };
+  // When status/search filters are applied client-side, fetch a wider page then slice.
+  const needsClientFilter =
+    params.filters.status !== "all" || Boolean(params.filters.search.trim());
+
+  if (needsClientFilter) {
+    const { data } = await testimonialsService.listForUi({
+      page: 1,
+      limit: 200,
+      type: typeParam,
+    });
+    const filtered = applyClientFilters(data, params.filters);
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / params.limit));
+    const page = Math.min(params.page, totalPages);
+    const start = (page - 1) * params.limit;
+
+    return {
+      data: filtered.slice(start, start + params.limit),
+      total,
+      totalPages,
+      page,
+    };
+  }
+
+  return testimonialsService.listForUi({
+    page: params.page,
+    limit: params.limit,
+    type: typeParam,
+  });
 }
 
-/** Future: GET /admin/testimonials/stats */
+/** Derived from list — backend has no dedicated stats endpoint */
 export async function getTestimonialStats(): Promise<TestimonialDashboardStats> {
-  await delay();
-  return computeTestimonialStats(testimonialsStore);
+  return testimonialsService.getStats();
 }
 
-/** Future: GET /admin/testimonials/:id */
+/** GET /admin/testimonials/:id */
 export async function getTestimonialById(
   id: string,
 ): Promise<CustomerTestimonial | null> {
-  await delay();
-  return testimonialsStore.find((t) => t.id === id) ?? null;
+  try {
+    const row = await testimonialsService.get(id);
+    return toUiTestimonial(row);
+  } catch {
+    return null;
+  }
 }
 
-export interface CreateTestimonialPayload {
-  type: TestimonialType;
-  customerName: string;
-  location: string;
-  city: string;
-  rating: number;
-  review: string;
-  mediaUrl: string;
-  thumbnailUrl?: string;
-  status: TestimonialStatus;
-}
-
-/** Future: POST /admin/testimonials */
+/** POST /admin/testimonials (+ publish if needed) */
 export async function createTestimonial(
   payload: CreateTestimonialPayload,
 ): Promise<CustomerTestimonial> {
-  await delay();
-  const now = new Date().toISOString();
-  const testimonial: CustomerTestimonial = {
-    id: `test-${Date.now()}`,
-    ...payload,
-    createdAt: now,
-    updatedAt: now,
-    publishedAt: payload.status === "PUBLISHED" ? now : undefined,
-    createdBy: "Admin",
-  };
-  testimonialsStore = [testimonial, ...testimonialsStore];
-  return structuredClone(testimonial);
+  return testimonialsService.createFromUi(payload);
 }
 
-/** Future: PATCH /admin/testimonials/:id */
+/** PATCH /admin/testimonials/:id (+ publish/unpublish) */
 export async function updateTestimonial(
   id: string,
   payload: Partial<CreateTestimonialPayload>,
+  currentStatus?: TestimonialStatus,
 ): Promise<CustomerTestimonial> {
-  await delay();
-  const index = testimonialsStore.findIndex((t) => t.id === id);
-  if (index === -1) throw new Error("Testimonial not found");
-
-  const now = new Date().toISOString();
-  testimonialsStore[index] = {
-    ...testimonialsStore[index],
-    ...payload,
-    updatedAt: now,
-    publishedAt:
-      payload.status === "PUBLISHED"
-        ? (testimonialsStore[index].publishedAt ?? now)
-        : testimonialsStore[index].publishedAt,
-  };
-  return structuredClone(testimonialsStore[index]);
+  return testimonialsService.updateFromUi(id, payload, currentStatus);
 }
 
-/** Future: DELETE /admin/testimonials/:id */
+/** DELETE /admin/testimonials/:id */
 export async function deleteTestimonial(id: string): Promise<void> {
-  await delay();
-  testimonialsStore = testimonialsStore.filter((t) => t.id !== id);
+  await testimonialsService.remove(id);
+}
+
+export async function publishTestimonial(
+  id: string,
+): Promise<CustomerTestimonial> {
+  const row = await testimonialsService.publish(id);
+  return toUiTestimonial(row);
+}
+
+export async function unpublishTestimonial(
+  id: string,
+): Promise<CustomerTestimonial> {
+  const row = await testimonialsService.unpublish(id);
+  return toUiTestimonial(row);
+}
+
+export async function reorderTestimonials(
+  items: Array<{ id: string; sortOrder: number }>,
+): Promise<void> {
+  await testimonialsService.reorder(items);
 }
 
 export async function getLatestTestimonials(limit = 4) {
-  await delay(120);
-  return [...testimonialsStore]
+  const { data } = await testimonialsService.listForUi({
+    page: 1,
+    limit,
+  });
+  return data
     .sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),

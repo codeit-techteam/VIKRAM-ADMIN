@@ -57,6 +57,15 @@ export async function getCategories(): Promise<Category[]> {
   return rows.map(mapCategory);
 }
 
+export async function getCategoryById(id: string): Promise<Category | null> {
+  try {
+    const row = await catalogService.getCategory(id);
+    return mapCategory(row);
+  } catch {
+    return null;
+  }
+}
+
 export async function getCategoryStats(): Promise<CategoryStats> {
   const categories = await getCategories();
   return computeCategoryStats(categories);

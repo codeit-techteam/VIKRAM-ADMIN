@@ -85,6 +85,15 @@ export const API_ENDPOINTS = {
     QUICK_ACTION_BY_ID: (id: string) => `/admin/quick-actions/${id}`,
     QUICK_ACTIONS_REORDER: "/admin/quick-actions/reorder",
     HOME_SEQUENCE: "/admin/cms/home-sequence",
+    NOTIFICATIONS: "/admin/notifications",
+    NOTIFICATION_BY_ID: (id: string) => `/admin/notifications/${id}`,
+    NOTIFICATION_BROADCAST: "/admin/notifications/broadcast",
+    TESTIMONIALS: "/admin/testimonials",
+    TESTIMONIAL_BY_ID: (id: string) => `/admin/testimonials/${id}`,
+    TESTIMONIAL_PUBLISH: (id: string) => `/admin/testimonials/${id}/publish`,
+    TESTIMONIAL_UNPUBLISH: (id: string) =>
+      `/admin/testimonials/${id}/unpublish`,
+    TESTIMONIALS_REORDER: "/admin/testimonials/reorder",
   },
   WAREHOUSE: {
     BASE: "/warehouse",
@@ -100,6 +109,10 @@ export const API_ENDPOINTS = {
     DISPATCH: (id: string) => `/admin/requisitions/${id}/dispatch`,
     EXPORT: (id: string) => `/admin/requisitions/${id}/export`,
     COMMENTS: (id: string) => `/admin/requisitions/${id}/comments`,
+  },
+  ADMIN_HUB_RECEIVING: {
+    BASE: "/admin/hub-receiving",
+    BY_ID: (id: string) => `/admin/hub-receiving/${id}`,
   },
   SUBHUB: {
     BASE: "/admin/hubs",

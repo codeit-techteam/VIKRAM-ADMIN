@@ -207,6 +207,13 @@ export const catalogService = {
     return data.data;
   },
 
+  getCategory: async (id: string): Promise<CatalogCategory> => {
+    const { data } = await api.get<ApiResponse<CatalogCategory>>(
+      API_ENDPOINTS.CATEGORIES.BY_ID(id),
+    );
+    return data.data;
+  },
+
   createCategory: async (payload: {
     name: string;
     slug: string;

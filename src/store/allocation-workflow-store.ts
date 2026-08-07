@@ -6,6 +6,7 @@ import {
   getWorkflowRequisitionSeed,
   getWorkflowWarehouses,
 } from "@/mock/allocation-workflow";
+import { adminRequisitionsService } from "@/services/adminRequisitions";
 import { mergeRequisitionIntoWorkflowList } from "@/utils/allocation-workflow-bridge";
 import { setActiveAllocationForTransfer } from "@/utils/allocation-transfer-bridge";
 import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
@@ -52,6 +53,7 @@ interface AllocationWorkflowState {
   goNext: () => Promise<void>;
   goBack: () => Promise<void>;
   confirmAllocation: () => Promise<AllocationWorkflowResult>;
+  loadApprovedRequisitions: () => Promise<void>;
   hydrateWarehouses: () => void;
   hydrateFormDefaults: () => void;
   startWithRequisition: (
@@ -90,6 +92,34 @@ export const useAllocationWorkflowStore = create<AllocationWorkflowState>(
         requisitions: getWorkflowRequisitionSeed(),
         inventory: useWarehouseErpStore.getState().inventory,
       });
+      void get().loadApprovedRequisitions();
+    },
+
+    loadApprovedRequisitions: async () => {
+      try {
+        const list = await adminRequisitionsService.list({
+          status: "APPROVED",
+          page: 1,
+          limit: 100,
+        });
+        const approved = list.data.filter(
+          (item) =>
+            item.status === "APPROVED" && item.allocationStatus !== "ALLOCATED",
+        );
+        if (approved.length === 0) return;
+
+        const selectedId = get().selectedRequisition?.id;
+        set({
+          requisitions: selectedId
+            ? mergeRequisitionIntoWorkflowList(
+                get().selectedRequisition!,
+                approved,
+              )
+            : approved,
+        });
+      } catch {
+        // Keep seeded/mock queue if API is unavailable.
+      }
     },
 
     reset: () => {
@@ -107,6 +137,7 @@ export const useAllocationWorkflowStore = create<AllocationWorkflowState>(
         result: null,
         draftSaved: false,
       });
+      void get().loadApprovedRequisitions();
     },
 
     canAccessStep: (step) => {
@@ -277,7 +308,42 @@ export const useAllocationWorkflowStore = create<AllocationWorkflowState>(
       set({ isSubmitting: true });
 
       try {
-        await new Promise((resolve) => setTimeout(resolve, 700));
+        const detail = await adminRequisitionsService.getById(
+          selectedRequisition.id,
+        );
+        const materials = detail.materials ?? [];
+        if (materials.length === 0) {
+          throw new Error("No materials found on this requisition.");
+        }
+
+        const allocateItems =
+          materials.length === 1
+            ? [
+                {
+                  itemId: materials[0].id,
+                  allocatedQty: Math.max(
+                    1,
+                    Math.floor(form.allocationQty || materials[0].requestedQty),
+                  ),
+                },
+              ]
+            : materials.map((material) => ({
+                itemId: material.id,
+                allocatedQty: Math.max(
+                  1,
+                  Math.floor(
+                    material.approvedQty ??
+                      material.requestedQty ??
+                      form.allocationQty,
+                  ),
+                ),
+              }));
+
+        await adminRequisitionsService.allocate(selectedRequisition.id, {
+          items: allocateItems,
+          warehouseBin: warehouse.name || form.warehouseSourceId,
+          comment: form.remarks || undefined,
+        });
 
         const materialDetail = getMaterialWorkflowDetail(
           selectedRequisition.materialId,

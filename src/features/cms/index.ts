@@ -23,10 +23,6 @@ export { VideoCard } from "@/features/cms/components/VideoCard";
 export { VideoCtaTable } from "@/features/cms/components/VideoCtaTable";
 export { VideoLibrarySection } from "@/features/cms/components/VideoLibrarySection";
 export { VideoManagementPageContent } from "@/features/cms/components/VideoManagementPageContent";
-export {
-  BANNER_MODIFICATIONS,
-  BANNERS,
-} from "@/features/cms/constants/banner.mock";
 export type { BannerFormSchema } from "@/features/cms/schema/banner-form.schema";
 export { bannerFormSchema } from "@/features/cms/schema/banner-form.schema";
 export {
@@ -40,8 +36,6 @@ export {
 } from "@/features/cms/services/banner.mock-api";
 export {
   CATEGORY_FILTER_TABS,
-  CATEGORY_MOCK_ROWS,
-  CATEGORY_STATS,
   computeCategoryStats,
 } from "@/features/cms/constants/category.mock";
 export {
@@ -58,11 +52,10 @@ export {
   CONTENT_UPDATES,
 } from "@/features/cms/constants/cms.mock";
 export {
-  INITIAL_OFFERS,
-  OFFER_PRODUCT_CATALOG,
   OFFER_TYPE_LABELS,
   computeOfferStats,
 } from "@/features/cms/constants/offer.mock";
+export { getOfferProductsCatalog } from "@/features/cms/services/offer.mock-api";
 export type {
   Banner,
   BannerModification,

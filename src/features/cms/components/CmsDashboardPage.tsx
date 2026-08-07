@@ -14,8 +14,11 @@ import type {
   ContentUpdate,
   CmsStatCardData,
 } from "@/features/cms/types/cms.types";
-import { dashboardService } from "@/services/dashboard";
 import { auditService } from "@/services/audit.service";
+import { bannersService } from "@/services/cms-banners.service";
+import { cmsAdminService } from "@/services/cms-admin.service";
+import { dashboardService } from "@/services/dashboard";
+import { videosService } from "@/services/videos.service";
 import { notify } from "@/utils/notify";
 
 function formatCount(value: number): string {
@@ -74,6 +77,17 @@ function mapAuditToContentUpdate(row: {
   };
 }
 
+const LOADING_STAT_CARDS: CmsStatCardData[] = [
+  { label: "ACTIVE PRODUCTS", value: "…" },
+  { label: "CATALOGS", value: "…" },
+  { label: "ACTIVE OFFERS", value: "…" },
+  { label: "PUBLISHED BANNERS", value: "…" },
+  { label: "PUBLISHED VIDEOS", value: "…" },
+  { label: "HOMEPAGE COMPONENTS", value: "…" },
+  { label: "CUSTOMERS", value: "…" },
+  { label: "NOTIFICATIONS", value: "…" },
+];
+
 export function CmsDashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -85,11 +99,32 @@ export function CmsDashboardPage() {
     (async () => {
       setLoading(true);
       try {
-        const [dashboard, audit] = await Promise.all([
-          dashboardService.getAdminDashboard(),
-          auditService.list({ limit: 12 }),
-        ]);
+        const [dashboard, audit, banners, videos, homeSections] =
+          await Promise.all([
+            dashboardService.getAdminDashboard(),
+            auditService.list({ limit: 12 }),
+            bannersService.list().catch(() => null),
+            videosService.list().catch(() => null),
+            cmsAdminService.listHomeSections().catch(() => null),
+          ]);
         if (cancelled) return;
+
+        const publishedBanners =
+          banners === null
+            ? (dashboard.cms.banners ?? 0)
+            : banners.filter(
+                (b) => b.status === "ACTIVE" && b.isVisible !== false,
+              ).length;
+        const publishedVideos =
+          videos === null
+            ? (dashboard.cms.activeVideos ?? 0)
+            : videos.filter(
+                (v) =>
+                  Boolean(v.published) &&
+                  v.isVisible !== false &&
+                  v.status === "ACTIVE",
+              ).length;
+        const homepageComponents = homeSections?.length ?? 0;
 
         setStatCards([
           {
@@ -106,6 +141,21 @@ export function CmsDashboardPage() {
             label: "ACTIVE OFFERS",
             value: formatCount(dashboard.cms.activeOffers ?? 0),
             href: "/customer-app-cms/offers",
+          },
+          {
+            label: "PUBLISHED BANNERS",
+            value: formatCount(publishedBanners),
+            href: "/customer-app-cms/banners",
+          },
+          {
+            label: "PUBLISHED VIDEOS",
+            value: formatCount(publishedVideos),
+            href: "/customer-app-cms/videos",
+          },
+          {
+            label: "HOMEPAGE COMPONENTS",
+            value: formatCount(homepageComponents),
+            href: "/customer-app-cms/homepage-layout",
           },
           {
             label: "CUSTOMERS",
@@ -138,16 +188,7 @@ export function CmsDashboardPage() {
   }, []);
 
   const cards = useMemo(
-    () =>
-      loading
-        ? [
-            { label: "ACTIVE PRODUCTS", value: "…" },
-            { label: "CATALOGS", value: "…" },
-            { label: "ACTIVE OFFERS", value: "…" },
-            { label: "CUSTOMERS", value: "…" },
-            { label: "NOTIFICATIONS", value: "…" },
-          ]
-        : statCards,
+    () => (loading ? LOADING_STAT_CARDS : statCards),
     [loading, statCards],
   );
 
@@ -159,7 +200,7 @@ export function CmsDashboardPage() {
         actions={<EnterpriseGlobalSearch variant="button" />}
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {cards.map((card) => (
           <StatCard
             key={card.label}

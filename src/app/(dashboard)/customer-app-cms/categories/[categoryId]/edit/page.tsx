@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { CategoryForm } from "@/features/cms/components/CategoryForm";
 import { getCategoryById } from "@/features/cms/services/category.mock-api";
 import type { Category } from "@/features/cms/types/category.types";
+import { notify } from "@/utils/notify";
 
 interface EditCategoryPageProps {
   params: Promise<{ categoryId: string }>;
@@ -18,10 +19,28 @@ export default function EditCategoryPage({ params }: EditCategoryPageProps) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    void getCategoryById(categoryId).then((result) => {
-      setCategory(result);
-      setIsLoading(false);
-    });
+    let cancelled = false;
+    (async () => {
+      setIsLoading(true);
+      try {
+        const result = await getCategoryById(categoryId);
+        if (!cancelled) setCategory(result);
+      } catch (error) {
+        if (!cancelled) {
+          setCategory(null);
+          notify.error(
+            error instanceof Error
+              ? error.message
+              : "Failed to load category",
+          );
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [categoryId]);
 
   if (isLoading) {

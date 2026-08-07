@@ -12,6 +12,7 @@ import {
 } from "@/constants/navigation.constants";
 import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/hooks/use-auth";
+import { usePendingRequisitionCount } from "@/hooks/use-pending-requisition-count";
 import { cn } from "@/lib/utils";
 
 interface SidebarNavItemProps {
@@ -42,6 +43,7 @@ export function SidebarNavItem({
 }: SidebarNavItemProps) {
   const router = useRouter();
   const { logout } = useAuth();
+  const pendingRequisitionCount = usePendingRequisitionCount();
 
   const childGroups = getNavItemChildGroups(item);
   const children = getNavItemChildren(item);
@@ -92,6 +94,12 @@ export function SidebarNavItem({
 
             {group.items.map((child) => {
               const ChildIcon = child.icon;
+              const isRequisitionApproval =
+                child.href === `${ROUTES.CENTRAL_WAREHOUSE}/requisitions`;
+              const badge =
+                isRequisitionApproval && pendingRequisitionCount !== undefined
+                  ? pendingRequisitionCount
+                  : child.badge;
 
               return (
                 <SidebarItem
@@ -99,7 +107,7 @@ export function SidebarNavItem({
                   href={child.href}
                   label={child.label}
                   icon={ChildIcon}
-                  badge={child.badge}
+                  badge={badge}
                   isActive={activeChild?.href === child.href}
                   variant="child"
                 />

@@ -9,8 +9,6 @@ export {
   DEEP_LINK_OFFER_OPTIONS,
   DEEP_LINK_OPTIONS,
   DEEP_LINK_PRODUCT_OPTIONS,
-  PUSH_NOTIFICATION_HISTORY,
-  PUSH_NOTIFICATION_STATS,
 } from "./constants/notification.mock";
 export {
   pushNotificationSchema,

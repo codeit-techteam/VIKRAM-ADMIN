@@ -1,9 +1,13 @@
 "use client";
 
-import { Download, Eye, FileText, Info } from "lucide-react";
+import { Download, Eye, FileText, Info, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { RequisitionConfirmDialog } from "@/components/requisitions/RequisitionConfirmDialog";
+import {
+  RequisitionConfirmDialog,
+  type RequisitionApproveItemEdit,
+  type RequisitionConfirmType,
+} from "@/components/requisitions/RequisitionConfirmDialog";
 import { RequisitionPriorityBadge } from "@/components/requisitions/RequisitionPriorityBadge";
 import { RequisitionStatusBadge } from "@/components/requisitions/RequisitionStatusBadge";
 import { Button } from "@/components/ui/button";
@@ -27,13 +31,18 @@ import {
   formatRequisitionDateOnly,
   formatRequisitionQuantity,
   formatRequisitionTimeOnly,
-  getMaterialAvailableStock,
-  getRequisitionDetail,
 } from "@/mock/requisitions";
+import {
+  adminRequisitionsService,
+  type AdminRequisitionDetail,
+  type AdminRequisitionMaterial,
+} from "@/services/adminRequisitions";
 import type {
   RequisitionAttachment,
   RequisitionAttachmentType,
   RequisitionListItem,
+  RequisitionPriority,
+  RequisitionStatus,
 } from "@/types/warehouse.types";
 import { notify } from "@/utils/notify";
 import { cn } from "@/lib/utils";
@@ -44,8 +53,12 @@ interface RequisitionDetailDrawerProps {
   requisition: RequisitionListItem | null;
   isSubmitting?: boolean;
   initialAction?: "approve" | "reject" | null;
-  onApprove: (remarks: string) => void;
+  onApprove: (
+    remarks: string,
+    items: Array<{ itemId: string; approvedQty: number }>,
+  ) => void;
   onReject: (remarks: string) => void;
+  onDispatch?: () => void;
 }
 
 const attachmentTypeLabels: Record<RequisitionAttachmentType, string> = {
@@ -90,7 +103,6 @@ function DetailField({
 
 function AttachmentRow({ attachment }: { attachment: RequisitionAttachment }) {
   const handlePreview = () => {
-    // TODO: Replace with document preview API
     notify.info(
       `Previewing ${attachment.name}`,
       "Document preview will open here.",
@@ -98,7 +110,6 @@ function AttachmentRow({ attachment }: { attachment: RequisitionAttachment }) {
   };
 
   const handleDownload = () => {
-    // TODO: Replace with document download API
     const link = document.createElement("a");
     link.href = attachment.url;
     link.download = attachment.name;
@@ -145,6 +156,48 @@ function AttachmentRow({ attachment }: { attachment: RequisitionAttachment }) {
   );
 }
 
+function mapUiStatus(status: string | undefined, fallback: RequisitionStatus): RequisitionStatus {
+  const normalized = (status ?? fallback).toUpperCase();
+  if (normalized === "PENDING_APPROVAL" || normalized === "SUBMITTED") {
+    return "PENDING";
+  }
+  if (normalized === "IN_TRANSIT" || normalized === "DISPATCHED") {
+    return "TRANSFERRED";
+  }
+  if (normalized === "RECEIVED" || normalized === "COMPLETED") {
+    return "COMPLETED";
+  }
+  if (
+    normalized === "PENDING" ||
+    normalized === "APPROVED" ||
+    normalized === "REJECTED" ||
+    normalized === "ALLOCATED" ||
+    normalized === "TRANSFERRED" ||
+    normalized === "COMPLETED"
+  ) {
+    return normalized;
+  }
+  return fallback;
+}
+
+function mapUiPriority(
+  priority: string | undefined,
+  fallback: RequisitionPriority,
+): RequisitionPriority {
+  const normalized = (priority ?? fallback).toLowerCase();
+  if (normalized === "urgent" || normalized === "critical") return "critical";
+  if (normalized === "high") return "high";
+  if (normalized === "low") return "low";
+  if (normalized === "medium" || normalized === "normal") return "medium";
+  return fallback;
+}
+
+function stockForMaterial(material: AdminRequisitionMaterial): number | null {
+  if (typeof material.warehouseStock === "number") return material.warehouseStock;
+  if (typeof material.availableStock === "number") return material.availableStock;
+  return null;
+}
+
 export function RequisitionDetailDrawer({
   open,
   onOpenChange,
@@ -153,35 +206,129 @@ export function RequisitionDetailDrawer({
   initialAction = null,
   onApprove,
   onReject,
+  onDispatch,
 }: RequisitionDetailDrawerProps) {
   const [remarks, setRemarks] = useState("");
   const [remarksError, setRemarksError] = useState<string | null>(null);
-  const [confirmType, setConfirmType] = useState<"approve" | "reject" | null>(
+  const [confirmType, setConfirmType] = useState<RequisitionConfirmType | null>(
     null,
   );
-
-  const detail = useMemo(
-    () => (requisition ? getRequisitionDetail(requisition) : null),
-    [requisition],
+  const [liveDetail, setLiveDetail] = useState<AdminRequisitionDetail | null>(
+    null,
+  );
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [approveItems, setApproveItems] = useState<RequisitionApproveItemEdit[]>(
+    [],
   );
 
-  const availableStock = detail
-    ? getMaterialAvailableStock(detail.materialId)
-    : null;
+  useEffect(() => {
+    if (!open || !requisition) {
+      setLiveDetail(null);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingDetail(true);
+
+    void adminRequisitionsService
+      .getById(requisition.id)
+      .then((detail) => {
+        if (cancelled) return;
+        setLiveDetail(detail);
+        setApproveItems(
+          (detail.materials ?? []).map((material) => ({
+            itemId: material.id,
+            productName: material.productName,
+            requestedQty: material.requestedQty,
+            unit: material.unit,
+            approvedQty: material.approvedQty ?? material.requestedQty,
+          })),
+        );
+        setRemarks(
+          detail.remarks ??
+            detail.rejectionReason ??
+            requisition.adminRemarks ??
+            requisition.rejectionReason ??
+            "",
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLiveDetail(null);
+        notify.error("Failed to load requisition details");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingDetail(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, requisition]);
+
+  const detail = useMemo(() => {
+    if (!requisition) return null;
+
+    const materials = liveDetail?.materials ?? [];
+    const first = materials[0];
+    const status = mapUiStatus(
+      liveDetail?.rawStatus ?? liveDetail?.status,
+      requisition.status,
+    );
+    const priority = mapUiPriority(liveDetail?.priority, requisition.priority);
+    const requestedBy =
+      typeof liveDetail?.requestedBy === "object" && liveDetail.requestedBy
+        ? liveDetail.requestedBy
+        : requisition.requestedBy;
+
+    return {
+      ...requisition,
+      requestId:
+        liveDetail?.requestNo ?? liveDetail?.requestId ?? requisition.requestId,
+      status,
+      priority,
+      requestedBy,
+      hubName: liveDetail?.hubName ?? liveDetail?.hubLocation ?? requisition.hubName,
+      warehouseName: liveDetail?.warehouseName ?? requisition.warehouseName,
+      destinationWarehouse:
+        liveDetail?.warehouseName ?? requisition.warehouseName,
+      assignedWarehouse: liveDetail?.warehouseName ?? requisition.warehouseName,
+      region: liveDetail?.hubLocation ?? requisition.hubName,
+      sku: first?.sku ?? requisition.sku ?? "N/A",
+      category: first?.category ?? "General Materials",
+      material: first?.productName ?? requisition.material,
+      materialSpec: requisition.materialSpec,
+      requestedQty: first?.requestedQty ?? requisition.requestedQty,
+      unit: first?.unit ?? requisition.unit,
+      requestReason:
+        liveDetail?.remarks ||
+        liveDetail?.reason ||
+        requisition.adminRemarks ||
+        "—",
+      attachments: [] as RequisitionAttachment[],
+      adminRemarks: liveDetail?.remarks ?? requisition.adminRemarks,
+      rejectionReason:
+        liveDetail?.rejectionReason ?? requisition.rejectionReason,
+      materials,
+      timeline: liveDetail?.timeline ?? [],
+      activityLogs: liveDetail?.activityLogs ?? [],
+      createdAt: requisition.createdAt,
+    };
+  }, [liveDetail, requisition]);
 
   const isPending = detail?.status === "PENDING";
   const isApproved = detail?.status === "APPROVED";
+  const isAllocated = detail?.status === "ALLOCATED";
 
   useEffect(() => {
     if (open && requisition) {
-      setRemarks(requisition.adminRemarks ?? requisition.rejectionReason ?? "");
       setRemarksError(null);
       setConfirmType(null);
     }
   }, [open, requisition]);
 
   useEffect(() => {
-    if (!open || !isPending || !initialAction) return;
+    if (!open || !isPending || !initialAction || isLoadingDetail) return;
 
     if (initialAction === "approve") {
       setConfirmType("approve");
@@ -195,10 +342,21 @@ export function RequisitionDetailDrawer({
           ?.focus();
       }, 100);
     }
-  }, [open, isPending, initialAction]);
+  }, [open, isPending, initialAction, isLoadingDetail]);
 
   const handleApproveClick = () => {
     setRemarksError(null);
+    if (approveItems.length === 0 && detail?.materials?.length) {
+      setApproveItems(
+        detail.materials.map((material) => ({
+          itemId: material.id,
+          productName: material.productName,
+          requestedQty: material.requestedQty,
+          unit: material.unit,
+          approvedQty: material.approvedQty ?? material.requestedQty,
+        })),
+      );
+    }
     setConfirmType("approve");
   };
 
@@ -212,11 +370,30 @@ export function RequisitionDetailDrawer({
     setConfirmType("reject");
   };
 
+  const handleDispatchClick = () => {
+    setConfirmType("dispatch");
+  };
+
   const handleConfirm = () => {
     if (!confirmType) return;
 
     if (confirmType === "approve") {
-      onApprove(remarks.trim());
+      const items =
+        approveItems.length > 0
+          ? approveItems.map((item) => ({
+              itemId: item.itemId,
+              approvedQty: item.approvedQty,
+            }))
+          : (detail?.materials ?? []).map((material) => ({
+              itemId: material.id,
+              approvedQty: material.approvedQty ?? material.requestedQty,
+            }));
+      onApprove(remarks.trim(), items);
+      return;
+    }
+
+    if (confirmType === "dispatch") {
+      onDispatch?.();
       return;
     }
 
@@ -247,7 +424,12 @@ export function RequisitionDetailDrawer({
             </div>
           </SheetHeader>
 
-          {detail ? (
+          {isLoadingDetail ? (
+            <div className="flex flex-1 items-center justify-center gap-2 text-sm text-[#64748B]">
+              <Loader2 className="size-4 animate-spin" />
+              Loading details...
+            </div>
+          ) : detail ? (
             <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
               <DetailSection title="Request Information">
                 <div className="grid grid-cols-2 gap-4 rounded-xl border border-gray-100 bg-gray-50/60 p-4">
@@ -313,10 +495,10 @@ export function RequisitionDetailDrawer({
                           Material Name
                         </TableHead>
                         <TableHead className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
-                          Category
+                          Requested
                         </TableHead>
                         <TableHead className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
-                          Requested Qty
+                          Approved
                         </TableHead>
                         <TableHead className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
                           Available
@@ -324,38 +506,62 @@ export function RequisitionDetailDrawer({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      <TableRow className="border-gray-100">
-                        <TableCell className="text-sm text-[#64748B]">
-                          {detail.sku}
-                        </TableCell>
-                        <TableCell>
-                          <p className="text-sm font-semibold text-[#1A1A1A]">
-                            {detail.material}
-                          </p>
-                          {detail.materialSpec ? (
-                            <p className="text-xs text-[#64748B]">
-                              {detail.materialSpec}
-                            </p>
-                          ) : null}
-                        </TableCell>
-                        <TableCell className="text-sm text-[#64748B]">
-                          {detail.category}
-                        </TableCell>
-                        <TableCell className="text-sm text-[#64748B]">
-                          {formatRequisitionQuantity(
-                            detail.requestedQty,
-                            detail.unit,
-                          )}
-                        </TableCell>
-                        <TableCell className="text-primary text-sm font-semibold">
-                          {availableStock
-                            ? formatRequisitionQuantity(
-                                availableStock.available,
-                                availableStock.unit,
-                              )
-                            : "—"}
-                        </TableCell>
-                      </TableRow>
+                      {(detail.materials.length > 0
+                        ? detail.materials
+                        : [
+                            {
+                              id: requisition?.id ?? "fallback",
+                              productId: requisition?.materialId ?? "",
+                              sku: detail.sku,
+                              productName: detail.material,
+                              requestedQty: detail.requestedQty,
+                              approvedQty: requisition?.approvedQty,
+                              unit: detail.unit,
+                              category: detail.category,
+                            } satisfies AdminRequisitionMaterial,
+                          ]
+                      ).map((material) => {
+                        const stock = stockForMaterial(material);
+                        return (
+                          <TableRow
+                            key={material.id}
+                            className="border-gray-100"
+                          >
+                            <TableCell className="text-sm text-[#64748B]">
+                              {material.sku ?? "—"}
+                            </TableCell>
+                            <TableCell>
+                              <p className="text-sm font-semibold text-[#1A1A1A]">
+                                {material.productName}
+                              </p>
+                              {material.category ? (
+                                <p className="text-xs text-[#64748B]">
+                                  {material.category}
+                                </p>
+                              ) : null}
+                            </TableCell>
+                            <TableCell className="text-sm text-[#64748B]">
+                              {formatRequisitionQuantity(
+                                material.requestedQty,
+                                material.unit,
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm text-[#64748B]">
+                              {typeof material.approvedQty === "number"
+                                ? formatRequisitionQuantity(
+                                    material.approvedQty,
+                                    material.unit,
+                                  )
+                                : "—"}
+                            </TableCell>
+                            <TableCell className="text-primary text-sm font-semibold">
+                              {stock !== null
+                                ? formatRequisitionQuantity(stock, material.unit)
+                                : "—"}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -368,6 +574,40 @@ export function RequisitionDetailDrawer({
                   </p>
                 </div>
               </DetailSection>
+
+              {detail.timeline.length > 0 ? (
+                <DetailSection title="Timeline">
+                  <div className="space-y-3 rounded-xl border border-gray-100 bg-white p-4">
+                    {detail.timeline.map((step) => (
+                      <div key={step.id} className="flex gap-3">
+                        <div
+                          className={cn(
+                            "mt-1 size-2.5 shrink-0 rounded-full",
+                            step.status === "completed" && "bg-emerald-500",
+                            step.status === "active" && "bg-primary",
+                            step.status === "pending" && "bg-gray-300",
+                          )}
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-[#1A1A1A]">
+                            {step.title}
+                          </p>
+                          {step.subtitle ? (
+                            <p className="text-xs text-[#64748B]">
+                              {step.subtitle}
+                            </p>
+                          ) : null}
+                          {step.timestamp ? (
+                            <p className="mt-0.5 text-xs text-gray-400">
+                              {step.timestamp}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </DetailSection>
+              ) : null}
 
               {detail.attachments.length > 0 ? (
                 <DetailSection title="Attachments">
@@ -440,7 +680,7 @@ export function RequisitionDetailDrawer({
                     variant="outline"
                     className="h-10 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
                     onClick={handleRejectClick}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isLoadingDetail}
                   >
                     Reject Request
                   </Button>
@@ -448,11 +688,22 @@ export function RequisitionDetailDrawer({
                     type="button"
                     className="h-10"
                     onClick={handleApproveClick}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isLoadingDetail}
                   >
                     Approve Request
                   </Button>
                 </div>
+              ) : null}
+
+              {isAllocated && onDispatch ? (
+                <Button
+                  type="button"
+                  className="h-10"
+                  onClick={handleDispatchClick}
+                  disabled={isSubmitting || isLoadingDetail}
+                >
+                  Dispatch Request
+                </Button>
               ) : null}
             </div>
           </div>
@@ -469,6 +720,8 @@ export function RequisitionDetailDrawer({
         type={confirmType ?? "approve"}
         requestId={detail?.requestId}
         isSubmitting={isSubmitting}
+        approveItems={confirmType === "approve" ? approveItems : []}
+        onApproveItemsChange={setApproveItems}
         onConfirm={handleConfirm}
       />
     </>

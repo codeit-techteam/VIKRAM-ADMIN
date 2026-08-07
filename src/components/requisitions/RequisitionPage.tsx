@@ -11,11 +11,15 @@ import {
 } from "@/components/requisitions/RequisitionStatsCard";
 import { RequisitionTable } from "@/components/requisitions/RequisitionTable";
 import { useAuth } from "@/hooks/use-auth";
+import { invalidatePendingRequisitionCount } from "@/hooks/use-pending-requisition-count";
 import {
   EMPTY_REQUISITION_ADVANCED_FILTERS,
   REQUISITION_PAGE_SIZE,
 } from "@/mock/requisitions";
-import { adminRequisitionsService } from "@/services/adminRequisitions";
+import {
+  adminRequisitionsService,
+  type AdminRequisitionListParams,
+} from "@/services/adminRequisitions";
 import type {
   RequisitionAdvancedFilters,
   RequisitionFilterChip,
@@ -29,6 +33,97 @@ const STAT_CHIP_MAP = {
   "awaiting-allocation": "awaiting-allocation",
   "todays-requests": "today",
 } as const satisfies Record<string, RequisitionFilterChip>;
+
+function startOfDayIso(date = new Date()): string {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next.toISOString();
+}
+
+function daysAgoIso(days: number): string {
+  const next = new Date();
+  next.setDate(next.getDate() - days);
+  next.setHours(0, 0, 0, 0);
+  return next.toISOString();
+}
+
+function buildListParams(
+  chip: RequisitionFilterChip,
+  page: number,
+  advanced: RequisitionAdvancedFilters,
+): AdminRequisitionListParams {
+  const search = [advanced.material, advanced.requestedBy]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(" ");
+
+  const params: AdminRequisitionListParams = {
+    page,
+    limit: REQUISITION_PAGE_SIZE,
+    search: search || undefined,
+  };
+
+  if (advanced.priority !== "all") {
+    params.priority =
+      advanced.priority === "critical"
+        ? "URGENT"
+        : advanced.priority === "high"
+          ? "HIGH"
+          : "NORMAL";
+  }
+
+  if (advanced.status !== "all") {
+    const statusMap: Record<string, string> = {
+      PENDING: "PENDING_APPROVAL",
+      APPROVED: "APPROVED",
+      REJECTED: "REJECTED",
+      ALLOCATED: "ALLOCATED",
+      TRANSFERRED: "IN_TRANSIT",
+      COMPLETED: "COMPLETED",
+    };
+    params.status = statusMap[advanced.status] ?? advanced.status;
+  }
+
+  if (advanced.dateFrom) params.dateFrom = advanced.dateFrom;
+  if (advanced.dateTo) params.dateTo = advanced.dateTo;
+
+  switch (chip) {
+    case "pending":
+      params.status = "PENDING_APPROVAL";
+      break;
+    case "critical":
+      params.priority = "URGENT";
+      break;
+    case "awaiting-allocation":
+    case "approved":
+      params.status = "APPROVED";
+      break;
+    case "rejected":
+      params.status = "REJECTED";
+      break;
+    case "today":
+      params.dateFrom = startOfDayIso();
+      break;
+    case "last-7-days":
+      params.dateFrom = daysAgoIso(7);
+      break;
+    case "all":
+    default:
+      break;
+  }
+
+  return params;
+}
+
+function downloadCsv(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 export function RequisitionPage() {
   const searchParams = useSearchParams();
@@ -66,6 +161,7 @@ export function RequisitionPage() {
       setActiveChip("critical");
     } else if (
       statusParam?.toUpperCase() === "PENDING" ||
+      statusParam?.toUpperCase() === "PENDING_APPROVAL" ||
       typeParam === "hub"
     ) {
       setActiveChip("pending");
@@ -83,19 +179,20 @@ export function RequisitionPage() {
   const loadRequisitions = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [list, apiStats] = await Promise.all([
-        adminRequisitionsService.list({
-          page: currentPage,
-          limit: REQUISITION_PAGE_SIZE,
-          search: advancedFilters.search || undefined,
-          status:
-            activeChip === "pending"
-              ? "PENDING_APPROVAL"
-              : activeChip === "critical"
-                ? undefined
-                : undefined,
-        }),
+      const listParams = buildListParams(
+        activeChip,
+        currentPage,
+        advancedFilters,
+      );
+
+      const [list, apiStats, todayList] = await Promise.all([
+        adminRequisitionsService.list(listParams),
         adminRequisitionsService.stats(),
+        adminRequisitionsService.list({
+          page: 1,
+          limit: 1,
+          dateFrom: startOfDayIso(),
+        }),
       ]);
 
       setRequisitions(list.data);
@@ -105,7 +202,7 @@ export function RequisitionPage() {
         criticalRequests:
           apiStats.criticalRequests ?? apiStats.delayedRequests?.value ?? 0,
         awaitingAllocation: apiStats.awaitingAllocation ?? 0,
-        todaysRequests: list.meta.total,
+        todaysRequests: todayList.meta.total,
         total: list.meta.total,
         totalPages: list.meta.totalPages,
       });
@@ -114,7 +211,7 @@ export function RequisitionPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [activeChip, advancedFilters.search, currentPage]);
+  }, [activeChip, advancedFilters, currentPage]);
 
   useEffect(() => {
     void loadRequisitions();
@@ -223,31 +320,34 @@ export function RequisitionPage() {
   }, []);
 
   const handleApprove = useCallback(
-    async (remarks: string) => {
+    async (
+      remarks: string,
+      items: Array<{ itemId: string; approvedQty: number }>,
+    ) => {
       if (!selectedRequisition) return;
 
       setIsSubmitting(true);
 
       try {
-        const detail = await adminRequisitionsService.getById(
-          selectedRequisition.id,
-        );
-        const materials =
-          (detail.materials as Array<{
-            id: string;
-            requestedQty: number;
-          }>) ?? [];
-
-        await adminRequisitionsService.approve(selectedRequisition.id, {
-          items: materials.map((material) => ({
+        let approveItems = items;
+        if (approveItems.length === 0) {
+          const detail = await adminRequisitionsService.getById(
+            selectedRequisition.id,
+          );
+          approveItems = (detail.materials ?? []).map((material) => ({
             itemId: material.id,
             approvedQty: material.requestedQty,
-          })),
+          }));
+        }
+
+        await adminRequisitionsService.approve(selectedRequisition.id, {
+          items: approveItems,
           comment: remarks || undefined,
         });
 
         setIsDetailDrawerOpen(false);
         setSelectedRequisition(null);
+        invalidatePendingRequisitionCount();
         notify.success("Requisition Approved Successfully.");
         await loadRequisitions();
       } catch {
@@ -276,6 +376,7 @@ export function RequisitionPage() {
 
         setIsDetailDrawerOpen(false);
         setSelectedRequisition(null);
+        invalidatePendingRequisitionCount();
         notify.success("Requisition Rejected Successfully.");
         await loadRequisitions();
       } catch {
@@ -290,9 +391,65 @@ export function RequisitionPage() {
     [selectedRequisition, loadRequisitions],
   );
 
+  const handleDispatch = useCallback(async () => {
+    if (!selectedRequisition) return;
+
+    setIsSubmitting(true);
+    try {
+      await adminRequisitionsService.dispatch(selectedRequisition.id, {});
+      setIsDetailDrawerOpen(false);
+      setSelectedRequisition(null);
+      notify.success("Requisition Dispatched Successfully.");
+      await loadRequisitions();
+    } catch {
+      notify.error(
+        "Dispatch failed",
+        "Unable to dispatch the requisition. Please try again.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [selectedRequisition, loadRequisitions]);
+
   const handleExport = useCallback(() => {
-    // TODO: Connect to requisition export API
-  }, []);
+    if (requisitions.length === 0) {
+      notify.info("Nothing to export", "No requisitions match the current view.");
+      return;
+    }
+
+    const header = [
+      "Request ID",
+      "Hub",
+      "Material",
+      "Requested Qty",
+      "Unit",
+      "Priority",
+      "Status",
+      "Requested On",
+      "Requested By",
+    ];
+    const rows = requisitions.map((item) =>
+      [
+        item.requestId,
+        item.hubName,
+        item.material,
+        String(item.requestedQty),
+        item.unit,
+        item.priority,
+        item.status,
+        item.createdAt,
+        item.requestedBy.name,
+      ]
+        .map((value) => `"${String(value).replaceAll('"', '""')}"`)
+        .join(","),
+    );
+
+    downloadCsv(
+      `requisitions-page-${currentPage}.csv`,
+      [header.join(","), ...rows].join("\n"),
+    );
+    notify.success("Export ready", "Visible requisitions downloaded as CSV.");
+  }, [requisitions, currentPage]);
 
   const drawerRequisition = useMemo(() => {
     if (!selectedRequisition) return null;
@@ -347,6 +504,7 @@ export function RequisitionPage() {
         initialAction={drawerInitialAction}
         onApprove={handleApprove}
         onReject={handleReject}
+        onDispatch={handleDispatch}
       />
 
       <p className="pt-2 text-center text-xs text-gray-400">

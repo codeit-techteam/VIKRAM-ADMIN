@@ -108,6 +108,7 @@ function PaymentStatusBadge({ status }: { status?: string | null }) {
   const key = status.toUpperCase();
   const styles: Record<string, string> = {
     PAID: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+    COLLECTED: "bg-emerald-50 text-emerald-700 ring-emerald-100",
     PENDING: "bg-amber-50 text-amber-700 ring-amber-100",
     FAILED: "bg-red-50 text-red-700 ring-red-100",
     REFUNDED: "bg-slate-100 text-slate-700 ring-slate-200",

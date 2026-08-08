@@ -69,8 +69,6 @@ export function DriverDetailDrawer({
     { label: "Driving License", doc: driver.documents?.drivingLicense },
     { label: "Aadhaar", doc: driver.documents?.aadhaar },
     { label: "PAN", doc: driver.documents?.pan },
-    { label: "Police Verification", doc: driver.documents?.policeVerification },
-    { label: "Medical Certificate", doc: driver.documents?.medicalCertificate },
   ].filter((d) => d.doc);
 
   return (

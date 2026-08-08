@@ -72,8 +72,6 @@ export interface FleetDriverDocuments {
   drivingLicense?: FleetDocumentMeta | null;
   aadhaar?: FleetDocumentMeta | null;
   pan?: FleetDocumentMeta | null;
-  policeVerification?: FleetDocumentMeta | null;
-  medicalCertificate?: FleetDocumentMeta | null;
   profilePhoto?: FleetDocumentMeta | null;
 }
 
@@ -115,7 +113,6 @@ export interface LogisticsVehicle {
   permitType?: string;
   permitExpiry?: string;
   currentOdometer?: number;
-  gpsInstalled?: boolean;
   fastagNumber?: string;
   vehicleColor?: string;
   emergencyContact?: string;
@@ -159,6 +156,9 @@ export interface LogisticsDriver {
   remarks?: string;
   assignedHub: string;
   assignedWarehouse: string;
+  /** Backend hub UUID — preferred for API writes */
+  hubId?: string;
+  warehouseHubId?: string | null;
   assignedVehicleId: string | null;
   assignedVehicleNumber: string | null;
   tripsToday: number;

@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
@@ -30,7 +31,6 @@ import {
   VEHICLE_FORM_STEPS,
   VEHICLE_STATUS_FORM_OPTIONS,
   VEHICLE_TYPE_OPTIONS,
-  WAREHOUSE_HUB_MAP,
 } from "@/features/logistics/constants/fleet-form.constants";
 import { ConfirmDialog } from "@/features/logistics/components/ConfirmDialog";
 import {
@@ -40,17 +40,25 @@ import {
 import { FleetFileUpload } from "@/features/logistics/components/shared/FleetFileUpload";
 import { FleetFormStepIndicator } from "@/features/logistics/components/shared/FleetFormStepIndicator";
 import {
+  useCreateVehicle,
+  useUpdateVehicle,
+} from "@/features/logistics/hooks/use-vehicles";
+import {
   VEHICLE_FORM_DEFAULT_VALUES,
   vehicleFormSchema,
   type VehicleFormSchema,
 } from "@/features/logistics/schema/vehicle-form.schema";
 import {
-  createDocumentMeta,
-  createFleetTimelineEvent,
   formatIndianPhoneInput,
   formatVehicleNumber,
 } from "@/features/logistics/utils/fleet-formatters";
-import { LOGISTICS_WAREHOUSES } from "@/mock/logistics";
+import {
+  mapUiStatusToApi,
+  mapVehicleTypeToApi,
+  parseCapacityTons,
+} from "@/features/logistics/utils/vehicle-api.mapper";
+import { hubsService } from "@/services/hubs.service";
+import { vehiclesService } from "@/services/vehicles.service";
 import { useLogisticsStore } from "@/store/logistics-store";
 import type { LogisticsVehicle } from "@/types/logistics.types";
 import { formatPhone } from "@/utils/format-phone";
@@ -98,7 +106,6 @@ function vehicleToFormValues(vehicle: LogisticsVehicle): VehicleFormSchema {
     permitType: vehicle.permitType ?? "",
     permitExpiry: vehicle.permitExpiry?.slice(0, 10) ?? "",
     currentOdometer: vehicle.currentOdometer,
-    gpsInstalled: vehicle.gpsInstalled ? "yes" : "no",
     fastagNumber: vehicle.fastagNumber ?? "",
     vehicleColor: vehicle.vehicleColor ?? "",
     emergencyContact: vehicle.emergencyContact ?? "",
@@ -111,12 +118,34 @@ export function AddVehicleDialog({
   onOpenChange,
   editVehicle,
 }: AddVehicleDialogProps) {
-  const vehicles = useLogisticsStore((s) => s.vehicles);
   const drivers = useLogisticsStore((s) => s.drivers);
-  const addVehicle = useLogisticsStore((s) => s.addVehicle);
-  const updateVehicle = useLogisticsStore((s) => s.updateVehicle);
-  const reassignVehicleDriver = useLogisticsStore(
-    (s) => s.reassignVehicleDriver,
+  const createVehicle = useCreateVehicle();
+  const updateVehicleMutation = useUpdateVehicle();
+
+  const hubsQuery = useQuery({
+    queryKey: ["admin-hubs-for-vehicle-form"],
+    queryFn: () => hubsService.list({ page: 1, limit: 200 }),
+    enabled: open,
+  });
+  const hubs = hubsQuery.data?.data ?? [];
+  const warehouseHubs = useMemo(
+    () =>
+      hubs.filter((h) =>
+        String(h.hubType ?? "")
+          .toUpperCase()
+          .includes("WAREHOUSE"),
+      ),
+    [hubs],
+  );
+  const deliveryHubs = useMemo(
+    () =>
+      hubs.filter(
+        (h) =>
+          !String(h.hubType ?? "")
+            .toUpperCase()
+            .includes("WAREHOUSE"),
+      ),
+    [hubs],
   );
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -146,13 +175,22 @@ export function AddVehicleDialog({
 
   const assignedWarehouse = watch("assignedWarehouse");
 
+  const warehouseOptions = useMemo(
+    () =>
+      (warehouseHubs.length ? warehouseHubs : hubs).map((w) => ({
+        value: w.id,
+        label: w.name,
+      })),
+    [warehouseHubs, hubs],
+  );
+
   const hubOptions = useMemo(
     () =>
-      (WAREHOUSE_HUB_MAP[assignedWarehouse] ?? []).map((hub) => ({
-        value: hub,
-        label: hub,
+      (deliveryHubs.length ? deliveryHubs : hubs).map((hub) => ({
+        value: hub.id,
+        label: hub.name,
       })),
-    [assignedWarehouse],
+    [deliveryHubs, hubs],
   );
 
   const driverOptions = useMemo(
@@ -167,27 +205,39 @@ export function AddVehicleDialog({
   useEffect(() => {
     if (!open) return;
     if (editVehicle) {
-      reset(vehicleToFormValues(editVehicle));
-    } else {
+      const warehouseMatch =
+        hubs.find((h) => h.name === editVehicle.assignedWarehouse)?.id ??
+        editVehicle.assignedWarehouse;
+      const hubMatch =
+        hubs.find((h) => h.name === editVehicle.assignedHub)?.id ??
+        editVehicle.assignedHub;
+      reset({
+        ...vehicleToFormValues(editVehicle),
+        assignedWarehouse: warehouseMatch,
+        assignedHub: hubMatch,
+      });
+    } else if (warehouseOptions.length || hubOptions.length) {
       reset({
         ...VEHICLE_FORM_DEFAULT_VALUES,
-        assignedWarehouse: LOGISTICS_WAREHOUSES[0] ?? "",
-        assignedHub:
-          WAREHOUSE_HUB_MAP[LOGISTICS_WAREHOUSES[0] ?? ""]?.[0] ?? "",
+        assignedWarehouse: warehouseOptions[0]?.value ?? "",
+        assignedHub: hubOptions[0]?.value ?? "",
       });
     }
     setActiveStep(1);
     setDocFiles({ rc: null, insurance: null, fitness: null });
-  }, [open, editVehicle, reset]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editVehicle, hubs.length]);
 
   useEffect(() => {
     if (!assignedWarehouse) return;
-    const hubs = WAREHOUSE_HUB_MAP[assignedWarehouse] ?? [];
     const currentHub = watch("assignedHub");
-    if (hubs.length > 0 && !hubs.includes(currentHub)) {
-      setValue("assignedHub", hubs[0]!);
+    if (
+      hubOptions.length > 0 &&
+      !hubOptions.some((h) => h.value === currentHub)
+    ) {
+      setValue("assignedHub", hubOptions[0]!.value);
     }
-  }, [assignedWarehouse, setValue, watch]);
+  }, [assignedWarehouse, setValue, watch, hubOptions]);
 
   const handleScroll = () => {
     const container = scrollRef.current;
@@ -205,92 +255,105 @@ export function AddVehicleDialog({
     }
   };
 
-  const persistVehicle = (data: VehicleFormSchema, reassign = false) => {
-    const selectedDriver = data.assignedDriverId
-      ? drivers.find((d) => d.id === data.assignedDriverId)
-      : null;
+  const persistVehicle = async (data: VehicleFormSchema) => {
+    setIsSaving(true);
+    try {
+      const hubId = data.assignedHub;
+      if (!hubId) {
+        notify.error("Hub is required");
+        return;
+      }
 
-    const vehicleData: LogisticsVehicle = {
-      id: editVehicle?.id ?? `lv-${Date.now()}`,
-      vehicleNumber: data.vehicleNumber,
-      vehicleType: data.vehicleType,
-      capacityKg: data.payloadKg,
-      capacityLabel: data.capacityLabel,
-      assignedWarehouse: data.assignedWarehouse,
-      assignedHub: data.assignedHub,
-      assignedDriverId: data.assignedDriverId || null,
-      assignedDriverName: selectedDriver?.name ?? null,
-      currentShipmentId: editVehicle?.currentShipmentId ?? null,
-      fuelType: data.fuelType,
-      manufacturer: data.manufacturer,
-      model: data.model,
-      yearOfManufacture: data.yearOfManufacture,
-      registrationDate: data.registrationDate ?? "",
-      insuranceExpiry: data.insuranceExpiry,
-      fitnessExpiry: data.fitnessExpiry,
-      pollutionExpiry: data.pollutionExpiry,
-      permitType: data.permitType,
-      permitExpiry: data.permitExpiry,
-      currentOdometer: data.currentOdometer,
-      gpsInstalled: data.gpsInstalled === "yes",
-      fastagNumber: data.fastagNumber,
-      vehicleColor: data.vehicleColor,
-      emergencyContact: data.emergencyContact
-        ? formatPhone(data.emergencyContact.replace(/\D/g, "").slice(-10))
-        : undefined,
-      remarks: data.remarks,
-      lastMaintenanceDate: editVehicle?.lastMaintenanceDate,
-      photoUrl: editVehicle?.photoUrl ?? null,
-      documents: {
-        rc: docFiles.rc
-          ? createDocumentMeta(docFiles.rc)
-          : editVehicle?.documents?.rc,
-        insurance: docFiles.insurance
-          ? createDocumentMeta(docFiles.insurance)
-          : editVehicle?.documents?.insurance,
-        fitness: docFiles.fitness
-          ? createDocumentMeta(docFiles.fitness)
-          : editVehicle?.documents?.fitness,
-      },
-      timeline: editVehicle?.timeline ?? [
-        createFleetTimelineEvent(
-          "Vehicle registered in fleet",
-          `Added to ${data.assignedWarehouse}`,
-          "success",
-        ),
-      ],
-      status: data.status,
-    };
+      const payload = {
+        registration: data.vehicleNumber.toUpperCase(),
+        hubId,
+        warehouseHubId: data.assignedWarehouse || null,
+        capacity: parseCapacityTons(data.capacityLabel, data.payloadKg),
+        payloadKg: data.payloadKg,
+        vehicleType: mapVehicleTypeToApi(data.vehicleType),
+        vehicleCategory: data.vehicleType,
+        fuelType: data.fuelType,
+        manufacturer: data.manufacturer || undefined,
+        model: data.model || undefined,
+        manufactureYear: data.yearOfManufacture,
+        vehicleColor: data.vehicleColor || undefined,
+        fastagNumber: data.fastagNumber || undefined,
+        odometerKm: data.currentOdometer,
+        emergencyContact: data.emergencyContact
+          ? formatPhone(data.emergencyContact.replace(/\D/g, "").slice(-10))
+          : undefined,
+        remarks: data.remarks || undefined,
+        registrationDate: data.registrationDate || undefined,
+        insuranceExpiry: data.insuranceExpiry,
+        fitnessExpiry: data.fitnessExpiry,
+        pucExpiry: data.pollutionExpiry || undefined,
+        permitType: data.permitType || undefined,
+        permitExpiry: data.permitExpiry || undefined,
+        status: mapUiStatusToApi(data.status),
+        assignedDriverId: data.assignedDriverId || null,
+      };
 
-    if (editVehicle) {
-      updateVehicle(editVehicle.id, vehicleData);
-      notify.success("Changes Saved", "Vehicle updated successfully.");
-    } else {
-      addVehicle(vehicleData);
-      notify.success("Vehicle Added Successfully");
+      let vehicleId = editVehicle?.id;
+      if (editVehicle) {
+        await updateVehicleMutation.mutateAsync({
+          id: editVehicle.id,
+          payload,
+        });
+        notify.success("Changes Saved", "Vehicle updated successfully.");
+      } else {
+        const created = await createVehicle.mutateAsync(payload);
+        vehicleId = created.id;
+        notify.success("Vehicle Added Successfully");
+      }
+
+      if (vehicleId) {
+        const uploads: Array<Promise<unknown>> = [];
+        if (docFiles.rc) {
+          uploads.push(
+            vehiclesService.uploadDocumentFile(vehicleId, "RC", docFiles.rc),
+          );
+        }
+        if (docFiles.insurance) {
+          uploads.push(
+            vehiclesService.uploadDocumentFile(
+              vehicleId,
+              "INSURANCE",
+              docFiles.insurance,
+              data.insuranceExpiry,
+            ),
+          );
+        }
+        if (docFiles.fitness) {
+          uploads.push(
+            vehiclesService.uploadDocumentFile(
+              vehicleId,
+              "FITNESS",
+              docFiles.fitness,
+              data.fitnessExpiry,
+            ),
+          );
+        }
+        if (uploads.length) await Promise.allSettled(uploads);
+      }
+
+      onOpenChange(false);
+      reset(VEHICLE_FORM_DEFAULT_VALUES);
+    } catch (err: unknown) {
+      const axiosMsg =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { message?: string } } }).response
+              ?.data?.message
+          : undefined;
+      notify.error(
+        "Save failed",
+        axiosMsg || (err instanceof Error ? err.message : "Failed to save vehicle"),
+      );
+    } finally {
+      setIsSaving(false);
     }
-
-    if (data.assignedDriverId && reassign) {
-      reassignVehicleDriver(data.assignedDriverId, vehicleData.id);
-    } else if (data.assignedDriverId) {
-      reassignVehicleDriver(data.assignedDriverId, vehicleData.id);
-    }
-
-    onOpenChange(false);
-    reset(VEHICLE_FORM_DEFAULT_VALUES);
   };
 
   const onSubmit = (data: VehicleFormSchema) => {
-    const duplicate = vehicles.find(
-      (v) =>
-        v.vehicleNumber.toUpperCase() === data.vehicleNumber.toUpperCase() &&
-        v.id !== editVehicle?.id,
-    );
-    if (duplicate) {
-      notify.error("Vehicle number already exists");
-      return;
-    }
-
     if (data.assignedDriverId) {
       const driver = drivers.find((d) => d.id === data.assignedDriverId);
       if (
@@ -305,42 +368,7 @@ export function AddVehicleDialog({
         return;
       }
     }
-
-    if (
-      editVehicle?.assignedDriverId &&
-      data.assignedDriverId !== editVehicle.assignedDriverId
-    ) {
-      const currentVehicle = vehicles.find((v) => v.id === editVehicle.id);
-      if (
-        currentVehicle?.assignedDriverId &&
-        data.assignedDriverId &&
-        currentVehicle.assignedDriverId !== data.assignedDriverId
-      ) {
-        // handled above via driver check
-      }
-    }
-
-    const vehicleWithDriver = vehicles.find(
-      (v) =>
-        v.assignedDriverId === data.assignedDriverId &&
-        v.id !== editVehicle?.id &&
-        data.assignedDriverId,
-    );
-    if (vehicleWithDriver && data.assignedDriverId) {
-      const driver = drivers.find((d) => d.id === data.assignedDriverId);
-      setReassignWarning({
-        type: "vehicle",
-        message: `Vehicle currently assigned to ${driver?.name ?? "another driver"}. Reassign vehicle?`,
-        pendingData: data,
-      });
-      return;
-    }
-
-    setIsSaving(true);
-    setTimeout(() => {
-      persistVehicle(data, true);
-      setIsSaving(false);
-    }, 400);
+    void persistVehicle(data);
   };
 
   const handleClose = (nextOpen: boolean) => {
@@ -570,10 +598,7 @@ export function AddVehicleDialog({
                       control={control}
                       render={({ field }) => (
                         <Combobox
-                          options={LOGISTICS_WAREHOUSES.map((w) => ({
-                            value: w,
-                            label: w,
-                          }))}
+                          options={warehouseOptions}
                           value={field.value}
                           onValueChange={field.onChange}
                           placeholder="Select warehouse"
@@ -791,27 +816,6 @@ export function AddVehicleDialog({
                     />
                   </FleetFormField>
 
-                  <FleetFormField label="GPS Installed">
-                    <Controller
-                      name="gpsInstalled"
-                      control={control}
-                      render={({ field }) => (
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="yes">Yes</SelectItem>
-                            <SelectItem value="no">No</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                  </FleetFormField>
-
                   <FleetFormField label="Fastag Number">
                     <Controller
                       name="fastagNumber"
@@ -895,7 +899,7 @@ export function AddVehicleDialog({
         confirmLabel="Reassign"
         onConfirm={() => {
           if (reassignWarning) {
-            persistVehicle(reassignWarning.pendingData, true);
+            void persistVehicle(reassignWarning.pendingData);
             setReassignWarning(null);
           }
         }}

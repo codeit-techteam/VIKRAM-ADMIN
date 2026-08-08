@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -21,20 +22,26 @@ import { ROUTES } from "@/constants/routes";
 import { AddDriverDialog } from "@/features/logistics/components/AddDriverDialog";
 import { ConfirmDialog } from "@/features/logistics/components/ConfirmDialog";
 import { DriverDetailDrawer } from "@/features/logistics/components/DriverDetailDrawer";
+import {
+  useDeleteDriver,
+  useDriverStats,
+  useDrivers,
+} from "@/features/logistics/hooks/use-drivers";
+import { mapUiStatusFilterToApi } from "@/features/logistics/utils/driver-api.mapper";
 import { DriverFiltersBar } from "@/features/user-management/components/drivers/DriverFiltersBar";
 import { DriverTable } from "@/features/user-management/components/drivers/DriverTable";
 import { UserManagementTabs } from "@/features/user-management/components/UserManagementTabs";
-import {
-  EMPTY_DRIVER_FILTERS,
-  getDriverStats,
-  LOGISTICS_HUBS,
-  queryDrivers,
-} from "@/mock/logistics";
-import { useLogisticsStore } from "@/store/logistics-store";
+import { hubsService } from "@/services/hubs.service";
 import type { DriverFilters, LogisticsDriver } from "@/types/logistics.types";
 import { notify } from "@/utils/notify";
 
 const DRIVER_PAGE_SIZE = 10;
+
+const EMPTY_DRIVER_FILTERS: DriverFilters = {
+  search: "",
+  status: "all",
+  hub: "all",
+};
 
 type DriverStatKey = "total" | "available" | "onTrip" | "onLeave" | "inactive";
 
@@ -57,10 +64,7 @@ function getActiveStatKey(filters: DriverFilters): DriverStatKey | null {
 
 export function DriversPageContent() {
   const searchParams = useSearchParams();
-  const drivers = useLogisticsStore((state) => state.drivers);
-  const deleteDriver = useLogisticsStore((state) => state.deleteDriver);
 
-  const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [draftFilters, setDraftFilters] =
     useState<DriverFilters>(EMPTY_DRIVER_FILTERS);
@@ -75,10 +79,69 @@ export function DriversPageContent() {
     null,
   );
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 450);
-    return () => window.clearTimeout(timer);
-  }, []);
+  const hubsQuery = useQuery({
+    queryKey: ["admin-hubs-for-user-mgmt-drivers"],
+    queryFn: () => hubsService.list({ page: 1, limit: 200 }),
+  });
+
+  const hubs = hubsQuery.data?.data ?? [];
+  const deliveryHubs = useMemo(
+    () =>
+      hubs.filter(
+        (h) =>
+          !String(h.hubType ?? "")
+            .toUpperCase()
+            .includes("WAREHOUSE"),
+      ),
+    [hubs],
+  );
+
+  const selectedHubId = useMemo(() => {
+    if (appliedFilters.hub === "all") return undefined;
+    return deliveryHubs.find(
+      (h) => h.name === appliedFilters.hub || h.id === appliedFilters.hub,
+    )?.id;
+  }, [appliedFilters.hub, deliveryHubs]);
+
+  const listParams = useMemo(
+    () => ({
+      page: currentPage,
+      limit: DRIVER_PAGE_SIZE,
+      search: appliedFilters.search || undefined,
+      status: mapUiStatusFilterToApi(appliedFilters.status),
+      hubId: selectedHubId,
+      includeInactive: true,
+    }),
+    [
+      currentPage,
+      appliedFilters.search,
+      appliedFilters.status,
+      selectedHubId,
+    ],
+  );
+
+  const driversQuery = useDrivers(listParams);
+  const statsQuery = useDriverStats(
+    selectedHubId ? { hubId: selectedHubId } : undefined,
+  );
+  const deleteMutation = useDeleteDriver();
+
+  const drivers = driversQuery.data?.drivers ?? [];
+  const meta = driversQuery.data?.meta ?? {
+    page: 1,
+    limit: DRIVER_PAGE_SIZE,
+    total: 0,
+    totalPages: 1,
+  };
+  const isLoading = driversQuery.isLoading || statsQuery.isLoading;
+
+  const stats = statsQuery.data ?? {
+    total: 0,
+    available: 0,
+    onTrip: 0,
+    onLeave: 0,
+    inactive: 0,
+  };
 
   useEffect(() => {
     const statusParam = searchParams.get("status");
@@ -102,16 +165,13 @@ export function DriversPageContent() {
     }
   }, [searchParams, drivers]);
 
-  const stats = useMemo(() => getDriverStats(drivers), [drivers]);
-
-  const queryResult = useMemo(
-    () => queryDrivers(drivers, currentPage, DRIVER_PAGE_SIZE, appliedFilters),
-    [drivers, currentPage, appliedFilters],
-  );
-
   const hubOptions = useMemo(
-    () => LOGISTICS_HUBS.map((hub) => ({ value: hub, label: hub })),
-    [],
+    () =>
+      deliveryHubs.map((hub) => ({
+        value: hub.name,
+        label: hub.name,
+      })),
+    [deliveryHubs],
   );
 
   const activeStatKey = getActiveStatKey(appliedFilters);
@@ -148,6 +208,24 @@ export function DriversPageContent() {
 
   const handleExport = () => {
     notify.success("Export started", "Driver list exported as CSV.");
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!deleteTarget) return;
+    deleteMutation.mutate(deleteTarget.id, {
+      onSuccess: () => {
+        notify.success("Driver Deleted");
+        setDeleteTarget(null);
+      },
+      onError: (err: unknown) => {
+        const message =
+          err && typeof err === "object" && "response" in err
+            ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              ((err as any).response?.data?.message as string)
+            : undefined;
+        notify.error(message || "Failed to delete driver");
+      },
+    });
   };
 
   return (
@@ -256,7 +334,7 @@ export function DriversPageContent() {
         />
 
         <DriverTable
-          drivers={queryResult.data}
+          drivers={drivers}
           isLoading={isLoading}
           onView={setDetailDriver}
           onEdit={(driver) => {
@@ -278,12 +356,12 @@ export function DriversPageContent() {
           onDelete={setDeleteTarget}
         />
 
-        {!isLoading && queryResult.meta.total > 0 ? (
+        {!isLoading && meta.total > 0 ? (
           <Pagination
-            currentPage={queryResult.meta.page}
-            totalPages={queryResult.meta.totalPages}
-            pageSize={queryResult.meta.limit}
-            totalItems={queryResult.meta.total}
+            currentPage={meta.page}
+            totalPages={meta.totalPages}
+            pageSize={meta.limit}
+            totalItems={meta.total}
             onPageChange={setCurrentPage}
             itemLabel="drivers"
           />
@@ -316,13 +394,7 @@ export function DriversPageContent() {
         description={`Are you sure you want to delete ${deleteTarget?.name}?`}
         confirmLabel="Delete"
         variant="destructive"
-        onConfirm={() => {
-          if (deleteTarget) {
-            deleteDriver(deleteTarget.id);
-            notify.success("Driver Deleted");
-            setDeleteTarget(null);
-          }
-        }}
+        onConfirm={handleDeleteConfirm}
       />
     </div>
   );

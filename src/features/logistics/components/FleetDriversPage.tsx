@@ -3,6 +3,7 @@
 import { MoreVertical, Plus, User, Users } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Pagination } from "@/components/shared/Pagination";
@@ -35,25 +36,26 @@ import {
   type LogisticsMetricCardData,
 } from "@/features/logistics/components/LogisticsMetricCard";
 import { LogisticsStatusBadge } from "@/features/logistics/components/LogisticsStatusBadge";
-import { useLogisticsLoading } from "@/features/logistics/hooks/use-logistics-loading";
 import {
-  EMPTY_DRIVER_FILTERS,
-  getDriverStats,
-  LOGISTICS_HUBS,
-  LOGISTICS_PAGE_SIZE,
-  queryDrivers,
-} from "@/mock/logistics";
-import { useLogisticsStore } from "@/store/logistics-store";
+  useDeleteDriver,
+  useDriverStats,
+  useDrivers,
+} from "@/features/logistics/hooks/use-drivers";
+import { mapUiStatusFilterToApi } from "@/features/logistics/utils/driver-api.mapper";
+import { LOGISTICS_PAGE_SIZE } from "@/mock/logistics";
+import { hubsService } from "@/services/hubs.service";
 import type { LogisticsDriver, DriverFilters } from "@/types/logistics.types";
 import { notify } from "@/utils/notify";
 
+const EMPTY_FILTERS: DriverFilters = {
+  search: "",
+  status: "all",
+  hub: "all",
+};
+
 export function FleetDriversPage() {
   const searchParams = useSearchParams();
-  const { isLoading } = useLogisticsLoading();
-  const drivers = useLogisticsStore((s) => s.drivers);
-  const deleteDriver = useLogisticsStore((s) => s.deleteDriver);
-
-  const [filters, setFilters] = useState<DriverFilters>(EMPTY_DRIVER_FILTERS);
+  const [filters, setFilters] = useState<DriverFilters>(EMPTY_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDriver, setEditDriver] = useState<LogisticsDriver | null>(null);
@@ -63,6 +65,56 @@ export function FleetDriversPage() {
   const [detailDriver, setDetailDriver] = useState<LogisticsDriver | null>(
     null,
   );
+
+  const hubsQuery = useQuery({
+    queryKey: ["admin-hubs-for-fleet-drivers"],
+    queryFn: () => hubsService.list({ page: 1, limit: 200 }),
+  });
+
+  const hubs = hubsQuery.data?.data ?? [];
+  const deliveryHubs = useMemo(
+    () =>
+      hubs.filter(
+        (h) =>
+          !String(h.hubType ?? "")
+            .toUpperCase()
+            .includes("WAREHOUSE"),
+      ),
+    [hubs],
+  );
+
+  const selectedHubId = useMemo(() => {
+    if (filters.hub === "all") return undefined;
+    return deliveryHubs.find((h) => h.name === filters.hub || h.id === filters.hub)
+      ?.id;
+  }, [filters.hub, deliveryHubs]);
+
+  const listParams = useMemo(
+    () => ({
+      page: currentPage,
+      limit: LOGISTICS_PAGE_SIZE,
+      search: filters.search || undefined,
+      status: mapUiStatusFilterToApi(filters.status),
+      hubId: selectedHubId,
+      includeInactive: true,
+    }),
+    [currentPage, filters.search, filters.status, selectedHubId],
+  );
+
+  const driversQuery = useDrivers(listParams);
+  const statsQuery = useDriverStats(
+    selectedHubId ? { hubId: selectedHubId } : undefined,
+  );
+  const deleteMutation = useDeleteDriver();
+
+  const drivers = driversQuery.data?.drivers ?? [];
+  const meta = driversQuery.data?.meta ?? {
+    page: 1,
+    limit: LOGISTICS_PAGE_SIZE,
+    total: 0,
+    totalPages: 1,
+  };
+  const isLoading = driversQuery.isLoading || statsQuery.isLoading;
 
   useEffect(() => {
     const idParam = searchParams.get("id");
@@ -74,7 +126,13 @@ export function FleetDriversPage() {
     }
   }, [searchParams, drivers]);
 
-  const stats = useMemo(() => getDriverStats(drivers), [drivers]);
+  const stats = statsQuery.data ?? {
+    total: 0,
+    available: 0,
+    onTrip: 0,
+    onLeave: 0,
+    inactive: 0,
+  };
 
   const kpiCards = useMemo<LogisticsMetricCardData[]>(
     () => [
@@ -102,20 +160,18 @@ export function FleetDriversPage() {
     [stats],
   );
 
-  const queryResult = useMemo(
-    () => queryDrivers(drivers, currentPage, LOGISTICS_PAGE_SIZE, filters),
-    [drivers, currentPage, filters],
-  );
-
   const filterConfigs = [
     {
       label: "Status",
       value: filters.status,
-      onChange: (v: string) => setFilters((f) => ({ ...f, status: v })),
+      onChange: (v: string) => {
+        setFilters((f) => ({ ...f, status: v }));
+        setCurrentPage(1);
+      },
       options: [
         { value: "all", label: "All Statuses" },
         { value: "available", label: "Available" },
-        { value: "driving", label: "Driving" },
+        { value: "driving", label: "On Trip" },
         { value: "on_leave", label: "On Leave" },
         { value: "inactive", label: "Inactive" },
       ],
@@ -123,10 +179,13 @@ export function FleetDriversPage() {
     {
       label: "Hub",
       value: filters.hub,
-      onChange: (v: string) => setFilters((f) => ({ ...f, hub: v })),
+      onChange: (v: string) => {
+        setFilters((f) => ({ ...f, hub: v }));
+        setCurrentPage(1);
+      },
       options: [
         { value: "all", label: "All Hubs" },
-        ...LOGISTICS_HUBS.map((h) => ({ value: h, label: h })),
+        ...deliveryHubs.map((h) => ({ value: h.name, label: h.name })),
       ],
     },
   ];
@@ -171,7 +230,7 @@ export function FleetDriversPage() {
         }}
         filters={filterConfigs}
         onReset={() => {
-          setFilters(EMPTY_DRIVER_FILTERS);
+          setFilters(EMPTY_FILTERS);
           setCurrentPage(1);
         }}
       />
@@ -183,7 +242,7 @@ export function FleetDriversPage() {
               <div key={i} className="h-12 animate-pulse rounded bg-gray-100" />
             ))}
           </div>
-        ) : queryResult.data.length === 0 ? (
+        ) : drivers.length === 0 ? (
           <div className="p-6">
             <EmptyState
               title="No Drivers Available"
@@ -229,7 +288,7 @@ export function FleetDriversPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {queryResult.data.map((driver) => (
+                {drivers.map((driver) => (
                   <TableRow
                     key={driver.id}
                     className="cursor-pointer hover:bg-gray-50/50"
@@ -288,32 +347,6 @@ export function FleetDriversPage() {
                           >
                             View Profile
                           </DropdownMenuItem>
-                          {driver.status === "available" ? (
-                            <DropdownMenuItem
-                              onClick={() =>
-                                notify.success(
-                                  driver.assignedVehicleId
-                                    ? "Vehicle Reassigned"
-                                    : "Vehicle Assigned",
-                                  `Vehicle assignment initiated for ${driver.name}.`,
-                                )
-                              }
-                            >
-                              {driver.assignedVehicleId
-                                ? "Reassign Vehicle"
-                                : "Assign Vehicle"}
-                            </DropdownMenuItem>
-                          ) : null}
-                          <DropdownMenuItem
-                            onClick={() =>
-                              notify.success(
-                                "Hub Transfer Initiated",
-                                `${driver.name} transfer scheduled.`,
-                              )
-                            }
-                          >
-                            Transfer Hub
-                          </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => {
                               setEditDriver(driver);
@@ -327,7 +360,7 @@ export function FleetDriversPage() {
                             className="text-red-600"
                             onClick={() => setDeleteTarget(driver)}
                           >
-                            Delete
+                            Deactivate
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -339,12 +372,12 @@ export function FleetDriversPage() {
           </div>
         )}
 
-        {!isLoading && queryResult.meta.total > 0 ? (
+        {!isLoading && meta.total > 0 ? (
           <Pagination
             currentPage={currentPage}
-            totalPages={queryResult.meta.totalPages}
+            totalPages={meta.totalPages}
             pageSize={LOGISTICS_PAGE_SIZE}
-            totalItems={queryResult.meta.total}
+            totalItems={meta.total}
             onPageChange={setCurrentPage}
             itemLabel="drivers"
           />
@@ -364,15 +397,26 @@ export function FleetDriversPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-        title="Delete Driver"
-        description={`Are you sure you want to delete ${deleteTarget?.name}?`}
-        confirmLabel="Delete"
+        title="Deactivate Driver"
+        description={`Are you sure you want to deactivate ${deleteTarget?.name}? Historical orders will be preserved.`}
+        confirmLabel="Deactivate"
         variant="destructive"
         onConfirm={() => {
-          if (deleteTarget) {
-            deleteDriver(deleteTarget.id);
-            notify.success("Driver Deleted");
-          }
+          if (!deleteTarget) return;
+          deleteMutation.mutate(deleteTarget.id, {
+            onSuccess: () => {
+              notify.success("Driver Deactivated");
+              setDeleteTarget(null);
+            },
+            onError: (err: unknown) => {
+              const message =
+                err && typeof err === "object" && "response" in err
+                  ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    ((err as any).response?.data?.message as string)
+                  : undefined;
+              notify.error(message || "Failed to deactivate driver");
+            },
+          });
         }}
       />
     </div>

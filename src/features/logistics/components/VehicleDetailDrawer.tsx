@@ -159,12 +159,6 @@ export function VehicleDetailDrawer({
                   value={`${vehicle.currentOdometer.toLocaleString("en-IN")} KM`}
                 />
               ) : null}
-              {vehicle.gpsInstalled !== undefined ? (
-                <DetailRow
-                  label="GPS"
-                  value={vehicle.gpsInstalled ? "Installed" : "Not installed"}
-                />
-              ) : null}
             </div>
           </div>
 

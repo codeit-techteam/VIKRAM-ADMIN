@@ -115,7 +115,10 @@ export function CeOrderDetailSheet({
   const vehicleNumber = liveOrder.vehicleNumber || vehicle?.registration;
   const paymentStatus = paymentStatusDisplay(liveOrder);
   const paymentTone =
-    liveOrder.paymentStatus === "PAID" ? "text-emerald-600" : "text-amber-600";
+    liveOrder.paymentStatus === "PAID" ||
+    liveOrder.paymentStatus === "COLLECTED"
+      ? "text-emerald-600"
+      : "text-amber-600";
 
   const handleDownloadInvoice = async () => {
     setDownloadingInvoice(true);

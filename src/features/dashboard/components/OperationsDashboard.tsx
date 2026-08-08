@@ -24,6 +24,7 @@ import type {
   RecentOrder,
   StatCardData,
 } from "@/features/dashboard/types/dashboard.types";
+import { mapDashboardPaymentStatus } from "@/features/dashboard/types/dashboard.types";
 import type { ExecutiveDashboardData } from "@/mock/executive-dashboard";
 import { NAV_FILTER_PRESETS } from "@/constants/navigation-filters";
 import { ROUTES } from "@/constants/routes";
@@ -222,10 +223,7 @@ function buildLiveDashboard(
       customer: order.customer?.fullName || "Customer",
       source: "App",
       assignedHub: order.hub?.name ?? "Unassigned",
-      paymentStatus:
-        (order.paymentStatus || "").toUpperCase() === "PAID"
-          ? "PAID"
-          : "PENDING",
+      paymentStatus: mapDashboardPaymentStatus(order.paymentStatus),
       status: mapBackendStatus(order.orderStatus),
       href: NAV_FILTER_PRESETS.orderDetail(order.id),
       recordId: order.id,

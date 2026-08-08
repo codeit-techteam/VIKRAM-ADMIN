@@ -130,7 +130,9 @@ export function HubOrdersTable({
                   {order.paymentStatus ? (
                     <span
                       className={
-                        order.paymentStatus.toUpperCase() === "PAID"
+                        ["PAID", "COLLECTED"].includes(
+                          order.paymentStatus.toUpperCase(),
+                        )
                           ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
                           : order.paymentStatus.toUpperCase() === "PENDING"
                             ? "inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"

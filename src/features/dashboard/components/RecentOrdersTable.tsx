@@ -119,6 +119,8 @@ export function RecentOrdersTable({
         header: "Payment",
         cell: (info) => {
           const status = info.getValue();
+          const isSettled = status === "PAID" || status === "COLLECTED";
+          const isFailed = status === "FAILED";
           const filterHref =
             status === "PENDING"
               ? NAV_FILTER_PRESETS.paymentsPending()
@@ -128,7 +130,13 @@ export function RecentOrdersTable({
             <span
               className={cn(
                 "text-xs font-semibold tracking-wide uppercase",
-                status === "PAID" ? "text-green-600" : "text-red-600",
+                isSettled
+                  ? "text-green-600"
+                  : isFailed
+                    ? "text-red-600"
+                    : status === "REFUNDED"
+                      ? "text-slate-600"
+                      : "text-red-600",
                 filterHref && "hover:underline",
               )}
             >

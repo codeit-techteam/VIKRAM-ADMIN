@@ -43,7 +43,6 @@ export const vehicleFormSchema = z.object({
   permitType: z.string().optional(),
   permitExpiry: z.string().optional(),
   currentOdometer: z.number().nonnegative().optional(),
-  gpsInstalled: z.enum(["yes", "no"]),
   fastagNumber: z.string().optional(),
   vehicleColor: z.string().optional(),
   emergencyContact: z
@@ -80,7 +79,6 @@ export const VEHICLE_FORM_DEFAULT_VALUES: VehicleFormSchema = {
   permitType: "",
   permitExpiry: "",
   currentOdometer: undefined,
-  gpsInstalled: "no",
   fastagNumber: "",
   vehicleColor: "",
   emergencyContact: "",

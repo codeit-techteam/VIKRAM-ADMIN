@@ -181,6 +181,31 @@ export const API_ENDPOINTS = {
     BASE: "/logistics",
     BY_ID: (id: string) => `/logistics/${id}`,
   },
+  ADMIN_VEHICLES: {
+    BASE: "/admin/vehicles",
+    STATS: "/admin/vehicles/stats",
+    BY_ID: (id: string) => `/admin/vehicles/${id}`,
+    ASSIGNMENT: (id: string) => `/admin/vehicles/${id}/assignment`,
+    DRIVER: (id: string) => `/admin/vehicles/${id}/driver`,
+    STATUS: (id: string) => `/admin/vehicles/${id}/status`,
+    DISPATCH_HISTORY: (id: string) => `/admin/vehicles/${id}/dispatch-history`,
+    DOCUMENTS: (id: string) => `/admin/vehicles/${id}/documents`,
+    DOCUMENT_UPLOAD_URL: (id: string) =>
+      `/admin/vehicles/${id}/documents/upload-url`,
+    DOCUMENT_BY_ID: (id: string, documentId: string) =>
+      `/admin/vehicles/${id}/documents/${documentId}`,
+  },
+  ADMIN_DRIVERS: {
+    BASE: "/admin/drivers",
+    STATS: "/admin/drivers/stats",
+    BY_ID: (id: string) => `/admin/drivers/${id}`,
+    VEHICLE: (id: string) => `/admin/drivers/${id}/vehicle`,
+    DOCUMENTS: (id: string) => `/admin/drivers/${id}/documents`,
+    DOCUMENT_UPLOAD_URL: (id: string) =>
+      `/admin/drivers/${id}/documents/upload-url`,
+    DOCUMENT_BY_ID: (id: string, documentId: string) =>
+      `/admin/drivers/${id}/documents/${documentId}`,
+  },
   FINANCE: {
     BASE: "/finance",
     BY_ID: (id: string) => `/finance/${id}`,

@@ -217,7 +217,7 @@ function getOrderRevenueContribution(order: KpiOrderRecord): number {
     return 0;
   }
 
-  if (order.paymentStatus === "PAID") {
+  if (order.paymentStatus === "PAID" || order.paymentStatus === "COLLECTED") {
     return order.amount;
   }
 

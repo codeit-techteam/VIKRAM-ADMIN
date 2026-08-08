@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { HubAssignedVehiclesPanel } from "@/components/sub-hub/HubAssignedVehiclesPanel";
 import { HubActivityTimeline } from "@/components/sub-hub/HubActivityTimeline";
 import { HubInventoryOverviewTable } from "@/components/sub-hub/HubInventoryOverviewTable";
 import { HubManagerCard } from "@/components/sub-hub/HubManagerCard";
@@ -45,11 +46,12 @@ interface HubDetailPageProps {
   initialTab?: string;
 }
 
-type HubPageTab = "overview" | "orders";
+type HubPageTab = "overview" | "orders" | "vehicles";
 
 const HUB_DETAIL_TABS: SubModuleTab[] = [
   { id: "overview", label: "Overview" },
   { id: "orders", label: "Customer Orders" },
+  { id: "vehicles", label: "Vehicles" },
 ];
 
 const fadeUp = {
@@ -65,6 +67,7 @@ function formatStockValue(value: number) {
 function resolvePageTab(initialTab?: string): HubPageTab {
   if (initialTab === "orders" || initialTab === "customer-orders")
     return "orders";
+  if (initialTab === "vehicles" || initialTab === "fleet") return "vehicles";
   return "overview";
 }
 
@@ -371,6 +374,12 @@ export function HubDetailPage({ hubId, initialTab }: HubDetailPageProps) {
             </DashboardCard>
           </motion.div>
         </>
+      ) : activePageTab === "vehicles" ? (
+        <motion.div {...fadeUp}>
+          <DashboardCard title="Assigned Vehicles" contentClassName="mt-5">
+            <HubAssignedVehiclesPanel hubId={hubId} />
+          </DashboardCard>
+        </motion.div>
       ) : (
         <motion.div {...fadeUp}>
           <HubCustomerOrdersPanel

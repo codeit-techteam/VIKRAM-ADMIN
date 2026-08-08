@@ -47,7 +47,25 @@ export interface QuickActionItem {
 
 export type OrderSource = "App" | "Exec";
 
-export type PaymentStatus = "PAID" | "PENDING";
+export type PaymentStatus =
+  | "PAID"
+  | "PENDING"
+  | "COLLECTED"
+  | "FAILED"
+  | "REFUNDED";
+
+/** Normalize backend payment status for dashboard display. */
+export function mapDashboardPaymentStatus(
+  raw?: string | null,
+): PaymentStatus {
+  const value = (raw || "").toUpperCase();
+  if (value === "PAID") return "PAID";
+  if (value === "COLLECTED") return "COLLECTED";
+  if (value === "FAILED") return "FAILED";
+  if (value === "REFUNDED") return "REFUNDED";
+  if (value === "PENDING") return "PENDING";
+  return "PENDING";
+}
 
 export type OrderStatus =
   "DISPATCHED" | "PROCESSING" | "DELIVERED" | "AWAITING HUB";

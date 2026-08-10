@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { DISPATCH_LOG_STATUS_OPTIONS } from "@/mock/dispatch-logs";
+import { DISPATCH_LOG_STATUS_OPTIONS } from "@/constants/sub-hub-ops.constants";
 import type {
   DispatchLogStatus,
   DispatchLogStatusUpdatePayload,

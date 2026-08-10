@@ -20,6 +20,7 @@ export interface AdminRequisitionListParams extends PaginationParams {
   dateTo?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
+  hubId?: string;
 }
 
 export interface AdminRequisitionStats {
@@ -221,9 +222,10 @@ export const adminRequisitionsService = {
     };
   },
 
-  stats: async (): Promise<AdminRequisitionStats> => {
+  stats: async (hubId?: string): Promise<AdminRequisitionStats> => {
     const { data } = await api.get<ApiResponse<AdminRequisitionStats>>(
       API_ENDPOINTS.ADMIN_REQUISITIONS.STATS,
+      { params: hubId ? { hubId } : undefined },
     );
     return data.data;
   },
@@ -270,6 +272,22 @@ export const adminRequisitionsService = {
   ) => {
     const { data } = await api.patch<ApiResponse<AdminRequisitionDetail>>(
       API_ENDPOINTS.ADMIN_REQUISITIONS.ALLOCATE(id),
+      payload,
+    );
+    return data.data;
+  },
+
+  assignLogistics: async (
+    id: string,
+    payload: {
+      vehicleId?: string;
+      driverId?: string;
+      expectedDispatchDate?: string;
+      comment?: string;
+    },
+  ) => {
+    const { data } = await api.patch<ApiResponse<AdminRequisitionDetail>>(
+      API_ENDPOINTS.ADMIN_REQUISITIONS.ASSIGN_LOGISTICS(id),
       payload,
     );
     return data.data;

@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/sheet";
 import { FleetTimeline } from "@/features/logistics/components/shared/FleetTimeline";
 import { LogisticsStatusBadge } from "@/features/logistics/components/LogisticsStatusBadge";
-import { formatLogisticsDate } from "@/mock/logistics";
+import { formatLogisticsDate } from "@/features/logistics/utils/logistics-formatters";
 import type { LogisticsVehicle } from "@/types/logistics.types";
 
 interface VehicleDetailDrawerProps {

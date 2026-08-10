@@ -30,6 +30,14 @@ export interface AdminHubListItem {
   isActive: boolean;
   status: string;
   operationalStatus: "ENABLED" | "DISABLED" | "SUSPENDED";
+  healthStatus?: "HEALTHY" | "ATTENTION" | "CRITICAL";
+  inventoryHealth?: number;
+  totalStock?: number;
+  stockValue?: number;
+  pendingRequisitions?: number;
+  incomingTransfers?: number;
+  outgoingTransfers?: number;
+  activeDrivers?: number;
   manager?: {
     id: string;
     name: string;
@@ -309,6 +317,140 @@ export const hubsService = {
     const { data } = await api.get<
       ApiResponse<AdminHubDetail["inventorySummary"]>
     >(API_ENDPOINTS.SUBHUB.INVENTORY(id));
+    return data.data;
+  },
+
+  listInventory: async (
+    idOrParams?:
+      | string
+      | {
+          hubId?: string;
+          page?: number;
+          limit?: number;
+          search?: string;
+          category?: string;
+        },
+    maybeParams?: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      category?: string;
+    },
+  ) => {
+    const isScoped = typeof idOrParams === "string";
+    const hubId = isScoped ? idOrParams : idOrParams?.hubId;
+    const params = isScoped
+      ? maybeParams
+      : {
+          page: idOrParams?.page,
+          limit: idOrParams?.limit,
+          search: idOrParams?.search,
+          category: idOrParams?.category,
+        };
+
+    type InventoryRow = {
+      id: string;
+      hubId: string;
+      hubName?: string;
+      productId: string;
+      productName: string;
+      sku: string | null;
+      category: string | null;
+      unit: string;
+      imageUrl: string | null;
+      availableQty: number;
+      reservedQty: number;
+      freeQty: number;
+      unitPrice?: number;
+      inventoryValue?: number;
+      reorderLevel: number;
+      minimumStock?: number;
+      maximumStock?: number | null;
+      status: string;
+      lastUpdated: string;
+    };
+
+    const { data } = await api.get<
+      ApiResponse<{
+        data: InventoryRow[];
+        stats?: {
+          totalInventoryUnits: number;
+          reservedInventory: number;
+          lowStockItems: number;
+          inventoryValue: number;
+        };
+        meta: {
+          page: number;
+          limit: number;
+          total: number;
+          totalPages: number;
+        };
+      }>
+    >(
+      hubId
+        ? API_ENDPOINTS.SUBHUB.INVENTORY(hubId)
+        : API_ENDPOINTS.SUBHUB.NETWORK_INVENTORY,
+      {
+        params: {
+          page: params?.page,
+          limit: params?.limit,
+          search: params?.search,
+          category: params?.category,
+          ...(hubId ? { paginated: true } : {}),
+        },
+      },
+    );
+    return data.data;
+  },
+
+  getSummary: async (id: string) => {
+    const { data } = await api.get<ApiResponse<Record<string, unknown>>>(
+      API_ENDPOINTS.SUBHUB.SUMMARY(id),
+    );
+    return data.data;
+  },
+
+  listDispatchLogs: async (params?: {
+    hubId?: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    date?: string;
+  }) => {
+    const hubId = params?.hubId;
+    const { data } = await api.get<
+      ApiResponse<{
+        data: Array<Record<string, unknown>>;
+        stats: {
+          todaysDispatch: number;
+          inProgress: number;
+          delivered: number;
+          delayed: number;
+        };
+        meta: {
+          page: number;
+          limit: number;
+          total: number;
+          totalPages: number;
+        };
+      }>
+    >(
+      hubId
+        ? API_ENDPOINTS.SUBHUB.DISPATCH_LOGS(hubId)
+        : API_ENDPOINTS.SUBHUB.NETWORK_DISPATCH_LOGS,
+      {
+        params: hubId
+          ? {
+              page: params?.page,
+              limit: params?.limit,
+              search: params?.search,
+              status: params?.status,
+              date: params?.date,
+            }
+          : params,
+      },
+    );
     return data.data;
   },
 

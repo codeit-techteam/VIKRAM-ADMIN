@@ -1,4 +1,3 @@
-import { INVENTORY_ITEMS } from "@/mock/inventory";
 import type {
   ErpAllocation,
   ErpDispatch,
@@ -19,22 +18,6 @@ import {
   type HubInventoryRow,
 } from "@/utils/hub-profile-metrics";
 import { formatHubStockValue } from "@/utils/sub-hub-metrics";
-
-/** Deterministic supplier labels for catalog materials (shared mock, not duplicated stock). */
-export const MATERIAL_SUPPLIERS: Record<string, string> = {
-  "inv-001": "SAIL India",
-  "inv-002": "UltraTech Cement",
-  "inv-003": "Polycab Industries",
-  "inv-004": "ACC Masonry",
-  "inv-005": "JSW NeoSteel",
-  "inv-006": "Ambuja Cement",
-  "inv-007": "Asian Paints",
-  "inv-008": "Supreme Industries",
-  "inv-009": "BirlaAerocon",
-  "inv-010": "Berger Paints",
-  "inv-011": "Tata Steel",
-  "inv-012": "JK Cement",
-};
 
 export const MATERIAL_TYPES = [
   "steel-rebar",
@@ -62,6 +45,7 @@ export interface HubNetworkInventoryRow extends HubInventoryRow {
   materialTypeSlug: string;
   maxStock: number;
   entryKey: string;
+  imageUrl?: string | null;
 }
 
 export interface HubInventoryOverviewStats {
@@ -98,13 +82,12 @@ export type HubInventorySortKey =
 
 export type HubInventorySortDirection = "asc" | "desc";
 
-function resolveSupplier(materialId: string): string {
-  return MATERIAL_SUPPLIERS[materialId] ?? "BuildQuick Preferred";
+function resolveSupplier(_materialId: string): string {
+  return "—";
 }
 
-function resolveMaterialType(materialId: string, category: string) {
-  const catalog = INVENTORY_ITEMS.find((item) => item.id === materialId);
-  const slug = catalog?.categorySlug ?? "general";
+function resolveMaterialType(_materialId: string, category: string) {
+  const slug = category.toLowerCase().replace(/\s+/g, "-") || "general";
   return {
     slug,
     label: MATERIAL_TYPE_LABELS[slug] ?? category,
@@ -121,6 +104,7 @@ function formatTotalUnits(total: number): string {
   return `${total.toLocaleString("en-IN")} Units`;
 }
 
+/** Legacy helper for ERP-shaped inventory. Prefer hubsService.listInventory. */
 export function buildNetworkInventoryRows(
   subHubs: SubHub[],
   hubInventory: HubInventoryEntry[],
@@ -142,10 +126,7 @@ export function buildNetworkInventoryRows(
     const safetyStock =
       entry.safetyStock ?? Math.max(1, Math.round(reorderLevel * 0.6));
     const maxStock = resolveMaxStock(entry);
-    const category =
-      entry.category ??
-      INVENTORY_ITEMS.find((item) => item.id === entry.materialId)?.category ??
-      "General Materials";
+    const category = entry.category ?? "General Materials";
     const materialType = resolveMaterialType(entry.materialId, category);
     const status = computeHubStockStatus(
       availableQty,

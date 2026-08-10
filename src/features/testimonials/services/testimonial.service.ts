@@ -48,65 +48,21 @@ export interface TestimonialQueryResult {
   page: number;
 }
 
-function applyClientFilters(
-  items: CustomerTestimonial[],
-  filters: TestimonialFilters,
-): CustomerTestimonial[] {
-  let result = [...items];
-
-  if (filters.status !== "all") {
-    result = result.filter((t) => t.status === filters.status);
-  }
-
-  if (filters.search.trim()) {
-    const q = filters.search.toLowerCase();
-    result = result.filter(
-      (t) =>
-        t.customerName.toLowerCase().includes(q) ||
-        t.city.toLowerCase().includes(q) ||
-        t.location.toLowerCase().includes(q) ||
-        t.review.toLowerCase().includes(q),
-    );
-  }
-
-  return result;
-}
-
-/** GET /admin/testimonials */
+/** GET /admin/testimonials — server-side search, type, and publish filters */
 export async function getTestimonials(
   params: TestimonialQueryParams,
 ): Promise<TestimonialQueryResult> {
   const typeParam =
     params.filters.type !== "all" ? params.filters.type : undefined;
-
-  // When status/search filters are applied client-side, fetch a wider page then slice.
-  const needsClientFilter =
-    params.filters.status !== "all" || Boolean(params.filters.search.trim());
-
-  if (needsClientFilter) {
-    const { data } = await testimonialsService.listForUi({
-      page: 1,
-      limit: 200,
-      type: typeParam,
-    });
-    const filtered = applyClientFilters(data, params.filters);
-    const total = filtered.length;
-    const totalPages = Math.max(1, Math.ceil(total / params.limit));
-    const page = Math.min(params.page, totalPages);
-    const start = (page - 1) * params.limit;
-
-    return {
-      data: filtered.slice(start, start + params.limit),
-      total,
-      totalPages,
-      page,
-    };
-  }
+  const statusParam =
+    params.filters.status !== "all" ? params.filters.status : undefined;
 
   return testimonialsService.listForUi({
     page: params.page,
     limit: params.limit,
     type: typeParam,
+    status: statusParam,
+    search: params.filters.search.trim() || undefined,
   });
 }
 

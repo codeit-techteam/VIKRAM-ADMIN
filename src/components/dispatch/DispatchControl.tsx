@@ -30,7 +30,6 @@ import {
   isDispatchedToday,
   TRANSFER_WAREHOUSE_OPTIONS,
 } from "@/mock/transfers";
-import { useTransferListStore } from "@/store/transfer-list-store";
 import type { TransferListItem, TransferStatus } from "@/types/warehouse.types";
 import {
   DISPATCH_QUEUE_STATUSES,
@@ -41,6 +40,7 @@ import {
 } from "@/utils/transfer-actions";
 import { cn } from "@/lib/utils";
 import { notify } from "@/utils/notify";
+import { warehouseService } from "@/services/warehouse";
 
 type DispatchFilterStatus = TransferStatus | "all" | "dispatched-today";
 
@@ -143,10 +143,10 @@ function getDispatchActionHref(
   transfer: TransferListItem,
   action: ReturnType<typeof getDispatchRowAction>,
 ): string {
-  const base = `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${transfer.transferId}`;
+  const base = `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${transfer.id}`;
   switch (action) {
     case "start-loading":
-      return base;
+      return `${base}/confirm`;
     case "complete-loading":
       return `${base}/loading`;
     case "dispatch-now":
@@ -158,8 +158,7 @@ function getDispatchActionHref(
 
 export function DispatchControl() {
   const router = useRouter();
-  const transfers = useTransferListStore((state) => state.transfers);
-  const startLoading = useTransferListStore((state) => state.startLoading);
+  const [transfers, setTransfers] = useState<TransferListItem[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -168,8 +167,32 @@ export function DispatchControl() {
   const [priorityFilter, setPriorityFilter] = useState("all");
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 400);
-    return () => window.clearTimeout(timer);
+    let active = true;
+    const load = async () => {
+      try {
+        const result = await warehouseService.listTransfers({
+          status: "READY_FOR_DISPATCH",
+          page: 1,
+          limit: 1000,
+        });
+        if (active) setTransfers(result.data);
+      } catch {
+        if (active) {
+          notify.error(
+            "Dispatch queue unavailable",
+            "Unable to load ready transfers.",
+          );
+        }
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    };
+    void load();
+    const interval = window.setInterval(() => void load(), 20000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, []);
 
   const stats = useMemo(() => computeDispatchStats(transfers), [transfers]);
@@ -218,30 +241,30 @@ export function DispatchControl() {
   const handleRowAction = useCallback(
     (transfer: TransferListItem) => {
       const action = getDispatchRowAction(transfer);
-      if (!action) return;
+      if (!action) {
+        if (
+          !transfer.vehicleId ||
+          !transfer.driverId
+        ) {
+          notify.error(
+            "Logistics incomplete",
+            "Assign vehicle and driver in Transfer Management before dispatch.",
+          );
+          router.push(`${ROUTES.CENTRAL_WAREHOUSE}/transfers`);
+        }
+        return;
+      }
 
       if (action === "start-loading") {
-        try {
-          startLoading(transfer.transferId);
-          notify.success(
-            "Loading started",
-            `${transfer.transferId} is now loading.`,
-          );
-          router.push(
-            `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${transfer.transferId}/loading`,
-          );
-        } catch (error) {
-          notify.error(
-            "Action failed",
-            error instanceof Error ? error.message : "Unable to start loading.",
-          );
-        }
+        router.push(
+          `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${transfer.id}/confirm`,
+        );
         return;
       }
 
       router.push(getDispatchActionHref(transfer, action));
     },
-    [router, startLoading],
+    [router],
   );
 
   return (

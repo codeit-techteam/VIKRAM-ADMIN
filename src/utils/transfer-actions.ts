@@ -111,11 +111,11 @@ export function getStatusIndex(status: TransferStatus): number {
 }
 
 export function hasVehicleAssigned(transfer: TransferListItem): boolean {
-  return Boolean(transfer.vehicleId && transfer.vehicleNumber);
+  return Boolean(transfer.vehicleId || transfer.vehicleNumber);
 }
 
 export function hasDriverAssigned(transfer: TransferListItem): boolean {
-  return Boolean(transfer.driverId && transfer.assignedDriver);
+  return Boolean(transfer.driverId || transfer.assignedDriver);
 }
 
 export function canStartLoading(transfer: TransferListItem): boolean {
@@ -179,8 +179,19 @@ export function getTransferRowActions(
     case "LOADING":
       return ["complete-loading"];
 
-    case "READY_FOR_DISPATCH":
-      return canDispatchNow(transfer) ? ["dispatch-now"] : [];
+    case "READY_FOR_DISPATCH": {
+      const actions: TransferRowAction[] = [];
+      if (!hasVehicleAssigned(transfer)) {
+        actions.push("assign-vehicle");
+      }
+      if (!hasDriverAssigned(transfer)) {
+        actions.push("assign-driver");
+      }
+      if (canDispatchNow(transfer)) {
+        actions.push("dispatch-now");
+      }
+      return actions;
+    }
 
     case "IN_TRANSIT":
       return ["track", "update-eta", "report-delay", "mark-reached-hub"];
@@ -210,7 +221,7 @@ export function getDispatchRowAction(
     case "LOADING":
       return "complete-loading";
     case "READY_FOR_DISPATCH":
-      return "dispatch-now";
+      return canDispatchNow(transfer) ? "dispatch-now" : null;
     default:
       return null;
   }

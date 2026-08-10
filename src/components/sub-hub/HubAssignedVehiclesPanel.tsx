@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { LogisticsStatusBadge } from "@/features/logistics/components/LogisticsStatusBadge";
 import { useVehicles } from "@/features/logistics/hooks/use-vehicles";
-import { formatLogisticsDate } from "@/mock/logistics";
+import { formatLogisticsDate } from "@/features/logistics/utils/logistics-formatters";
 
 interface HubAssignedVehiclesPanelProps {
   hubId: string;

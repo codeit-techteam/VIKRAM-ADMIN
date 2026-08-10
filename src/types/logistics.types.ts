@@ -230,6 +230,8 @@ export interface DispatchRecord {
   eta: string;
   status: DispatchStatus;
   createdAt: string;
+  /** Present on API responses: warehouse transfer vs customer delivery */
+  kind?: "warehouse" | "customer";
 }
 
 export interface MaintenanceRecord {
@@ -260,6 +262,7 @@ export interface ShipmentTimeline {
   eta: string;
   delayMinutes: number;
   remarks: string;
+  status?: string;
 }
 
 export interface LogisticsDashboardStats {

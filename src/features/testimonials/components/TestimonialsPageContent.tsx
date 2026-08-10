@@ -67,11 +67,96 @@ import type {
   TestimonialDashboardStats,
   TestimonialType,
 } from "@/features/testimonials/types/testimonial.types";
+import { isPlayableMediaUrl } from "@/features/testimonials/types/testimonial.types";
 import {
   assertRemoteMediaUrl,
   uploadMediaFile,
 } from "@/services/media.service";
 import { notify } from "@/utils/notify";
+
+function MediaUnavailable({ label }: { label?: string }) {
+  return (
+    <div className="flex size-full flex-col items-center justify-center gap-1 bg-gray-100 text-gray-400">
+      <ImageIcon className="size-8 opacity-60" />
+      <span className="text-xs font-medium">{label ?? "Media unavailable"}</span>
+    </div>
+  );
+}
+
+function TestimonialVideoPlayer({
+  src,
+  poster,
+}: {
+  src: string;
+  poster?: string;
+}) {
+  const [error, setError] = useState<string | null>(null);
+
+  if (error) {
+    return (
+      <div className="flex size-full flex-col items-center justify-center gap-2 bg-gray-900 px-4 text-center text-sm text-gray-200">
+        <Video className="size-8 opacity-70" />
+        <p>{error}</p>
+        <a
+          href={src}
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-orange-300 underline"
+        >
+          Open media URL
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <video
+      key={src}
+      src={src}
+      poster={poster}
+      controls
+      playsInline
+      preload="metadata"
+      className="size-full bg-black object-contain"
+      onError={() =>
+        setError("Video failed to load. Check the R2/CDN URL or re-upload.")
+      }
+    />
+  );
+}
+
+function TestimonialCardMedia({
+  testimonial,
+}: {
+  testimonial: CustomerTestimonial;
+}) {
+  const [failed, setFailed] = useState(false);
+  const poster =
+    testimonial.thumbnailUrl ||
+    (testimonial.type === "IMAGE" ? testimonial.mediaUrl : "");
+
+  if (testimonial.type === "TEXT") {
+    return (
+      <div className="flex size-full items-center justify-center bg-amber-50 px-4 text-center text-sm text-amber-800/80">
+        Text review
+      </div>
+    );
+  }
+
+  if (!isPlayableMediaUrl(poster) || failed) {
+    return <MediaUnavailable />;
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={poster}
+      alt={testimonial.customerName}
+      className="size-full object-cover"
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 type StatFilter = "videos" | "images" | "published" | "draft";
 
@@ -293,11 +378,14 @@ export function TestimonialsPageContent() {
   };
 
   const handleSave = async () => {
-    if (!form.customerName || !form.review) {
-      notify.error("Validation error", "Please fill all required fields.");
+    if (!form.customerName || !form.review || !form.city.trim()) {
+      notify.error(
+        "Validation error",
+        "Please fill customer name, city, and review.",
+      );
       return;
     }
-    if (!mediaFile && !form.mediaUrl) {
+    if (form.type !== "TEXT" && !mediaFile && !form.mediaUrl) {
       notify.error(
         "Validation error",
         `Please upload a ${form.type === "VIDEO" ? "video" : "image"} to Cloudflare R2.`,
@@ -335,7 +423,9 @@ export function TestimonialsPageContent() {
         thumbnailUrl = uploaded.publicUrl;
       }
 
-      assertRemoteMediaUrl(mediaUrl);
+      if (form.type !== "TEXT") {
+        assertRemoteMediaUrl(mediaUrl);
+      }
       if (form.type === "VIDEO") {
         assertRemoteMediaUrl(thumbnailUrl);
       }
@@ -457,23 +547,19 @@ export function TestimonialsPageContent() {
             className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-shadow hover:shadow-md"
           >
             <div className="relative aspect-video bg-gray-100">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={testimonial.thumbnailUrl ?? testimonial.mediaUrl}
-                alt={testimonial.customerName}
-                className="size-full object-cover"
-              />
+              <TestimonialCardMedia testimonial={testimonial} />
               <div className="absolute top-2 left-2 flex gap-1">
                 <TestimonialTypeBadge type={testimonial.type} />
                 <TestimonialStatusBadge status={testimonial.status} />
               </div>
-              {testimonial.type === "VIDEO" && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="flex size-10 items-center justify-center rounded-full bg-black/50">
-                    <Video className="size-5 text-white" />
+              {testimonial.type === "VIDEO" &&
+                isPlayableMediaUrl(testimonial.mediaUrl) && (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div className="flex size-10 items-center justify-center rounded-full bg-black/50">
+                      <Video className="size-5 text-white" />
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
             <div className="space-y-2 p-4">
               <div className="flex items-center justify-between">
@@ -482,7 +568,9 @@ export function TestimonialsPageContent() {
                     {testimonial.customerName}
                   </p>
                   <p className="text-xs text-[#64748B]">
-                    {testimonial.location}, {testimonial.city}
+                    {[testimonial.location, testimonial.city]
+                      .filter(Boolean)
+                      .join(", ") || "—"}
                   </p>
                 </div>
                 <div className="flex">{renderStars(testimonial.rating)}</div>
@@ -764,7 +852,14 @@ export function TestimonialsPageContent() {
               />
             </div>
             <div>
-              <Label>{form.type === "VIDEO" ? "Video *" : "Image *"}</Label>
+              <Label>
+                {form.type === "VIDEO"
+                  ? "Video *"
+                  : form.type === "IMAGE"
+                    ? "Image *"
+                    : "Media (optional)"}
+              </Label>
+              {form.type !== "TEXT" && (
               <div className="mt-1">
                 <FileDropzone
                   variant={form.type === "VIDEO" ? "banner" : "compact"}
@@ -789,6 +884,7 @@ export function TestimonialsPageContent() {
                   onClear={() => handleMediaFileSelect(null)}
                 />
               </div>
+              )}
             </div>
             {form.type === "VIDEO" && (
               <div>
@@ -874,25 +970,56 @@ export function TestimonialsPageContent() {
       </Dialog>
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{previewTestimonial?.customerName}</DialogTitle>
             <DialogDescription>
-              {previewTestimonial?.location}, {previewTestimonial?.city}
+              {[previewTestimonial?.location, previewTestimonial?.city]
+                .filter(Boolean)
+                .join(", ") || "Customer testimonial"}
             </DialogDescription>
           </DialogHeader>
           {previewTestimonial && (
             <div className="space-y-4">
               <div className="aspect-video overflow-hidden rounded-lg bg-gray-100">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={
-                    previewTestimonial.thumbnailUrl ??
-                    previewTestimonial.mediaUrl
-                  }
-                  alt={previewTestimonial.customerName}
-                  className="size-full object-cover"
-                />
+                {previewTestimonial.type === "VIDEO" &&
+                isPlayableMediaUrl(previewTestimonial.mediaUrl) ? (
+                  <TestimonialVideoPlayer
+                    src={previewTestimonial.mediaUrl}
+                    poster={
+                      isPlayableMediaUrl(previewTestimonial.thumbnailUrl)
+                        ? previewTestimonial.thumbnailUrl
+                        : undefined
+                    }
+                  />
+                ) : previewTestimonial.type === "IMAGE" &&
+                  isPlayableMediaUrl(previewTestimonial.mediaUrl) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={previewTestimonial.mediaUrl}
+                    alt={previewTestimonial.customerName}
+                    className="size-full object-cover"
+                  />
+                ) : isPlayableMediaUrl(previewTestimonial.thumbnailUrl) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={previewTestimonial.thumbnailUrl}
+                    alt={previewTestimonial.customerName}
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <MediaUnavailable
+                    label={
+                      previewTestimonial.type === "TEXT"
+                        ? "Text review — no media"
+                        : "Media unavailable"
+                    }
+                  />
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <TestimonialTypeBadge type={previewTestimonial.type} />
+                <TestimonialStatusBadge status={previewTestimonial.status} />
               </div>
               <div className="flex">
                 {renderStars(previewTestimonial.rating)}

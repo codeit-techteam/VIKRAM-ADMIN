@@ -3,7 +3,7 @@ import {
   DISPATCH_LOG_STATUS_LABELS,
   formatDispatchLogCurrency,
   formatDispatchLogDateTime,
-} from "@/mock/dispatch-logs";
+} from "@/constants/sub-hub-ops.constants";
 
 export function printDispatchLogSlip(log: DispatchLog): void {
   const productRows = log.orderLines

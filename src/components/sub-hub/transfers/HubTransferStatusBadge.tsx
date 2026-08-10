@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { HUB_TRANSFER_STATUS_LABELS } from "@/mock/hub-transfers";
+import { HUB_TRANSFER_STATUS_LABELS } from "@/constants/sub-hub-ops.constants";
 import type { HubTransferStatus } from "@/types/hub-transfer.types";
 
 const statusStyles: Record<HubTransferStatus, string> = {

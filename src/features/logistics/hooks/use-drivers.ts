@@ -52,6 +52,7 @@ export function useCreateDriver() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: driverKeys.all });
       void qc.invalidateQueries({ queryKey: ["admin-vehicles"] });
+      void qc.invalidateQueries({ queryKey: ["logistics"] });
     },
   });
 }
@@ -69,6 +70,7 @@ export function useUpdateDriver() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: driverKeys.all });
       void qc.invalidateQueries({ queryKey: ["admin-vehicles"] });
+      void qc.invalidateQueries({ queryKey: ["logistics"] });
     },
   });
 }
@@ -80,6 +82,7 @@ export function useDeleteDriver() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: driverKeys.all });
       void qc.invalidateQueries({ queryKey: ["admin-vehicles"] });
+      void qc.invalidateQueries({ queryKey: ["logistics"] });
     },
   });
 }

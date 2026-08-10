@@ -37,8 +37,8 @@ import {
 import {
   formatHubRequisitionDate,
   HUB_REQUISITION_PAGE_SIZE,
-} from "@/mock/hub-requisitions";
-import { formatRequisitionQuantity } from "@/mock/requisitions";
+} from "@/constants/sub-hub-ops.constants";
+import { formatRequisitionQuantity } from "@/constants/sub-hub-ops.constants";
 import type { RequisitionListItem } from "@/types/warehouse.types";
 import { cn } from "@/lib/utils";
 

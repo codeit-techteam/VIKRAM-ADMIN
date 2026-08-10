@@ -350,9 +350,15 @@ export function HubOnboardingWizard() {
       setSuccessOpen(true);
       resetDraft([...existingCodes, provisioned.hub.code]);
       setExistingCodes((prev) => [...prev, provisioned.hub.code]);
+      const { useSelectedHubStore } = await import(
+        "@/store/selected-hub-store"
+      );
+      useSelectedHubStore
+        .getState()
+        .setSelectedHub(provisioned.hub.id, provisioned.hub.name);
       await queryClient.invalidateQueries({ queryKey: ["admin-hubs"] });
       notify.success(
-        "Hub provisioned",
+        "Hub created successfully.",
         `${result.hubName} is live. Manager login: ${result.managerUsername}`,
       );
     } catch (error) {

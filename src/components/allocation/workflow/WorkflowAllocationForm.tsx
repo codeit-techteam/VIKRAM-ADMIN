@@ -15,9 +15,9 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  getMaterialBatches,
-  getWorkflowWarehouses,
-} from "@/mock/allocation-workflow";
+  buildCentralWarehouseOptions,
+  getCentralStockBatches,
+} from "@/utils/allocation-stock";
 import type {
   AllocationWorkflowFormValues,
   RequisitionListItem,
@@ -38,12 +38,7 @@ export function WorkflowAllocationForm({
   onChange,
 }: WorkflowAllocationFormProps) {
   const warehouses = useMemo(
-    () =>
-      getWorkflowWarehouses(
-        requisition.materialId,
-        requisition.requestedQty,
-        inventory,
-      ),
+    () => buildCentralWarehouseOptions(requisition, inventory),
     [requisition, inventory],
   );
 
@@ -54,13 +49,12 @@ export function WorkflowAllocationForm({
   const batches = useMemo(
     () =>
       formValues.warehouseSourceId
-        ? getMaterialBatches(
-            requisition.materialId,
+        ? getCentralStockBatches(
             formValues.warehouseSourceId,
-            inventory,
+            selectedWarehouse?.stock ?? 0,
           )
         : [],
-    [requisition.materialId, formValues.warehouseSourceId, inventory],
+    [formValues.warehouseSourceId, selectedWarehouse?.stock],
   );
 
   const selectedBatch = batches.find(
@@ -126,17 +120,17 @@ export function WorkflowAllocationForm({
           value={formValues.warehouseSourceId}
           onValueChange={(value) => {
             if (!value) return;
-            const warehouseBatches = getMaterialBatches(
-              requisition.materialId,
+            const warehouse = warehouses.find((entry) => entry.id === value);
+            const warehouseBatches = getCentralStockBatches(
               value,
-              inventory,
+              warehouse?.stock ?? 0,
             );
             onChange({
               warehouseSourceId: value,
               batchId: warehouseBatches[0]?.id ?? "",
               allocationQty: Math.min(
                 requisition.requestedQty,
-                warehouses.find((entry) => entry.id === value)?.stock ?? 0,
+                warehouse?.stock ?? 0,
                 warehouseBatches[0]?.available ?? 0,
               ),
             });
@@ -189,6 +183,13 @@ export function WorkflowAllocationForm({
           </span>
         </div>
         {qtyError ? <p className="text-sm text-red-600">{qtyError}</p> : null}
+        {!qtyError && maxAvailable > 0 ? (
+          <p className="text-xs text-[#64748B]">
+            Available: {maxAvailable.toLocaleString("en-IN")} {requisition.unit}{" "}
+            · Requested: {requisition.requestedQty.toLocaleString("en-IN")}{" "}
+            {requisition.unit}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-2">
@@ -241,19 +242,14 @@ export function useAllocationFormValidation(
   formValues: AllocationWorkflowFormValues,
   inventory: import("@/types/inventory.types").InventoryItem[],
 ): { isValid: boolean; error?: string } {
-  const warehouses = getWorkflowWarehouses(
-    requisition.materialId,
-    requisition.requestedQty,
-    inventory,
-  );
+  const warehouses = buildCentralWarehouseOptions(requisition, inventory);
   const selectedWarehouse = warehouses.find(
     (warehouse) => warehouse.id === formValues.warehouseSourceId,
   );
   const batches = formValues.warehouseSourceId
-    ? getMaterialBatches(
-        requisition.materialId,
+    ? getCentralStockBatches(
         formValues.warehouseSourceId,
-        inventory,
+        selectedWarehouse?.stock ?? 0,
       )
     : [];
   const selectedBatch = batches.find(

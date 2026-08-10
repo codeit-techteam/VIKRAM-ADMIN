@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, GripVertical } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import {
@@ -17,6 +18,8 @@ export function HomepageLayoutPageContent() {
   const [sections, setSections] = useState<AdminHomeSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = useState("");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -77,11 +80,43 @@ export function HomepageLayoutPageContent() {
     }
   };
 
+  const beginEditTitle = (section: AdminHomeSection) => {
+    setEditingTitleId(section.id);
+    setTitleDraft(section.title ?? "");
+  };
+
+  const saveTitle = async (section: AdminHomeSection) => {
+    const nextTitle = titleDraft.trim();
+    if (nextTitle === (section.title ?? "").trim()) {
+      setEditingTitleId(null);
+      return;
+    }
+    setSaving(true);
+    try {
+      await cmsAdminService.updateHomeSection(section.id, {
+        title: nextTitle,
+      });
+      setSections((prev) =>
+        prev.map((s) =>
+          s.id === section.id ? { ...s, title: nextTitle || null } : s,
+        ),
+      );
+      notify.success("Section title updated");
+      setEditingTitleId(null);
+    } catch (error) {
+      notify.error(
+        error instanceof Error ? error.message : "Failed to update title",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Homepage Layout Manager"
-        description="Drag order controls section sequence in the Customer App. Disable sections to hide them instantly."
+        subtitle="Reorder and toggle sections to control the Customer App Home Screen. Edit titles where supported — changes appear after the next CMS fetch."
         breadcrumbs={getNavBreadcrumbsFromPath(
           "/customer-app-cms/homepage-layout",
         )}
@@ -103,9 +138,33 @@ export function HomepageLayoutPageContent() {
               >
                 <GripVertical className="text-muted-foreground h-4 w-4" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
-                    {section.title || section.sectionType}
-                  </p>
+                  {editingTitleId === section.id ? (
+                    <Input
+                      value={titleDraft}
+                      autoFocus
+                      disabled={saving}
+                      className="h-8 text-sm"
+                      onChange={(e) => setTitleDraft(e.target.value)}
+                      onBlur={() => void saveTitle(section)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void saveTitle(section);
+                        }
+                        if (e.key === "Escape") {
+                          setEditingTitleId(null);
+                        }
+                      }}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="truncate text-left text-sm font-medium hover:underline"
+                      onClick={() => beginEditTitle(section)}
+                    >
+                      {section.title || section.sectionType}
+                    </button>
+                  )}
                   <p className="text-muted-foreground truncate text-xs">
                     {section.sectionType}
                     {section.layoutType ? ` · ${section.layoutType}` : ""}

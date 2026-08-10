@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/constants/routes";
 import { formatTransferTime } from "@/mock/transfers";
 import { adminRequisitionsService } from "@/services/adminRequisitions";
-import { useTransferListStore } from "@/store/transfer-list-store";
 import type { TransferListItem } from "@/types/warehouse.types";
 import { notify } from "@/utils/notify";
 
@@ -29,9 +28,6 @@ const PREREQUISITES = [
 export function DispatchConfirmView({ transfer }: DispatchConfirmViewProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const confirmDispatch = useTransferListStore(
-    (state) => state.confirmDispatch,
-  );
 
   const material =
     transfer.material ?? transfer.materials[0]?.split(" x")[0] ?? "Material";
@@ -45,8 +41,9 @@ export function DispatchConfirmView({ transfer }: DispatchConfirmViewProps) {
   const handleDispatch = async () => {
     setIsSubmitting(true);
     try {
-      if (transfer.requisitionId) {
-        await adminRequisitionsService.dispatch(transfer.requisitionId, {
+      await adminRequisitionsService.dispatch(
+        transfer.requisitionId || transfer.id,
+        {
           vehicleId: transfer.vehicleId,
           driverId: transfer.driverId,
           vehicleNumber: transfer.vehicleNumber,
@@ -54,16 +51,15 @@ export function DispatchConfirmView({ transfer }: DispatchConfirmViewProps) {
           eta: transfer.eta,
           estimatedArrival: transfer.expectedArrival ?? transfer.eta,
           dispatchDate: transfer.dispatchDate,
-        });
-      }
+        },
+      );
 
-      confirmDispatch(transfer.transferId);
       notify.success(
         "Dispatch confirmed",
         `${transfer.transferId} is now in transit.`,
       );
       router.push(
-        `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${transfer.transferId}/success`,
+        `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${transfer.id}/success`,
       );
     } catch (error) {
       notify.error(

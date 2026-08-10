@@ -9,20 +9,25 @@ import { InventoryActivityTable } from "@/components/warehouse/InventoryActivity
 import { QuickActions } from "@/components/warehouse/QuickActions";
 import { WarehouseStatsCard } from "@/components/warehouse/WarehouseStatsCard";
 import { ROUTES } from "@/constants/routes";
-import { useAuth } from "@/hooks/use-auth";
-import { getAvailableStock } from "@/mock/inventory";
 import { quickActions } from "@/mock/warehouse-dashboard";
-import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
-import type {
-  LowStockItem,
-  RequisitionListItem,
-} from "@/types/warehouse.types";
+import { adminRequisitionsService } from "@/services/adminRequisitions";
+import {
+  warehouseService,
+  type WarehouseDashboardResponse,
+} from "@/services/warehouse";
+import type { RequisitionListItem } from "@/types/warehouse.types";
 import { notify } from "@/utils/notify";
 
 export function WarehouseDashboard() {
   const router = useRouter();
-  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
+  const [dashboard, setDashboard] = useState<WarehouseDashboardResponse>({
+    stats: [],
+    criticalRequisitions: [],
+    lowStockAlerts: [],
+    activities: [],
+    counters: {},
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedRequisition, setSelectedRequisition] =
     useState<RequisitionListItem | null>(null);
@@ -31,53 +36,21 @@ export function WarehouseDashboard() {
     "approve" | "reject" | null
   >(null);
 
-  const requisitions = useWarehouseErpStore((state) => state.requisitions);
-  const transfers = useWarehouseErpStore((state) => state.transfers);
-  const inventory = useWarehouseErpStore((state) => state.inventory);
-  const approveRequisition = useWarehouseErpStore(
-    (state) => state.approveRequisition,
-  );
-  const rejectRequisition = useWarehouseErpStore(
-    (state) => state.rejectRequisition,
-  );
-
-  const stats = useMemo(
-    () => useWarehouseErpStore.getState().getDashboardStats(),
-    [requisitions, transfers, inventory],
-  );
-
-  const activities = useMemo(
-    () => useWarehouseErpStore.getState().getInventoryActivities(),
-    [transfers],
-  );
-
-  const criticalRequisitions = useMemo(
-    () => useWarehouseErpStore.getState().getCriticalRequisitions(),
-    [requisitions],
-  );
-
-  const lowStockAlerts = useMemo((): LowStockItem[] => {
-    return inventory
-      .filter((item) => getAvailableStock(item) <= item.minimumStock)
-      .map((item) => {
-        const available = getAvailableStock(item);
-        const isCritical =
-          available === 0 || available <= item.minimumStock * 0.5;
-
-        return {
-          id: item.id,
-          productName: item.productName,
-          currentStock: `${available} ${item.unit}`,
-          minimumStock: `${item.minimumStock} ${item.unit}`,
-          severity: isCritical ? ("critical" as const) : ("warning" as const),
-        };
-      });
-  }, [inventory]);
+  const loadDashboard = useCallback(async () => {
+    try {
+      setDashboard(await warehouseService.getDashboard());
+    } catch {
+      notify.error("Dashboard unavailable", "Unable to load warehouse data.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 600);
-    return () => window.clearTimeout(timer);
-  }, []);
+    void loadDashboard();
+    const interval = window.setInterval(() => void loadDashboard(), 30000);
+    return () => window.clearInterval(interval);
+  }, [loadDashboard]);
 
   const handleView = useCallback((item: RequisitionListItem) => {
     setSelectedRequisition(item);
@@ -138,13 +111,19 @@ export function WarehouseDashboard() {
 
       setIsSubmitting(true);
       try {
-        await new Promise((resolve) => window.setTimeout(resolve, 400));
-        approveRequisition(selectedRequisition.id, {
-          adminName: user?.name ?? "Super Admin",
-          remarks: remarks || undefined,
+        const detail = await adminRequisitionsService.getById(
+          selectedRequisition.id,
+        );
+        await adminRequisitionsService.approve(selectedRequisition.id, {
+          items: detail.materials.map((item) => ({
+            itemId: item.id,
+            approvedQty: item.requestedQty,
+          })),
+          comment: remarks || undefined,
         });
         setIsDetailDrawerOpen(false);
         setSelectedRequisition(null);
+        await loadDashboard();
         notify.success("Requisition Approved Successfully.");
       } catch {
         notify.error(
@@ -155,7 +134,7 @@ export function WarehouseDashboard() {
         setIsSubmitting(false);
       }
     },
-    [selectedRequisition, user?.name, approveRequisition],
+    [selectedRequisition, loadDashboard],
   );
 
   const handleDrawerReject = useCallback(
@@ -164,13 +143,12 @@ export function WarehouseDashboard() {
 
       setIsSubmitting(true);
       try {
-        await new Promise((resolve) => window.setTimeout(resolve, 400));
-        rejectRequisition(selectedRequisition.id, {
-          adminName: user?.name ?? "Super Admin",
-          remarks,
+        await adminRequisitionsService.reject(selectedRequisition.id, {
+          reason: remarks,
         });
         setIsDetailDrawerOpen(false);
         setSelectedRequisition(null);
+        await loadDashboard();
         notify.success("Requisition Rejected Successfully.");
       } catch {
         notify.error(
@@ -181,28 +159,25 @@ export function WarehouseDashboard() {
         setIsSubmitting(false);
       }
     },
-    [selectedRequisition, user?.name, rejectRequisition],
+    [selectedRequisition, loadDashboard],
   );
 
   const drawerRequisition = useMemo(() => {
     if (!selectedRequisition) return null;
-    return (
-      requisitions.find((item) => item.id === selectedRequisition.id) ??
-      selectedRequisition
-    );
-  }, [requisitions, selectedRequisition]);
+    return selectedRequisition;
+  }, [selectedRequisition]);
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat) => (
+        {dashboard.stats.map((stat) => (
           <WarehouseStatsCard key={stat.id} stat={stat} isLoading={isLoading} />
         ))}
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]">
         <CriticalRequisitionTable
-          requisitions={criticalRequisitions}
+          requisitions={dashboard.criticalRequisitions}
           isLoading={isLoading}
           onView={handleView}
           onApprove={handleApprove}
@@ -211,12 +186,15 @@ export function WarehouseDashboard() {
         />
         <QuickActions
           actions={quickActions}
-          alerts={lowStockAlerts}
+          alerts={dashboard.lowStockAlerts}
           isLoading={isLoading}
         />
       </div>
 
-      <InventoryActivityTable activities={activities} isLoading={isLoading} />
+      <InventoryActivityTable
+        activities={dashboard.activities}
+        isLoading={isLoading}
+      />
 
       <RequisitionDetailDrawer
         open={isDetailDrawerOpen}

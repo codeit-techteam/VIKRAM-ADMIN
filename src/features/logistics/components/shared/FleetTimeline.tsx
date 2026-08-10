@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { FleetTimelineEvent } from "@/types/logistics.types";
-import { formatLogisticsDateTime } from "@/mock/logistics";
+import { formatLogisticsDateTime } from "@/features/logistics/utils/logistics-formatters";
 
 interface FleetTimelineProps {
   events: FleetTimelineEvent[];

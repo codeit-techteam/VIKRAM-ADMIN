@@ -204,12 +204,16 @@ export const INVENTORY_TOTAL_ITEMS = 1248;
 export const INVENTORY_PAGE_SIZE = 4;
 
 export function getAvailableStock(item: InventoryItem): number {
-  return Math.max(0, item.currentStock - item.committedStock);
+  return Math.max(
+    0,
+    item.availableStock ?? item.currentStock - item.committedStock,
+  );
 }
 
 export function getInventoryStockStatus(
   item: InventoryItem,
 ): "in-stock" | "low-stock" | "out-of-stock" {
+  if (item.status) return item.status;
   const available = getAvailableStock(item);
 
   if (available === 0) {

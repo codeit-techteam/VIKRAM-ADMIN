@@ -7,6 +7,7 @@ export interface WarehouseProduct {
   unit: string;
   stockUnits: number;
   status: "ACTIVE" | "INACTIVE" | "LOW_STOCK";
+  imageUrl?: string;
 }
 
 export const WAREHOUSE_PRODUCT_CATEGORIES = [

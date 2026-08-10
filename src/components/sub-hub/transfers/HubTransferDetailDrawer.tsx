@@ -29,7 +29,7 @@ import {
 import {
   formatHubTransferCurrency,
   formatHubTransferDateTime,
-} from "@/mock/hub-transfers";
+} from "@/constants/sub-hub-ops.constants";
 import type { HubTransfer } from "@/types/hub-transfer.types";
 import { cn } from "@/lib/utils";
 

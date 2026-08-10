@@ -151,7 +151,7 @@ export interface DashboardTestimonialPreview {
   id: string;
   customerName: string;
   city: string;
-  type: "VIDEO" | "IMAGE";
+  type: "VIDEO" | "IMAGE" | "TEXT";
   rating: number;
   review: string;
   mediaUrl: string;

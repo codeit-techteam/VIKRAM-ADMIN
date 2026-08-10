@@ -1,51 +1,47 @@
 "use client";
 
 import { MapPin, Search, Truck, User } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LogisticsTimeline } from "@/features/logistics/components/LogisticsTimeline";
 import { LogisticsStatusBadge } from "@/features/logistics/components/LogisticsStatusBadge";
-import { useLogisticsLoading } from "@/features/logistics/hooks/use-logistics-loading";
-import { formatLogisticsDateTime, getShipmentTimeline } from "@/mock/logistics";
-import { useLogisticsStore } from "@/store/logistics-store";
+import { useShipmentTracking } from "@/features/logistics/hooks/use-logistics";
+import { formatLogisticsDateTime } from "@/features/logistics/utils/logistics-formatters";
 
 export function ShipmentTrackingPage() {
-  const { isLoading } = useLogisticsLoading();
-  const warehouseShipments = useLogisticsStore((s) => s.warehouseShipments);
-  const customerDeliveries = useLogisticsStore((s) => s.customerDeliveries);
+  const searchParams = useSearchParams();
+  const urlId = searchParams.get("id") ?? "";
 
-  const [searchQuery, setSearchQuery] = useState("WS-2026-0142");
-  const [activeShipmentId, setActiveShipmentId] = useState("WS-2026-0142");
+  const [searchQuery, setSearchQuery] = useState(urlId);
+  const [activeShipmentId, setActiveShipmentId] = useState(urlId);
 
-  const timeline = useMemo(
-    () =>
-      getShipmentTimeline(
-        activeShipmentId,
-        warehouseShipments,
-        customerDeliveries,
-      ),
-    [activeShipmentId, warehouseShipments, customerDeliveries],
+  useEffect(() => {
+    const id = searchParams.get("id") ?? "";
+    if (!id) return;
+    setSearchQuery(id);
+    setActiveShipmentId(id);
+  }, [searchParams]);
+
+  const { data: timeline, isLoading, isError, isFetching } = useShipmentTracking(
+    activeShipmentId,
+    Boolean(activeShipmentId),
   );
 
-  const suggestedIds = useMemo(() => {
-    const ids = [
-      ...warehouseShipments.map((s) => s.shipmentId),
-      ...customerDeliveries.map((d) => d.orderId),
-    ];
-    if (!searchQuery.trim()) return ids.slice(0, 5);
-    return ids
-      .filter((id) => id.toLowerCase().includes(searchQuery.toLowerCase()))
-      .slice(0, 5);
-  }, [warehouseShipments, customerDeliveries, searchQuery]);
-
   const handleSearch = () => {
-    if (searchQuery.trim()) {
-      setActiveShipmentId(searchQuery.trim().toUpperCase());
+    const next = searchQuery.trim();
+    if (next) {
+      setActiveShipmentId(next);
     }
   };
+
+  const showLoading =
+    Boolean(activeShipmentId) && (isLoading || isFetching) && !timeline;
+  const showEmpty = !showLoading && (!activeShipmentId || isError || !timeline);
+  const resolvedTimeline = !showLoading && !showEmpty ? timeline : null;
 
   return (
     <div className="space-y-5">
@@ -60,40 +56,27 @@ export function ShipmentTrackingPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              placeholder="WS-2026-0142 or CD-2026-0891"
+              placeholder="TRN-... or BJW-... / DSP-..."
               className="h-10 border-gray-200 bg-white pl-9"
             />
           </div>
           <Button onClick={handleSearch}>Track</Button>
         </div>
-        {suggestedIds.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {suggestedIds.map((id) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => {
-                  setSearchQuery(id);
-                  setActiveShipmentId(id);
-                }}
-                className="hover:border-primary/30 hover:text-primary rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-[#64748B] transition-colors"
-              >
-                {id}
-              </button>
-            ))}
-          </div>
-        ) : null}
       </div>
 
-      {isLoading ? (
+      {showLoading ? (
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="h-96 animate-pulse rounded-xl bg-gray-100" />
           <div className="h-96 animate-pulse rounded-xl bg-gray-100" />
         </div>
-      ) : !timeline ? (
+      ) : !resolvedTimeline ? (
         <EmptyState
-          title="No Shipments"
-          description={`No shipment found for ID "${activeShipmentId}". Try another ID.`}
+          title="Shipment not found."
+          description={
+            activeShipmentId
+              ? `No shipment found for ID "${activeShipmentId}". Try another ID.`
+              : "Enter a shipment or dispatch ID to track."
+          }
         />
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
@@ -104,18 +87,19 @@ export function ShipmentTrackingPage() {
               </h2>
               <LogisticsStatusBadge
                 status={
-                  timeline.shipmentType === "warehouse_transfer"
+                  resolvedTimeline.status ??
+                  (resolvedTimeline.shipmentType === "warehouse_transfer"
                     ? "in_transit"
-                    : "out_for_delivery"
+                    : "out_for_delivery")
                 }
                 label={
-                  timeline.shipmentType === "warehouse_transfer"
+                  resolvedTimeline.shipmentType === "warehouse_transfer"
                     ? "Warehouse Transfer"
                     : "Customer Delivery"
                 }
               />
             </div>
-            <LogisticsTimeline timeline={timeline} />
+            <LogisticsTimeline timeline={resolvedTimeline} />
           </div>
 
           <div className="space-y-4">
@@ -129,7 +113,7 @@ export function ShipmentTrackingPage() {
                   <div>
                     <p className="text-xs text-gray-400 uppercase">Route</p>
                     <p className="text-sm font-medium">
-                      {timeline.source} → {timeline.destination}
+                      {resolvedTimeline.source} → {resolvedTimeline.destination}
                     </p>
                   </div>
                 </div>
@@ -140,7 +124,7 @@ export function ShipmentTrackingPage() {
                       Current Vehicle
                     </p>
                     <p className="text-sm font-medium">
-                      {timeline.vehicleNumber ?? "Not assigned"}
+                      {resolvedTimeline.vehicleNumber ?? "Not assigned"}
                     </p>
                   </div>
                 </div>
@@ -149,7 +133,7 @@ export function ShipmentTrackingPage() {
                   <div>
                     <p className="text-xs text-gray-400 uppercase">Driver</p>
                     <p className="text-sm font-medium">
-                      {timeline.driverName ?? "Not assigned"}
+                      {resolvedTimeline.driverName ?? "Not assigned"}
                     </p>
                   </div>
                 </div>
@@ -166,13 +150,13 @@ export function ShipmentTrackingPage() {
                     Estimated Arrival
                   </p>
                   <p className="text-sm font-medium">
-                    {formatLogisticsDateTime(timeline.eta)}
+                    {formatLogisticsDateTime(resolvedTimeline.eta)}
                   </p>
                 </div>
-                {timeline.delayMinutes > 0 ? (
+                {resolvedTimeline.delayMinutes > 0 ? (
                   <div className="rounded-lg border border-red-200 bg-red-50 p-3">
                     <p className="text-sm font-medium text-red-700">
-                      Delay: {timeline.delayMinutes} minutes
+                      Delay: {resolvedTimeline.delayMinutes} minutes
                     </p>
                   </div>
                 ) : (
@@ -184,7 +168,9 @@ export function ShipmentTrackingPage() {
                 )}
                 <div>
                   <p className="text-xs text-gray-400 uppercase">Remarks</p>
-                  <p className="text-sm text-[#64748B]">{timeline.remarks}</p>
+                  <p className="text-sm text-[#64748B]">
+                    {resolvedTimeline.remarks}
+                  </p>
                 </div>
               </div>
             </div>

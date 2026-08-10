@@ -3,7 +3,7 @@ import {
   formatHubTransferCurrency,
   formatHubTransferDateTime,
   HUB_TRANSFER_STATUS_LABELS,
-} from "@/mock/hub-transfers";
+} from "@/constants/sub-hub-ops.constants";
 
 export function printHubTransferDispatchSlip(transfer: HubTransfer): void {
   const productRows = transfer.products

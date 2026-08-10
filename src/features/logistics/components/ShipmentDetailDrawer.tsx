@@ -10,7 +10,10 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { LogisticsStatusBadge } from "@/features/logistics/components/LogisticsStatusBadge";
-import { formatLogisticsDateTime, getIssueLabel } from "@/mock/logistics";
+import {
+  formatLogisticsDateTime,
+  getIssueLabel,
+} from "@/features/logistics/utils/logistics-formatters";
 import type { CriticalShipment } from "@/types/logistics.types";
 
 interface ShipmentDetailDrawerProps {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 
 import { DispatchConfirmView } from "@/components/dispatch/DispatchConfirmView";
 import { DispatchDetailView } from "@/components/dispatch/DispatchDetailView";
@@ -10,7 +10,8 @@ import { DispatchSuccessView } from "@/components/dispatch/DispatchSuccessView";
 import { LoadingConfirmationView } from "@/components/dispatch/LoadingConfirmationView";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/constants/routes";
-import { useTransferListStore } from "@/store/transfer-list-store";
+import { warehouseService } from "@/services/warehouse";
+import type { TransferListItem } from "@/types/warehouse.types";
 
 function TransferNotFound({ transferId }: { transferId: string }) {
   return (
@@ -30,17 +31,28 @@ function TransferNotFound({ transferId }: { transferId: string }) {
 }
 
 function useLiveTransfer(transferId: string) {
-  const transfers = useTransferListStore((state) => state.transfers);
-  return useMemo(
-    () => transfers.find((t) => t.transferId === transferId),
-    [transfers, transferId],
-  );
+  const [transfer, setTransfer] = useState<TransferListItem | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    warehouseService
+      .getTransfer(transferId)
+      .then((item) => active && setTransfer(item))
+      .catch(() => active && setTransfer(null))
+      .finally(() => active && setIsLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [transferId]);
+  return { transfer, isLoading };
 }
 
 export function DispatchTransferDetailClient() {
   const params = useParams<{ transferId: string }>();
-  const transfer = useLiveTransfer(params.transferId);
+  const { transfer, isLoading } = useLiveTransfer(params.transferId);
 
+  if (isLoading)
+    return <div className="py-16 text-center">Loading transfer...</div>;
   if (!transfer) {
     return <TransferNotFound transferId={params.transferId} />;
   }
@@ -50,8 +62,10 @@ export function DispatchTransferDetailClient() {
 
 export function DispatchLoadingClient() {
   const params = useParams<{ transferId: string }>();
-  const transfer = useLiveTransfer(params.transferId);
+  const { transfer, isLoading } = useLiveTransfer(params.transferId);
 
+  if (isLoading)
+    return <div className="py-16 text-center">Loading transfer...</div>;
   if (!transfer) {
     return <TransferNotFound transferId={params.transferId} />;
   }
@@ -61,8 +75,10 @@ export function DispatchLoadingClient() {
 
 export function DispatchConfirmClient() {
   const params = useParams<{ transferId: string }>();
-  const transfer = useLiveTransfer(params.transferId);
+  const { transfer, isLoading } = useLiveTransfer(params.transferId);
 
+  if (isLoading)
+    return <div className="py-16 text-center">Loading transfer...</div>;
   if (!transfer) {
     return <TransferNotFound transferId={params.transferId} />;
   }
@@ -72,8 +88,10 @@ export function DispatchConfirmClient() {
 
 export function DispatchSuccessClient() {
   const params = useParams<{ transferId: string }>();
-  const transfer = useLiveTransfer(params.transferId);
+  const { transfer, isLoading } = useLiveTransfer(params.transferId);
 
+  if (isLoading)
+    return <div className="py-16 text-center">Loading transfer...</div>;
   if (!transfer) {
     return <TransferNotFound transferId={params.transferId} />;
   }

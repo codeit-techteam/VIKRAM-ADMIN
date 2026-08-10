@@ -26,6 +26,7 @@ const typeVariants = cva(
       variant: {
         VIDEO: "bg-purple-100 text-purple-700",
         IMAGE: "bg-blue-100 text-blue-700",
+        TEXT: "bg-amber-100 text-amber-700",
       },
     },
     defaultVariants: { variant: "IMAGE" },
@@ -53,9 +54,11 @@ export function TestimonialTypeBadge({
   type: TestimonialType;
   className?: string;
 }) {
+  const label =
+    type === "VIDEO" ? "Video" : type === "IMAGE" ? "Image" : "Text";
   return (
     <span className={cn(typeVariants({ variant: type }), className)}>
-      {type.charAt(0) + type.slice(1).toLowerCase()}
+      {label}
     </span>
   );
 }

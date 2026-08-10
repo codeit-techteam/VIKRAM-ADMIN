@@ -32,10 +32,13 @@ export async function getBanners(): Promise<Banner[]> {
       id: ui.id,
       thumbnailUrl: ui.thumbnailUrl,
       title: ui.title,
+      subtitle: item.subtitle ?? null,
       location: ui.location,
       ctaLabel: ui.ctaLabel,
       ctaPath: ui.ctaPath,
       status: ui.status,
+      startsAt: item.startsAt ?? null,
+      endsAt: item.endsAt ?? null,
     };
   });
 }

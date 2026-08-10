@@ -1,15 +1,14 @@
 import { create } from "zustand";
 
-import {
-  getMaterialBatches,
-  getMaterialWorkflowDetail,
-  getWorkflowRequisitionSeed,
-  getWorkflowWarehouses,
-} from "@/mock/allocation-workflow";
+import { getMaterialWorkflowDetail } from "@/mock/allocation-workflow";
 import { adminRequisitionsService } from "@/services/adminRequisitions";
+import { warehouseService } from "@/services/warehouse";
+import {
+  buildCentralWarehouseOptions,
+  getCentralStockBatches,
+} from "@/utils/allocation-stock";
 import { mergeRequisitionIntoWorkflowList } from "@/utils/allocation-workflow-bridge";
 import { setActiveAllocationForTransfer } from "@/utils/allocation-transfer-bridge";
-import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 import type { InventoryItem } from "@/types/inventory.types";
 import type {
   AllocationWorkflowFormValues,
@@ -54,6 +53,7 @@ interface AllocationWorkflowState {
   goBack: () => Promise<void>;
   confirmAllocation: () => Promise<AllocationWorkflowResult>;
   loadApprovedRequisitions: () => Promise<void>;
+  loadWarehouseInventory: () => Promise<void>;
   hydrateWarehouses: () => void;
   hydrateFormDefaults: () => void;
   startWithRequisition: (
@@ -76,8 +76,8 @@ export const useAllocationWorkflowStore = create<AllocationWorkflowState>(
     maxCompletedStep: 0,
     isTransitioning: false,
     isSubmitting: false,
-    requisitions: getWorkflowRequisitionSeed(),
-    inventory: useWarehouseErpStore.getState().inventory,
+    requisitions: [],
+    inventory: [],
     selectedRequisition: null,
     selectedWarehouse: null,
     warehouses: [],
@@ -89,10 +89,26 @@ export const useAllocationWorkflowStore = create<AllocationWorkflowState>(
       const state = get();
       if (state.selectedRequisition || state.result) return;
       set({
-        requisitions: getWorkflowRequisitionSeed(),
-        inventory: useWarehouseErpStore.getState().inventory,
+        requisitions: [],
+        inventory: [],
       });
       void get().loadApprovedRequisitions();
+      void get().loadWarehouseInventory();
+    },
+
+    loadWarehouseInventory: async () => {
+      try {
+        const result = await warehouseService.listInventory({
+          page: 1,
+          limit: 10000,
+        });
+        set({ inventory: result.data });
+        if (get().selectedRequisition) {
+          get().hydrateWarehouses();
+        }
+      } catch {
+        // Keep empty inventory if API unavailable.
+      }
     },
 
     loadApprovedRequisitions: async () => {
@@ -106,7 +122,10 @@ export const useAllocationWorkflowStore = create<AllocationWorkflowState>(
           (item) =>
             item.status === "APPROVED" && item.allocationStatus !== "ALLOCATED",
         );
-        if (approved.length === 0) return;
+        if (approved.length === 0) {
+          set({ requisitions: [] });
+          return;
+        }
 
         const selectedId = get().selectedRequisition?.id;
         set({
@@ -118,7 +137,7 @@ export const useAllocationWorkflowStore = create<AllocationWorkflowState>(
             : approved,
         });
       } catch {
-        // Keep seeded/mock queue if API is unavailable.
+        // Keep current queue if API is unavailable.
       }
     },
 
@@ -128,8 +147,8 @@ export const useAllocationWorkflowStore = create<AllocationWorkflowState>(
         maxCompletedStep: 0,
         isTransitioning: false,
         isSubmitting: false,
-        requisitions: getWorkflowRequisitionSeed(),
-        inventory: useWarehouseErpStore.getState().inventory,
+        requisitions: [],
+        inventory: [],
         selectedRequisition: null,
         selectedWarehouse: null,
         warehouses: [],
@@ -138,6 +157,7 @@ export const useAllocationWorkflowStore = create<AllocationWorkflowState>(
         draftSaved: false,
       });
       void get().loadApprovedRequisitions();
+      void get().loadWarehouseInventory();
     },
 
     canAccessStep: (step) => {
@@ -152,15 +172,13 @@ export const useAllocationWorkflowStore = create<AllocationWorkflowState>(
 
     startWithRequisition: (requisition, options) => {
       const autoAdvance = options?.autoAdvance ?? false;
-      const requisitions = mergeRequisitionIntoWorkflowList(requisition);
 
       set({
         currentStep: autoAdvance ? 2 : 1,
         maxCompletedStep: autoAdvance ? 1 : 0,
         isTransitioning: false,
         isSubmitting: false,
-        requisitions,
-        inventory: useWarehouseErpStore.getState().inventory,
+        requisitions: mergeRequisitionIntoWorkflowList(requisition, []),
         selectedRequisition: requisition,
         selectedWarehouse: null,
         warehouses: [],
@@ -169,18 +187,20 @@ export const useAllocationWorkflowStore = create<AllocationWorkflowState>(
         draftSaved: false,
       });
 
-      if (autoAdvance) {
-        get().hydrateWarehouses();
-      }
+      void Promise.all([
+        get().loadApprovedRequisitions(),
+        get().loadWarehouseInventory(),
+      ]).then(() => {
+        if (autoAdvance) get().hydrateWarehouses();
+      });
     },
 
     hydrateWarehouses: () => {
       const { selectedRequisition, inventory } = get();
       if (!selectedRequisition) return;
 
-      const warehouses = getWorkflowWarehouses(
-        selectedRequisition.materialId,
-        selectedRequisition.requestedQty,
+      const warehouses = buildCentralWarehouseOptions(
+        selectedRequisition,
         inventory,
       );
 
@@ -191,12 +211,25 @@ export const useAllocationWorkflowStore = create<AllocationWorkflowState>(
             warehouse.stock >= selectedRequisition.requestedQty,
         ) ?? warehouses.find((warehouse) => warehouse.status !== "EMPTY");
 
+      const batches = getCentralStockBatches(
+        defaultWarehouse?.id ?? "",
+        defaultWarehouse?.stock ?? 0,
+      );
+      const defaultBatch = batches[0];
+      const defaultQty = Math.min(
+        selectedRequisition.requestedQty,
+        defaultWarehouse?.stock ?? 0,
+        defaultBatch?.available ?? defaultWarehouse?.stock ?? 0,
+      );
+
       set({
         warehouses,
         selectedWarehouse: defaultWarehouse ?? null,
         form: {
           ...DEFAULT_FORM,
           warehouseSourceId: defaultWarehouse?.id ?? "",
+          batchId: defaultBatch?.id ?? "",
+          allocationQty: defaultQty > 0 ? defaultQty : 0,
         },
       });
     },
@@ -210,13 +243,12 @@ export const useAllocationWorkflowStore = create<AllocationWorkflowState>(
     },
 
     hydrateFormDefaults: () => {
-      const { selectedRequisition, selectedWarehouse, inventory, form } = get();
+      const { selectedRequisition, selectedWarehouse, form } = get();
       if (!selectedRequisition || !selectedWarehouse) return;
 
-      const batches = getMaterialBatches(
-        selectedRequisition.materialId,
+      const batches = getCentralStockBatches(
         selectedWarehouse.id,
-        inventory,
+        selectedWarehouse.stock,
       );
       const defaultBatch = batches[0];
       const defaultQty = Math.min(
@@ -349,28 +381,36 @@ export const useAllocationWorkflowStore = create<AllocationWorkflowState>(
           selectedRequisition.materialId,
           selectedRequisition,
         );
-        const batches = getMaterialBatches(
-          selectedRequisition.materialId,
-          form.warehouseSourceId,
-          state.inventory,
-        );
+        const batches = getCentralStockBatches(warehouse.id, warehouse.stock);
         const batch = batches.find((entry) => entry.id === form.batchId);
+        const allocatedQty = allocateItems.reduce(
+          (sum, item) => sum + item.allocatedQty,
+          0,
+        );
 
-        const { workflowResult } = useWarehouseErpStore
-          .getState()
-          .completeAllocation({
-            requisitionId: selectedRequisition.id,
-            warehouseId: form.warehouseSourceId,
-            warehouseName: warehouse.name,
-            allocationQty: form.allocationQty,
-            batchLabel: batch?.label ?? form.batchId,
-            remarks: form.remarks,
-            baseWeight: materialDetail.unitDensity
-              ? materialDetail.unitDensity * form.allocationQty
-              : undefined,
-          });
+        const humanRequestId = selectedRequisition.requestId.replace(/^#/, "");
+        const workflowResult: AllocationWorkflowResult = {
+          allocationId: `ALC-${humanRequestId.replace(/^REQ-/, "")}`,
+          requestId: humanRequestId,
+          requisitionUuid: selectedRequisition.id,
+          destinationHub: selectedRequisition.hubName,
+          destinationHubId: selectedRequisition.hubId,
+          quantity: allocatedQty,
+          unit: selectedRequisition.unit,
+          material: selectedRequisition.material,
+          warehouseName: warehouse.name,
+          warehouseHubId: warehouse.id,
+          batchLabel: batch?.label ?? form.batchId ?? "Central Stock",
+          warehouseRemaining: Math.max(0, warehouse.stock - allocatedQty),
+          baseWeight: materialDetail.unitDensity
+            ? materialDetail.unitDensity * allocatedQty
+            : undefined,
+          status: "COMPLETED",
+          inventoryReserved: true,
+        };
 
         setActiveAllocationForTransfer(workflowResult);
+        await get().loadWarehouseInventory();
 
         set({
           requisitions: applyRequisitionUpdates(state.requisitions, [
@@ -380,7 +420,6 @@ export const useAllocationWorkflowStore = create<AllocationWorkflowState>(
               status: "ALLOCATED",
             },
           ]),
-          inventory: useWarehouseErpStore.getState().inventory,
           result: workflowResult,
           maxCompletedStep: 5,
           currentStep: 5,

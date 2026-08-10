@@ -76,6 +76,11 @@ export interface CreateCatalogProductInput {
   imageUrls?: string[];
   isVisible?: boolean;
   displayOrder?: number;
+  gst?: number;
+  initialStock?: number;
+  lowStockThreshold?: number;
+  minimumStock?: number;
+  maximumStock?: number;
 }
 
 function mapProductToSku(

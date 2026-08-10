@@ -42,14 +42,12 @@ import {
   type LogisticsSummaryItem,
 } from "@/features/logistics/components/LogisticsSummaryPanel";
 import { ShipmentDetailDrawer } from "@/features/logistics/components/ShipmentDetailDrawer";
-import { useLogisticsLoading } from "@/features/logistics/hooks/use-logistics-loading";
+import { useLogisticsDashboard } from "@/features/logistics/hooks/use-logistics";
 import {
-  computeDashboardStats,
   formatLogisticsDateTime,
   getIssueLabel,
   LOGISTICS_PAGE_SIZE,
-} from "@/mock/logistics";
-import { useLogisticsStore } from "@/store/logistics-store";
+} from "@/features/logistics/utils/logistics-formatters";
 import type { CriticalShipment } from "@/types/logistics.types";
 import { notify } from "@/utils/notify";
 import { cn } from "@/lib/utils";
@@ -78,12 +76,16 @@ const QUICK_ACTIONS = [
 ] as const;
 
 export function LogisticsDashboardPage() {
-  const { isLoading } = useLogisticsLoading();
-  const warehouseShipments = useLogisticsStore((s) => s.warehouseShipments);
-  const customerDeliveries = useLogisticsStore((s) => s.customerDeliveries);
-  const vehicles = useLogisticsStore((s) => s.vehicles);
-  const drivers = useLogisticsStore((s) => s.drivers);
-  const criticalShipments = useLogisticsStore((s) => s.criticalShipments);
+  const {
+    data,
+    isLoading,
+    isError,
+    refetch,
+    isFetching,
+  } = useLogisticsDashboard();
+
+  const stats = data;
+  const criticalShipments = data?.criticalShipments ?? [];
 
   const [selectedShipment, setSelectedShipment] =
     useState<CriticalShipment | null>(null);
@@ -91,43 +93,58 @@ export function LogisticsDashboardPage() {
   const [assignVehicleOpen, setAssignVehicleOpen] = useState(false);
   const [assignDriverOpen, setAssignDriverOpen] = useState(false);
   const [assignTargetId, setAssignTargetId] = useState("");
+  const [assignTargetLabel, setAssignTargetLabel] = useState("");
+  const [assignTargetType, setAssignTargetType] = useState<
+    "warehouse" | "customer"
+  >("warehouse");
+  const [assignDriverId, setAssignDriverId] = useState<string | null>(null);
+  const [assignVehicleId, setAssignVehicleId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const stats = useMemo(
-    () =>
-      computeDashboardStats(
-        warehouseShipments,
-        customerDeliveries,
-        vehicles,
-        drivers,
-      ),
-    [warehouseShipments, customerDeliveries, vehicles, drivers],
-  );
+  const emptyStats = {
+    warehouseTransfers: 0,
+    hubDeliveries: 0,
+    vehiclesRunning: 0,
+    driversActive: 0,
+    delayedShipments: 0,
+    todaysDeliveries: 0,
+    warehouseHub: {
+      inTransit: 0,
+      pendingDispatch: 0,
+      delayed: 0,
+      completed: 0,
+    },
+    hubCustomer: {
+      readyForDelivery: 0,
+      outForDelivery: 0,
+      delivered: 0,
+      failedDelivery: 0,
+      returned: 0,
+    },
+  };
+
+  const s = stats ?? emptyStats;
 
   const kpiCards = useMemo<LogisticsMetricCardData[]>(
     () => [
       {
         id: "warehouse-transfers",
         label: "Warehouse Transfers",
-        value: String(stats.warehouseTransfers),
-        trend: "+12% vs last week",
-        trendUp: true,
+        value: String(s.warehouseTransfers),
         icon: Package,
         href: `${ROUTES.LOGISTICS}/warehouse`,
       },
       {
         id: "hub-deliveries",
         label: "Hub Deliveries",
-        value: String(stats.hubDeliveries),
-        trend: "+8% vs last week",
-        trendUp: true,
+        value: String(s.hubDeliveries),
         icon: Truck,
         href: `${ROUTES.LOGISTICS}/customer`,
       },
       {
         id: "vehicles-running",
         label: "Vehicles Running",
-        value: String(stats.vehiclesRunning),
+        value: String(s.vehiclesRunning),
         icon: Truck,
         variant: "success",
         href: `${ROUTES.LOGISTICS}/fleet/vehicles`,
@@ -135,28 +152,28 @@ export function LogisticsDashboardPage() {
       {
         id: "drivers-active",
         label: "Drivers Active",
-        value: String(stats.driversActive),
+        value: String(s.driversActive),
         icon: Users,
         href: `${ROUTES.LOGISTICS}/fleet/drivers`,
       },
       {
         id: "delayed-shipments",
         label: "Delayed Shipments",
-        value: String(stats.delayedShipments),
-        variant: stats.delayedShipments > 0 ? "critical" : "default",
+        value: String(s.delayedShipments),
+        variant: s.delayedShipments > 0 ? "critical" : "default",
         icon: AlertTriangle,
         href: `${ROUTES.LOGISTICS}/tracking`,
       },
       {
         id: "todays-deliveries",
         label: "Today's Deliveries",
-        value: String(stats.todaysDeliveries),
+        value: String(s.todaysDeliveries),
         variant: "success",
         icon: CheckCircle2,
         href: `${ROUTES.LOGISTICS}/customer`,
       },
     ],
-    [stats],
+    [s],
   );
 
   const warehouseSummary = useMemo<LogisticsSummaryItem[]>(
@@ -164,7 +181,7 @@ export function LogisticsDashboardPage() {
       {
         id: "wh-transit",
         label: "In Transit",
-        value: stats.warehouseHub.inTransit,
+        value: s.warehouseHub.inTransit,
         icon: Truck,
         filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/warehouse`, {
           status: "in_transit",
@@ -173,27 +190,27 @@ export function LogisticsDashboardPage() {
       {
         id: "wh-pending",
         label: "Pending Dispatch",
-        value: stats.warehouseHub.pendingDispatch,
+        value: s.warehouseHub.pendingDispatch,
         variant: "warning",
         icon: Clock,
         filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/warehouse`, {
-          status: "pending_dispatch",
+          status: "pending",
         }),
       },
       {
         id: "wh-delayed",
         label: "Delayed",
-        value: stats.warehouseHub.delayed,
+        value: s.warehouseHub.delayed,
         variant: "critical",
         icon: AlertTriangle,
-        filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/tracking`, {
+        filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/warehouse`, {
           status: "delayed",
         }),
       },
       {
         id: "wh-completed",
         label: "Completed",
-        value: stats.warehouseHub.completed,
+        value: s.warehouseHub.completed,
         variant: "success",
         icon: CheckCircle2,
         filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/warehouse`, {
@@ -201,7 +218,7 @@ export function LogisticsDashboardPage() {
         }),
       },
     ],
-    [stats.warehouseHub],
+    [s.warehouseHub],
   );
 
   const customerSummary = useMemo<LogisticsSummaryItem[]>(
@@ -209,16 +226,16 @@ export function LogisticsDashboardPage() {
       {
         id: "hc-ready",
         label: "Ready for Delivery",
-        value: stats.hubCustomer.readyForDelivery,
+        value: s.hubCustomer.readyForDelivery,
         icon: Package,
         filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/customer`, {
-          status: "ready",
+          status: "packed",
         }),
       },
       {
         id: "hc-ofd",
         label: "Out For Delivery",
-        value: stats.hubCustomer.outForDelivery,
+        value: s.hubCustomer.outForDelivery,
         variant: "warning",
         icon: Truck,
         filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/customer`, {
@@ -228,7 +245,7 @@ export function LogisticsDashboardPage() {
       {
         id: "hc-delivered",
         label: "Delivered",
-        value: stats.hubCustomer.delivered,
+        value: s.hubCustomer.delivered,
         variant: "success",
         icon: CheckCircle2,
         filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/customer`, {
@@ -238,7 +255,7 @@ export function LogisticsDashboardPage() {
       {
         id: "hc-failed",
         label: "Failed Delivery",
-        value: stats.hubCustomer.failedDelivery,
+        value: s.hubCustomer.failedDelivery,
         variant: "critical",
         icon: AlertTriangle,
         filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/customer`, {
@@ -248,14 +265,14 @@ export function LogisticsDashboardPage() {
       {
         id: "hc-returned",
         label: "Returned",
-        value: stats.hubCustomer.returned,
+        value: s.hubCustomer.returned,
         icon: Package,
         filterHref: buildFilteredUrl(`${ROUTES.LOGISTICS}/customer`, {
           status: "returned",
         }),
       },
     ],
-    [stats.hubCustomer],
+    [s.hubCustomer],
   );
 
   const paginatedCritical = useMemo(() => {
@@ -270,20 +287,47 @@ export function LogisticsDashboardPage() {
     };
   }, [criticalShipments, currentPage]);
 
-  const openAssignVehicle = (id: string) => {
-    setAssignTargetId(id);
+  const openAssignVehicle = (shipment: CriticalShipment) => {
+    setAssignTargetId(shipment.id);
+    setAssignTargetLabel(shipment.shipmentId);
+    setAssignTargetType(
+      shipment.shipmentType === "warehouse_transfer" ? "warehouse" : "customer",
+    );
+    setAssignDriverId(shipment.driverId);
+    setAssignVehicleId(shipment.vehicleId);
     setAssignVehicleOpen(true);
   };
 
-  const openAssignDriver = (id: string) => {
-    setAssignTargetId(id);
+  const openAssignDriver = (shipment: CriticalShipment) => {
+    setAssignTargetId(shipment.id);
+    setAssignTargetLabel(shipment.shipmentId);
+    setAssignTargetType(
+      shipment.shipmentType === "warehouse_transfer" ? "warehouse" : "customer",
+    );
+    setAssignDriverId(shipment.driverId);
+    setAssignVehicleId(shipment.vehicleId);
     setAssignDriverOpen(true);
   };
 
-  const getShipmentType = (s: CriticalShipment) =>
-    s.shipmentType === "warehouse_transfer" ? "warehouse" : "customer";
+  const hasDelays = s.delayedShipments > 0;
 
-  const hasDelays = stats.delayedShipments > 0;
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-red-100 bg-white p-10 text-center">
+        <p className="text-sm font-medium text-[#1A1A1A]">
+          Unable to load logistics dashboard.
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void refetch()}
+          disabled={isFetching}
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -294,8 +338,8 @@ export function LogisticsDashboardPage() {
         >
           <AlertTriangle />
           <AlertTitle>
-            {stats.delayedShipments} delayed shipment
-            {stats.delayedShipments > 1 ? "s" : ""} need attention
+            {s.delayedShipments} delayed shipment
+            {s.delayedShipments > 1 ? "s" : ""} need attention
           </AlertTitle>
           <AlertDescription>
             Review critical shipments below and assign vehicles or drivers to
@@ -519,8 +563,24 @@ export function LogisticsDashboardPage() {
         shipment={selectedShipment}
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
-        onAssignVehicle={openAssignVehicle}
-        onAssignDriver={openAssignDriver}
+        onAssignVehicle={(id) => {
+          const shipment =
+            selectedShipment?.shipmentId === id || selectedShipment?.id === id
+              ? selectedShipment
+              : criticalShipments.find(
+                  (c) => c.id === id || c.shipmentId === id,
+                );
+          if (shipment) openAssignVehicle(shipment);
+        }}
+        onAssignDriver={(id) => {
+          const shipment =
+            selectedShipment?.shipmentId === id || selectedShipment?.id === id
+              ? selectedShipment
+              : criticalShipments.find(
+                  (c) => c.id === id || c.shipmentId === id,
+                );
+          if (shipment) openAssignDriver(shipment);
+        }}
         onApproveDocuments={(id) =>
           notify.success("Documents Approved", `${id} cleared for dispatch.`)
         }
@@ -530,17 +590,19 @@ export function LogisticsDashboardPage() {
         open={assignVehicleOpen}
         onOpenChange={setAssignVehicleOpen}
         targetId={assignTargetId}
-        targetType={
-          selectedShipment ? getShipmentType(selectedShipment) : "warehouse"
-        }
+        targetLabel={assignTargetLabel}
+        targetType={assignTargetType}
+        driverId={assignDriverId}
+        onAssigned={() => void refetch()}
       />
       <AssignDriverDialog
         open={assignDriverOpen}
         onOpenChange={setAssignDriverOpen}
         targetId={assignTargetId}
-        targetType={
-          selectedShipment ? getShipmentType(selectedShipment) : "warehouse"
-        }
+        targetLabel={assignTargetLabel}
+        targetType={assignTargetType}
+        vehicleId={assignVehicleId}
+        onAssigned={() => void refetch()}
       />
     </div>
   );

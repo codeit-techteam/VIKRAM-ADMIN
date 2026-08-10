@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { HUB_TRANSFER_FILTER_OPTIONS } from "@/mock/hub-transfers";
+import { HUB_TRANSFER_FILTER_OPTIONS } from "@/constants/sub-hub-ops.constants";
 import type {
   HubTransferFilters,
   HubTransferPriority,

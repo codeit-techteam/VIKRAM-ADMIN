@@ -10,9 +10,10 @@ import {
 } from "@/components/allocation/AllocationSummaryCard";
 import { MaterialAllocationTable } from "@/components/allocation/MaterialAllocationTable";
 import { ALLOCATION_PAGE_SIZE, fetchAllocations } from "@/mock/allocations";
-import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 import type { MaterialAllocationItem } from "@/types/warehouse.types";
 import { ROUTES } from "@/constants/routes";
+import { warehouseService } from "@/services/warehouse";
+import { notify } from "@/utils/notify";
 
 const TABLE_COPY: Record<
   AllocationStatKey,
@@ -39,24 +40,38 @@ const TABLE_COPY: Record<
 
 export function AllocationPage() {
   const router = useRouter();
-  const allocationRecords = useWarehouseErpStore((state) => state.allocations);
-  const requisitions = useWarehouseErpStore((state) => state.requisitions);
-  const getMaterialAllocations = useWarehouseErpStore(
-    (state) => state.getMaterialAllocations,
-  );
-
-  const allocations = useMemo(
-    () => getMaterialAllocations(),
-    [allocationRecords, requisitions, getMaterialAllocations],
-  );
+  const [allocations, setAllocations] = useState<MaterialAllocationItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeStat, setActiveStat] =
     useState<AllocationStatKey>("pending-allocation");
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 600);
-    return () => window.clearTimeout(timer);
+    let active = true;
+    const load = async () => {
+      try {
+        const result = await warehouseService.listAllocations({
+          page: 1,
+          limit: 1000,
+        });
+        if (active) setAllocations(result.data);
+      } catch {
+        if (active) {
+          notify.error(
+            "Allocations unavailable",
+            "Unable to load approved requisitions.",
+          );
+        }
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    };
+    void load();
+    const interval = window.setInterval(() => void load(), 30000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, []);
 
   const queryResult = useMemo(

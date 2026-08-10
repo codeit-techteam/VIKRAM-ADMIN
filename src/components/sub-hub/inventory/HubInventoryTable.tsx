@@ -366,8 +366,22 @@ export function HubInventoryTable({
                       {row.hubName}
                     </TableCell>
                     <TableCell>
-                      <div className="font-medium text-[#1A1A1A]">
-                        {row.materialName}
+                      <div className="flex items-center gap-3">
+                        <div className="bg-muted flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-gray-100">
+                          {row.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={row.imageUrl}
+                              alt={row.materialName}
+                              className="size-full object-cover"
+                            />
+                          ) : (
+                            <Package className="size-4 text-[#94A3B8]" />
+                          )}
+                        </div>
+                        <div className="font-medium text-[#1A1A1A]">
+                          {row.materialName}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell className="font-mono text-xs text-[#64748B]">

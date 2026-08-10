@@ -35,14 +35,17 @@ import {
   type LogisticsMetricCardData,
 } from "@/features/logistics/components/LogisticsMetricCard";
 import { LogisticsStatusBadge } from "@/features/logistics/components/LogisticsStatusBadge";
+import { useStartMaintenance } from "@/features/logistics/hooks/use-logistics";
 import {
   useDeleteVehicle,
-  useUpdateVehicle,
   useVehicleStats,
   useVehicles,
 } from "@/features/logistics/hooks/use-vehicles";
 import { mapUiStatusFilterToApi } from "@/features/logistics/utils/vehicle-api.mapper";
-import { formatLogisticsDate, LOGISTICS_PAGE_SIZE } from "@/mock/logistics";
+import {
+  formatLogisticsDate,
+  LOGISTICS_PAGE_SIZE,
+} from "@/features/logistics/utils/logistics-formatters";
 import { hubsService } from "@/services/hubs.service";
 import type { LogisticsVehicle, VehicleFilters } from "@/types/logistics.types";
 import { notify } from "@/utils/notify";
@@ -128,7 +131,7 @@ export function FleetVehiclesPage() {
   const vehiclesQuery = useVehicles(listParams);
   const statsQuery = useVehicleStats();
   const deleteMutation = useDeleteVehicle();
-  const updateMutation = useUpdateVehicle();
+  const startMaintenance = useStartMaintenance();
 
   const vehicles = vehiclesQuery.data?.vehicles ?? [];
   const meta = vehiclesQuery.data?.meta ?? {
@@ -410,11 +413,8 @@ export function FleetVehiclesPage() {
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => {
-                              updateMutation.mutate(
-                                {
-                                  id: vehicle.id,
-                                  payload: { status: "MAINTENANCE" },
-                                },
+                              startMaintenance.mutate(
+                                { vehicleId: vehicle.id },
                                 {
                                   onSuccess: () =>
                                     notify.success("Maintenance Scheduled"),

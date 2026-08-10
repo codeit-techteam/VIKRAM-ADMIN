@@ -42,7 +42,7 @@ import {
   useDrivers,
 } from "@/features/logistics/hooks/use-drivers";
 import { mapUiStatusFilterToApi } from "@/features/logistics/utils/driver-api.mapper";
-import { LOGISTICS_PAGE_SIZE } from "@/mock/logistics";
+import { LOGISTICS_PAGE_SIZE } from "@/features/logistics/utils/logistics-formatters";
 import { hubsService } from "@/services/hubs.service";
 import type { LogisticsDriver, DriverFilters } from "@/types/logistics.types";
 import { notify } from "@/utils/notify";

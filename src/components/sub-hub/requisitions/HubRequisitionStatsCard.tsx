@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import type { HubRequisitionStats } from "@/mock/hub-requisitions";
+import type { HubRequisitionStats } from "@/constants/sub-hub-ops.constants";
 import { cn } from "@/lib/utils";
 
 export type HubRequisitionStatKey =

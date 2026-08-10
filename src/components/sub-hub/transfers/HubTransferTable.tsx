@@ -33,7 +33,7 @@ import {
 import {
   formatHubTransferDateTime,
   HUB_TRANSFER_PAGE_SIZE,
-} from "@/mock/hub-transfers";
+} from "@/constants/sub-hub-ops.constants";
 import type { HubTransfer } from "@/types/hub-transfer.types";
 import { cn } from "@/lib/utils";
 
@@ -75,13 +75,6 @@ function getPaginationItems(
     totalPages,
   ];
 }
-
-const priorityStyles = {
-  critical: "text-red-600 font-bold",
-  high: "text-orange-600 font-semibold",
-  medium: "text-blue-600",
-  low: "text-gray-500",
-} as const;
 
 function RowActions({
   item,
@@ -214,10 +207,10 @@ export function HubTransferTable({
       <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-4">
         <div>
           <h2 className="text-base font-semibold text-[#1A1A1A]">
-            Hub Customer Dispatch Registry
+            Warehouse → Hub Transfer Registry
           </h2>
           <p className="mt-0.5 text-sm text-[#64748B]">
-            Last-mile deliveries dispatched from sub-hubs to customers
+            Stock transfers from Central Warehouse to the selected sub-hub
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -252,8 +245,8 @@ export function HubTransferTable({
       ) : items.length === 0 ? (
         <div className="p-8">
           <EmptyState
-            title="No dispatches found"
-            description="Adjust filters or wait for hub managers to accept customer orders."
+            title="No transfers found"
+            description="No transfers assigned to this hub yet."
           />
         </div>
       ) : (
@@ -266,19 +259,19 @@ export function HubTransferTable({
                     Transfer ID
                   </TableHead>
                   <TableHead className="sticky top-0 z-10 bg-white text-xs font-semibold tracking-wide text-[#64748B] uppercase">
-                    Order ID
+                    Requisition ID
                   </TableHead>
                   <TableHead className="sticky top-0 z-10 bg-white text-xs font-semibold tracking-wide text-[#64748B] uppercase">
-                    Customer
+                    Material
                   </TableHead>
                   <TableHead className="sticky top-0 z-10 bg-white text-xs font-semibold tracking-wide text-[#64748B] uppercase">
-                    Mobile
+                    SKU
                   </TableHead>
                   <TableHead className="sticky top-0 z-10 min-w-[180px] bg-white text-xs font-semibold tracking-wide text-[#64748B] uppercase">
-                    Delivery Address
+                    Source Warehouse
                   </TableHead>
                   <TableHead className="sticky top-0 z-10 bg-white text-xs font-semibold tracking-wide text-[#64748B] uppercase">
-                    Hub
+                    Destination Hub
                   </TableHead>
                   <TableHead className="sticky top-0 z-10 bg-white text-xs font-semibold tracking-wide text-[#64748B] uppercase">
                     Driver
@@ -287,16 +280,16 @@ export function HubTransferTable({
                     Vehicle
                   </TableHead>
                   <TableHead className="sticky top-0 z-10 bg-white text-xs font-semibold tracking-wide text-[#64748B] uppercase">
-                    Dispatch Time
+                    Dispatch Date
                   </TableHead>
                   <TableHead className="sticky top-0 z-10 bg-white text-xs font-semibold tracking-wide text-[#64748B] uppercase">
-                    Expected Delivery
+                    ETA
                   </TableHead>
                   <TableHead className="sticky top-0 z-10 bg-white text-xs font-semibold tracking-wide text-[#64748B] uppercase">
                     Status
                   </TableHead>
                   <TableHead className="sticky top-0 z-10 bg-white text-xs font-semibold tracking-wide text-[#64748B] uppercase">
-                    Priority
+                    Qty
                   </TableHead>
                   <TableHead className="sticky top-0 z-10 bg-white text-right text-xs font-semibold tracking-wide text-[#64748B] uppercase">
                     Actions
@@ -361,13 +354,8 @@ export function HubTransferTable({
                         isDelayed={item.isDelayed}
                       />
                     </TableCell>
-                    <TableCell
-                      className={cn(
-                        "text-xs uppercase",
-                        priorityStyles[item.priority],
-                      )}
-                    >
-                      {item.priority}
+                    <TableCell className="text-xs text-[#475569]">
+                      {item.dispatchCounter}
                     </TableCell>
                     <TableCell className="text-right">
                       <RowActions

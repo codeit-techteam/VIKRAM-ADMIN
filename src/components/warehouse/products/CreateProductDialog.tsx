@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { isAxiosError } from "axios";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
@@ -30,7 +31,10 @@ import {
   productFormSchema,
   type ProductFormSchema,
 } from "@/components/warehouse/products/product-form.schema";
+import { MediaUploadGrid } from "@/features/catalog/components/MediaUploadGrid";
+import type { ProductImage } from "@/features/catalog/schema/product-form.schema";
 import type { WarehouseProduct } from "@/mock/warehouse-products";
+import { catalogService } from "@/services/catalog.service";
 import { notify } from "@/utils/notify";
 import type { z } from "zod";
 
@@ -46,6 +50,7 @@ export function CreateProductDialog({
   onCreated,
 }: CreateProductDialogProps) {
   const [isSaving, setIsSaving] = useState(false);
+  const [images, setImages] = useState<ProductImage[]>([]);
 
   const {
     control,
@@ -60,6 +65,7 @@ export function CreateProductDialog({
   useEffect(() => {
     if (open) {
       reset(PRODUCT_FORM_DEFAULT_VALUES);
+      setImages([]);
     }
   }, [open, reset]);
 
@@ -71,26 +77,82 @@ export function CreateProductDialog({
   const onSubmit = async (data: ProductFormSchema) => {
     setIsSaving(true);
     try {
-      await new Promise((resolve) => {
-        setTimeout(resolve, 150);
+      const categories = await catalogService.listCategories();
+      const normalizedCategory = data.category.toLowerCase();
+      const category = categories.find(
+        (item) =>
+          item.id === data.category ||
+          item.slug?.toLowerCase() === normalizedCategory ||
+          item.name.toLowerCase() === normalizedCategory,
+      );
+      if (!category) {
+        notify.error(
+          "Category unavailable",
+          "Select a valid catalog category.",
+        );
+        return;
+      }
+
+      const orderedImages = [...images].sort(
+        (a, b) => Number(b.isMain) - Number(a.isMain),
+      );
+      const imageUrls = orderedImages.map((image) => image.url);
+
+      const created = await catalogService.createProduct({
+        name: data.name.trim(),
+        slug: data.name
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, ""),
+        sku: data.sku.trim().toUpperCase(),
+        categoryId: category.id,
+        brand: data.brand.trim(),
+        retailPrice: 0,
+        unit: data.unit,
+        initialStock: data.stockUnits,
+        isVisible: data.status !== "INACTIVE",
+        imageUrls: imageUrls.length ? imageUrls : undefined,
       });
 
+      if (orderedImages.length) {
+        await catalogService.setImages(
+          created.id,
+          orderedImages.map((image) => ({
+            url: image.url,
+            isPrimary: image.isMain,
+          })),
+        );
+      }
+
       const product: WarehouseProduct = {
-        id: `wp-${Date.now()}`,
-        name: data.name.trim(),
-        sku: data.sku.trim().toUpperCase(),
-        category: data.category,
-        brand: data.brand.trim(),
-        unit: data.unit,
-        stockUnits: data.stockUnits,
+        id: created.id,
+        name: created.name,
+        sku: created.sku ?? data.sku.trim().toUpperCase(),
+        category: created.category?.name ?? category.name,
+        brand: created.brand ?? data.brand.trim(),
+        unit: created.unit,
+        stockUnits: created.stockLeft ?? data.stockUnits,
         status: data.status,
+        imageUrl: imageUrls[0] ?? getPrimaryFromCreated(created),
       };
 
       onCreated(product);
       notify.success("Product created", `${product.name} has been added.`);
       onOpenChange(false);
-    } catch {
-      notify.error("Create failed", "Something went wrong. Please try again.");
+    } catch (error) {
+      const responseMessage = isAxiosError<{ message?: string }>(error)
+        ? error.response?.data?.message
+        : undefined;
+      const message =
+        responseMessage ??
+        (error instanceof Error ? error.message : "Something went wrong.");
+      notify.error(
+        message.toLowerCase().includes("sku")
+          ? "SKU already exists"
+          : "Create failed",
+        message,
+      );
     } finally {
       setIsSaving(false);
     }
@@ -98,7 +160,7 @@ export function CreateProductDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Create Product</DialogTitle>
           <DialogDescription>
@@ -292,6 +354,11 @@ export function CreateProductDialog({
             </div>
           </div>
 
+          <div className="space-y-1.5">
+            <Label>Product Images</Label>
+            <MediaUploadGrid images={images} onChange={setImages} />
+          </div>
+
           <DialogFooter className="!mx-0 !mb-0">
             <Button
               type="button"
@@ -309,4 +376,13 @@ export function CreateProductDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function getPrimaryFromCreated(created: {
+  images?: Array<{ url?: string; isPrimary?: boolean }>;
+}): string | undefined {
+  const primary = created.images?.find((img) => img.isPrimary)?.url;
+  if (primary?.startsWith("http")) return primary;
+  const first = created.images?.find((img) => img.url?.startsWith("http"))?.url;
+  return first;
 }

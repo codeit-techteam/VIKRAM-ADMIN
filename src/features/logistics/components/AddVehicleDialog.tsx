@@ -39,6 +39,7 @@ import {
 } from "@/features/logistics/components/shared/FleetFormField";
 import { FleetFileUpload } from "@/features/logistics/components/shared/FleetFileUpload";
 import { FleetFormStepIndicator } from "@/features/logistics/components/shared/FleetFormStepIndicator";
+import { useDrivers } from "@/features/logistics/hooks/use-drivers";
 import {
   useCreateVehicle,
   useUpdateVehicle,
@@ -59,7 +60,6 @@ import {
 } from "@/features/logistics/utils/vehicle-api.mapper";
 import { hubsService } from "@/services/hubs.service";
 import { vehiclesService } from "@/services/vehicles.service";
-import { useLogisticsStore } from "@/store/logistics-store";
 import type { LogisticsVehicle } from "@/types/logistics.types";
 import { formatPhone } from "@/utils/format-phone";
 import { notify } from "@/utils/notify";
@@ -118,9 +118,10 @@ export function AddVehicleDialog({
   onOpenChange,
   editVehicle,
 }: AddVehicleDialogProps) {
-  const drivers = useLogisticsStore((s) => s.drivers);
   const createVehicle = useCreateVehicle();
   const updateVehicleMutation = useUpdateVehicle();
+  const driversQuery = useDrivers({ page: 1, limit: 200 });
+  const drivers = driversQuery.data?.drivers ?? [];
 
   const hubsQuery = useQuery({
     queryKey: ["admin-hubs-for-vehicle-form"],

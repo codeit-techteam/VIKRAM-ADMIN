@@ -172,7 +172,7 @@ export function CatalogPageContent() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Product Catalog"
+        title="Product Categories"
         titleClassName="text-primary"
         subtitle="Manage inventory, pricing, and distribution across regional hubs."
         breadcrumbs={getNavBreadcrumbsFromPath("/customer-app-cms/catalog")}

@@ -337,6 +337,7 @@ function isAllocatedToday(
 }
 
 function isOutOfStockAllocation(item: MaterialAllocationItem): boolean {
+  if (item.availableStock !== undefined) return item.availableStock === 0;
   const stock = getMaterialAvailableForAllocation(
     item.materialId,
     undefined,

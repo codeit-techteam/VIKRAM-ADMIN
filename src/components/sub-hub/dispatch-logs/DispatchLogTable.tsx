@@ -30,7 +30,7 @@ import {
 import {
   DISPATCH_LOG_PAGE_SIZE,
   formatDispatchLogDateTime,
-} from "@/mock/dispatch-logs";
+} from "@/constants/sub-hub-ops.constants";
 import type { DispatchLog } from "@/types/dispatch-log.types";
 import { cn } from "@/lib/utils";
 

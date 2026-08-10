@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DISPATCH_LOG_FILTER_OPTIONS } from "@/mock/dispatch-logs";
+import { DISPATCH_LOG_FILTER_OPTIONS } from "@/constants/sub-hub-ops.constants";
 import type { DispatchLogFilters } from "@/types/dispatch-log.types";
 import { cn } from "@/lib/utils";
 

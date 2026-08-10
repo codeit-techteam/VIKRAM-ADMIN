@@ -1,6 +1,7 @@
 "use client";
 
 import { InventoryStatusBadge } from "@/components/inventory/InventoryStatusBadge";
+import { SafeRemoteImage } from "@/components/shared/SafeRemoteImage";
 import {
   Sheet,
   SheetContent,
@@ -68,13 +69,24 @@ export function InventoryDetailSheet({
         {item ? (
           <>
             <SheetHeader className="border-b border-gray-100 p-5">
-              <div className="pr-8">
-                <SheetTitle className="text-lg text-[#1A1A1A]">
-                  {item.productName}
-                </SheetTitle>
-                <SheetDescription className="mt-1">{item.sku}</SheetDescription>
-                <div className="mt-3">
-                  <InventoryStatusBadge status={status} />
+              <div className="flex items-start gap-4 pr-8">
+                <div className="relative size-16 shrink-0 overflow-hidden rounded-xl bg-gray-100">
+                  <SafeRemoteImage
+                    src={item.imageUrl}
+                    alt={item.productName}
+                    fill
+                    className="object-cover"
+                    sizes="64px"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <SheetTitle className="text-lg text-[#1A1A1A]">
+                    {item.productName}
+                  </SheetTitle>
+                  <SheetDescription className="mt-1">{item.sku}</SheetDescription>
+                  <div className="mt-3">
+                    <InventoryStatusBadge status={status} />
+                  </div>
                 </div>
               </div>
             </SheetHeader>

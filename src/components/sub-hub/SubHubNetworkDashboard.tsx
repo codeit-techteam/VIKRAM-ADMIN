@@ -1,8 +1,6 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -16,14 +14,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ROUTES } from "@/constants/routes";
 import { hubsService, type AdminHubListItem } from "@/services/hubs.service";
+import { useSelectedHubStore } from "@/store/selected-hub-store";
 import type {
   SubHubOperationalStatus,
   SubHubStat,
   SubHubSummary,
   SubHubTableRow,
 } from "@/types/erp.types";
+import { formatHubStockValue } from "@/utils/sub-hub-metrics";
 
 type RegionFilter = "all" | string;
 type StatusFilter = "all" | SubHubOperationalStatus;
@@ -49,25 +48,36 @@ const fadeIn = {
 };
 
 function mapOperationalStatus(hub: AdminHubListItem): SubHubOperationalStatus {
-  if (!hub.isActive || hub.operationalStatus !== "ENABLED") return "critical";
+  if (
+    !hub.isActive ||
+    hub.operationalStatus !== "ENABLED" ||
+    hub.healthStatus === "CRITICAL"
+  ) {
+    return "critical";
+  }
+  if (hub.healthStatus === "ATTENTION") return "warning";
+  const health = hub.inventoryHealth ?? 100;
+  if (health < 50) return "critical";
+  if (health < 80) return "warning";
   return "healthy";
 }
 
 function toSummary(hub: AdminHubListItem): SubHubSummary {
   const status = mapOperationalStatus(hub);
+  const stockValue = hub.stockValue ?? 0;
   return {
     hubId: hub.id,
     name: hub.name,
     city: hub.city,
     managerName: hub.manager?.fullName || hub.manager?.name || "Unassigned",
-    stockValue: 0,
-    stockValueLabel: "—",
+    stockValue,
+    stockValueLabel: formatHubStockValue(stockValue),
     pendingOrders: hub.pendingOrders ?? hub.orderCount ?? 0,
-    pendingRequisitions: 0,
-    incomingTransfers: 0,
-    outgoingTransfers: 0,
-    inventoryHealth: hub.isActive ? 90 : 40,
-    healthScore: hub.isActive ? 88 : 35,
+    pendingRequisitions: hub.pendingRequisitions ?? 0,
+    incomingTransfers: hub.incomingTransfers ?? 0,
+    outgoingTransfers: hub.outgoingTransfers ?? 0,
+    inventoryHealth: hub.inventoryHealth ?? (hub.isActive ? 100 : 0),
+    healthScore: hub.inventoryHealth ?? (hub.isActive ? 100 : 0),
     lastInventorySync: hub.updatedAt,
     status,
   };
@@ -82,13 +92,13 @@ function toTableRow(hub: AdminHubListItem): SubHubTableRow {
     managerName: hub.manager?.fullName || hub.manager?.name || "Unassigned",
     city: hub.city,
     region: hub.state,
-    inventoryHealth: hub.isActive ? 90 : 40,
-    healthScore: hub.isActive ? 88 : 35,
+    inventoryHealth: hub.inventoryHealth ?? (hub.isActive ? 100 : 0),
+    healthScore: hub.inventoryHealth ?? (hub.isActive ? 100 : 0),
     pendingOrders: hub.pendingOrders ?? hub.orderCount ?? 0,
-    pendingRequisitions: 0,
-    incomingTransfers: 0,
-    outgoingTransfers: 0,
-    transfersInTransit: 0,
+    pendingRequisitions: hub.pendingRequisitions ?? 0,
+    incomingTransfers: hub.incomingTransfers ?? 0,
+    outgoingTransfers: hub.outgoingTransfers ?? 0,
+    transfersInTransit: hub.incomingTransfers ?? 0,
     status,
     isActive: hub.isActive,
   };
@@ -96,7 +106,6 @@ function toTableRow(hub: AdminHubListItem): SubHubTableRow {
 
 function sortByOperationalPriority(summaries: SubHubSummary[]) {
   return [...summaries].sort((left, right) => {
-    // Active / healthy hubs first so Admin opens the live Kalyani hub
     const leftActive = left.status === "healthy" ? 0 : 1;
     const rightActive = right.status === "healthy" ? 0 : 1;
     if (leftActive !== rightActive) return leftActive - rightActive;
@@ -112,6 +121,7 @@ export function SubHubNetworkDashboard() {
   const [regionFilter, setRegionFilter] = useState<RegionFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [showAllHubs, setShowAllHubs] = useState(false);
+  const setSelectedHub = useSelectedHubStore((s) => s.setSelectedHub);
 
   const hubsQuery = useQuery({
     queryKey: ["admin-hubs", "list"],
@@ -166,7 +176,10 @@ export function SubHubNetworkDashboard() {
   const activeCount = hubs.filter(
     (h) => h.isActive && h.operationalStatus === "ENABLED",
   ).length;
-  const totalDrivers = hubs.reduce((sum, h) => sum + (h.driverCount ?? 0), 0);
+  const totalDrivers = hubs.reduce(
+    (sum, h) => sum + (h.activeDrivers ?? h.driverCount ?? 0),
+    0,
+  );
   const totalOrders = hubs.reduce((sum, h) => sum + (h.orderCount ?? 0), 0);
 
   const kpis: SubHubStat[] = [
@@ -218,13 +231,6 @@ export function SubHubNetworkDashboard() {
             everywhere.
           </p>
         </div>
-        <Link
-          href={ROUTES.SUB_HUB_ADD}
-          className="bg-primary inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white"
-        >
-          Create Hub
-          <ArrowRight className="size-4" />
-        </Link>
       </motion.div>
 
       <motion.div
@@ -297,41 +303,27 @@ export function SubHubNetworkDashboard() {
           ? Array.from({ length: 3 }).map((_, i) => (
               <SubHubSummaryCard
                 key={i}
-                hub={
-                  summaries[0] ?? {
-                    hubId: "loading",
-                    name: "",
-                    city: "",
-                    managerName: "",
-                    stockValue: 0,
-                    stockValueLabel: "",
-                    pendingOrders: 0,
-                    pendingRequisitions: 0,
-                    incomingTransfers: 0,
-                    outgoingTransfers: 0,
-                    inventoryHealth: 0,
-                    healthScore: 0,
-                    lastInventorySync: "",
-                    status: "healthy",
-                  }
-                }
+                hub={summaries[0] ?? ({} as SubHubSummary)}
                 isLoading
               />
             ))
           : visibleCards.map((hub) => (
-              <SubHubSummaryCard key={hub.hubId} hub={hub} />
+              <div
+                key={hub.hubId}
+                onClick={() => setSelectedHub(hub.hubId, hub.name)}
+              >
+                <SubHubSummaryCard hub={hub} />
+              </div>
             ))}
       </motion.div>
 
-      {!isLoading && summaries.length > DASHBOARD_CARD_LIMIT ? (
+      {!showAllHubs && summaries.length > DASHBOARD_CARD_LIMIT ? (
         <button
           type="button"
           className="text-primary text-sm font-semibold"
-          onClick={() => setShowAllHubs((v) => !v)}
+          onClick={() => setShowAllHubs(true)}
         >
-          {showAllHubs
-            ? "Show fewer hubs"
-            : `Show all ${summaries.length} hubs`}
+          Show all {summaries.length} hubs
         </button>
       ) : null}
 

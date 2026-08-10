@@ -18,6 +18,16 @@ export const vehicleKeys = {
   detail: (id: string) => [...vehicleKeys.all, "detail", id] as const,
 };
 
+/** Matches `logisticsKeys.all` — avoid importing use-logistics (circular). */
+const LOGISTICS_QUERY_ROOT = ["logistics"] as const;
+
+function invalidateVehicleAndLogistics(
+  qc: ReturnType<typeof useQueryClient>,
+) {
+  void qc.invalidateQueries({ queryKey: vehicleKeys.all });
+  void qc.invalidateQueries({ queryKey: LOGISTICS_QUERY_ROOT });
+}
+
 export function useVehicles(params: VehicleListParams) {
   return useQuery({
     queryKey: vehicleKeys.list(params),
@@ -49,9 +59,7 @@ export function useCreateVehicle() {
   return useMutation({
     mutationFn: (payload: VehicleCreatePayload) =>
       vehiclesService.create(payload),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: vehicleKeys.all });
-    },
+    onSuccess: () => invalidateVehicleAndLogistics(qc),
   });
 }
 
@@ -65,9 +73,7 @@ export function useUpdateVehicle() {
       id: string;
       payload: Partial<VehicleCreatePayload> & { isActive?: boolean };
     }) => vehiclesService.update(id, payload),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: vehicleKeys.all });
-    },
+    onSuccess: () => invalidateVehicleAndLogistics(qc),
   });
 }
 
@@ -75,8 +81,6 @@ export function useDeleteVehicle() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => vehiclesService.remove(id),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: vehicleKeys.all });
-    },
+    onSuccess: () => invalidateVehicleAndLogistics(qc),
   });
 }

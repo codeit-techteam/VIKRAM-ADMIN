@@ -6,10 +6,13 @@ export interface Banner {
   id: string;
   thumbnailUrl: string;
   title: string;
+  subtitle?: string | null;
   location: string;
   ctaLabel: string;
   ctaPath: string;
   status: BannerStatus;
+  startsAt?: string | null;
+  endsAt?: string | null;
 }
 
 export interface BannerModification {

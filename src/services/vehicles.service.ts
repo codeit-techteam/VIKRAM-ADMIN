@@ -129,6 +129,23 @@ export const vehiclesService = {
     await api.delete(API_ENDPOINTS.ADMIN_VEHICLES.BY_ID(id));
   },
 
+  async updateStatus(
+    id: string,
+    payload: {
+      status: string;
+      reason?: string;
+      maintenanceReason?: string;
+      maintenanceExpectedAt?: string;
+    },
+  ) {
+    return unwrap(
+      api.patch<ApiResponse<ApiVehicle>>(
+        API_ENDPOINTS.ADMIN_VEHICLES.STATUS(id),
+        payload,
+      ),
+    );
+  },
+
   async createDocumentUploadUrl(
     vehicleId: string,
     body: {

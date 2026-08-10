@@ -69,7 +69,7 @@ export function HubCreateSuccessModal({
             render={<Link href={ROUTES.SUB_HUB_NETWORK} />}
           >
             <LayoutDashboard className="size-4" />
-            Go To Dashboard
+            Go To All Sub-Hubs
           </Button>
           <Button
             variant="ghost"

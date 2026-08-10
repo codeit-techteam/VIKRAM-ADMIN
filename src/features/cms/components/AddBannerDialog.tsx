@@ -49,12 +49,25 @@ interface AddBannerDialogProps {
   onSaved: () => void;
 }
 
+function toDatetimeLocalValue(value?: string | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function bannerToFormValues(banner: Banner): BannerFormSchema {
   return {
+    ...BANNER_FORM_DEFAULT_VALUES,
     title: banner.title,
+    subtitle: banner.subtitle ?? "",
     location: banner.location,
+    placement: banner.location,
     ctaLabel: banner.ctaLabel,
     ctaPath: banner.ctaPath,
+    startsAt: toDatetimeLocalValue(banner.startsAt),
+    endsAt: toDatetimeLocalValue(banner.endsAt),
     status: banner.status,
   };
 }
@@ -76,6 +89,7 @@ export function AddBannerDialog({
     control,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<BannerFormSchema>({
     resolver: zodResolver(bannerFormSchema),
@@ -200,7 +214,14 @@ export function AddBannerDialog({
               name="location"
               control={control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={(value) => {
+                    if (!value) return;
+                    field.onChange(value);
+                    setValue("placement", value);
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select placement" />
                   </SelectTrigger>
@@ -319,7 +340,7 @@ export function AddBannerDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="LIVE">Live</SelectItem>
+                    <SelectItem value="LIVE">Active</SelectItem>
                     <SelectItem value="DRAFT">Draft</SelectItem>
                   </SelectContent>
                 </Select>

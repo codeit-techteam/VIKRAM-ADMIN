@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { MapPin } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { HubAssignedVehiclesPanel } from "@/components/sub-hub/HubAssignedVehiclesPanel";
@@ -27,6 +27,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { ROUTES } from "@/constants/routes";
 import { hubsService } from "@/services/hubs.service";
 import { hubOrdersService } from "@/services/hubOrders.service";
+import { useSelectedHubStore } from "@/store/selected-hub-store";
 import type {
   HubActivityEvent,
   SubHub,
@@ -93,10 +94,17 @@ export function HubDetailPage({ hubId, initialTab }: HubDetailPageProps) {
   const [orderFilterTab, setOrderFilterTab] = useState<HubOrderTab | undefined>(
     resolveOrderTab(initialTab),
   );
+  const setSelectedHub = useSelectedHubStore((s) => s.setSelectedHub);
 
   const hubQuery = useQuery({
     queryKey: ["admin-hubs", hubId],
     queryFn: () => hubsService.getById(hubId),
+    refetchInterval: 15_000,
+  });
+
+  const summaryQuery = useQuery({
+    queryKey: ["admin-hubs", hubId, "summary"],
+    queryFn: () => hubsService.getSummary(hubId),
     refetchInterval: 15_000,
   });
 
@@ -127,6 +135,16 @@ export function HubDetailPage({ hubId, initialTab }: HubDetailPageProps) {
   const isLoading = hubQuery.isLoading;
   const detail = hubQuery.data;
   const inventory = inventoryQuery.data;
+  const summary = summaryQuery.data as
+    | {
+        pendingOrders?: number;
+        requisitions?: number;
+        incomingTransfers?: number;
+        outgoingTransfers?: number;
+        inventoryHealth?: number;
+        stockValue?: number;
+      }
+    | undefined;
   const performanceRaw = performanceQuery.data as
     | {
         todaysOrders?: number;
@@ -135,6 +153,12 @@ export function HubDetailPage({ hubId, initialTab }: HubDetailPageProps) {
         monthlyOrders?: number;
       }
     | undefined;
+
+  useEffect(() => {
+    if (detail) {
+      setSelectedHub(detail.id, detail.name);
+    }
+  }, [detail, setSelectedHub]);
 
   const hub: SubHub | null = useMemo(() => {
     if (!detail) return null;
@@ -181,10 +205,10 @@ export function HubDetailPage({ hubId, initialTab }: HubDetailPageProps) {
       inventoryValueLabel: formatStockValue(inventoryValue),
       customerOrdersPending:
         dashboard?.activeOrders.value ?? detail.pendingOrders ?? 0,
-      pendingRequisitions: 0,
-      incomingTransfers: 0,
+      pendingRequisitions: summary?.requisitions ?? 0,
+      incomingTransfers: summary?.incomingTransfers ?? 0,
     };
-  }, [detail, inventory, orderDashboardQuery.data]);
+  }, [detail, inventory, orderDashboardQuery.data, summary]);
 
   const performance: HubPerformanceKpis | null = useMemo(() => {
     if (!detail) return null;
@@ -193,10 +217,10 @@ export function HubDetailPage({ hubId, initialTab }: HubDetailPageProps) {
       todaysOrders:
         dashboard?.todaysOrders.value ?? performanceRaw?.todaysOrders ?? 0,
       todaysDispatches: dashboard?.ordersOutForDelivery.value ?? 0,
-      incomingTransfers: 0,
-      pendingRequisitions: 0,
+      incomingTransfers: summary?.incomingTransfers ?? 0,
+      pendingRequisitions: summary?.requisitions ?? 0,
     };
-  }, [detail, performanceRaw, orderDashboardQuery.data]);
+  }, [detail, performanceRaw, orderDashboardQuery.data, summary]);
 
   const inventoryRows: HubInventoryRow[] = useMemo(() => {
     const items = (inventory?.items ?? []) as Array<{
@@ -210,10 +234,11 @@ export function HubDetailPage({ hubId, initialTab }: HubDetailPageProps) {
     }>;
 
     return items.map((item) => {
-      const availableQty = item.availableStock ?? 0;
+      const freeQty = item.availableStock ?? 0;
       const reservedQty = item.reservedStock ?? 0;
+      const availableQty = freeQty + reservedQty;
       const status =
-        availableQty <= 0
+        freeQty <= 0
           ? ("out-of-stock" as const)
           : item.lowStock
             ? ("low-stock" as const)
@@ -226,7 +251,7 @@ export function HubDetailPage({ hubId, initialTab }: HubDetailPageProps) {
         category: "Catalog",
         availableQty,
         reservedQty,
-        freeQty: availableQty,
+        freeQty,
         incomingQty: 0,
         outgoingQty: 0,
         reorderLevel: item.lowStockThreshold ?? 10,
@@ -238,7 +263,7 @@ export function HubDetailPage({ hubId, initialTab }: HubDetailPageProps) {
         lastUpdated: item.lastUpdated,
         recommendedQty: Math.max(
           0,
-          (item.lowStockThreshold ?? 10) - availableQty,
+          (item.lowStockThreshold ?? 10) - freeQty,
         ),
       };
     });

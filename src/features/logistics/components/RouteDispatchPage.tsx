@@ -28,16 +28,15 @@ import {
   type LogisticsMetricCardData,
 } from "@/features/logistics/components/LogisticsMetricCard";
 import { LogisticsStatusBadge } from "@/features/logistics/components/LogisticsStatusBadge";
-import { useLogisticsLoading } from "@/features/logistics/hooks/use-logistics-loading";
+import {
+  useDispatchLogistics,
+  useLogisticsFilters,
+} from "@/features/logistics/hooks/use-logistics";
 import {
   EMPTY_DISPATCH_FILTERS,
   formatLogisticsDateTime,
-  getDispatchStats,
   LOGISTICS_PAGE_SIZE,
-  LOGISTICS_WAREHOUSES,
-  queryDispatches,
-} from "@/mock/logistics";
-import { useLogisticsStore } from "@/store/logistics-store";
+} from "@/features/logistics/utils/logistics-formatters";
 import type {
   DispatchFilters,
   DispatchRecord,
@@ -46,6 +45,7 @@ import type {
 import { notify } from "@/utils/notify";
 
 type DispatchStatKey = "pending" | "today" | "drivers" | "vehicles";
+type AssignTargetType = "warehouse" | "customer";
 
 const STAT_FILTER_MAP: Record<
   DispatchStatKey,
@@ -58,6 +58,11 @@ const STAT_FILTER_MAP: Record<
 };
 
 const ASSIGNABLE_STATUSES: DispatchStatus[] = ["pending", "assigned"];
+
+function getDispatchTargetType(item: DispatchRecord): AssignTargetType {
+  if (item.kind === "warehouse" || item.kind === "customer") return item.kind;
+  return item.dispatchId.startsWith("TRN-") ? "warehouse" : "customer";
+}
 
 function canAssignVehicle(item: DispatchRecord) {
   return ASSIGNABLE_STATUSES.includes(item.status) && !item.vehicleId;
@@ -80,25 +85,42 @@ function canReassignDriver(item: DispatchRecord) {
 }
 
 export function RouteDispatchPage() {
-  const { isLoading } = useLogisticsLoading();
-  const dispatches = useLogisticsStore((s) => s.dispatches);
-  const drivers = useLogisticsStore((s) => s.drivers);
-  const vehicles = useLogisticsStore((s) => s.vehicles);
-  const generateDispatch = useLogisticsStore((s) => s.generateDispatch);
-
-  const [filters, setFilters] = useState<DispatchFilters>(
-    EMPTY_DISPATCH_FILTERS,
-  );
+  const [filters, setFilters] = useState<DispatchFilters>(EMPTY_DISPATCH_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
   const [assignVehicleOpen, setAssignVehicleOpen] = useState(false);
   const [assignDriverOpen, setAssignDriverOpen] = useState(false);
   const [assignTargetId, setAssignTargetId] = useState("");
+  const [assignTargetLabel, setAssignTargetLabel] = useState("");
+  const [assignTargetType, setAssignTargetType] =
+    useState<AssignTargetType>("warehouse");
+  const [assignDriverId, setAssignDriverId] = useState<string | null>(null);
+  const [assignVehicleId, setAssignVehicleId] = useState<string | null>(null);
   const [activeCard, setActiveCard] = useState<DispatchStatKey | null>(null);
 
-  const stats = useMemo(
-    () => getDispatchStats(dispatches, drivers, vehicles),
-    [dispatches, drivers, vehicles],
+  const { data: filterOptions } = useLogisticsFilters();
+
+  const queryParams = useMemo(
+    () => ({
+      search: filters.search || undefined,
+      source: filters.source !== "all" ? filters.source : undefined,
+      status: filters.status !== "all" ? filters.status : undefined,
+      assignment:
+        filters.assignment !== "all" ? filters.assignment : undefined,
+      page: currentPage,
+      limit: LOGISTICS_PAGE_SIZE,
+    }),
+    [filters, currentPage],
   );
+
+  const { data, isLoading, isError, refetch, isFetching } =
+    useDispatchLogistics(queryParams);
+
+  const stats = data?.stats ?? {
+    pending: 0,
+    todaysDispatches: 0,
+    driversWaiting: 0,
+    vehiclesWaiting: 0,
+  };
 
   const kpiCards = useMemo<LogisticsMetricCardData[]>(
     () => [
@@ -131,12 +153,6 @@ export function RouteDispatchPage() {
     [stats],
   );
 
-  const queryResult = useMemo(
-    () =>
-      queryDispatches(dispatches, currentPage, LOGISTICS_PAGE_SIZE, filters),
-    [dispatches, currentPage, filters],
-  );
-
   const handleStatCardClick = (statId: DispatchStatKey) => {
     if (activeCard === statId) {
       setActiveCard(null);
@@ -154,6 +170,23 @@ export function RouteDispatchPage() {
     }));
     setCurrentPage(1);
   };
+
+  const sourceOptions = useMemo(() => {
+    const warehouses = (filterOptions?.warehouses ?? []).map((w) => ({
+      value: w.name,
+      label: w.name,
+    }));
+    const hubs = (filterOptions?.hubs ?? []).map((h) => ({
+      value: h.name,
+      label: h.name,
+    }));
+    const seen = new Set<string>();
+    return [...warehouses, ...hubs].filter((opt) => {
+      if (seen.has(opt.value)) return false;
+      seen.add(opt.value);
+      return true;
+    });
+  }, [filterOptions]);
 
   const filterConfigs = [
     {
@@ -182,43 +215,60 @@ export function RouteDispatchPage() {
       },
       options: [
         { value: "all", label: "All Sources" },
-        ...LOGISTICS_WAREHOUSES.map((w) => ({ value: w, label: w })),
+        ...sourceOptions,
       ],
     },
   ];
 
   const handleGenerateDispatch = () => {
-    const newDispatch: DispatchRecord = {
-      id: `dp-${Date.now()}`,
-      dispatchId: `DSP-2026-${String(Math.floor(Math.random() * 900) + 100)}`,
-      source: LOGISTICS_WAREHOUSES[0]!,
-      destination: "South Delhi Hub",
-      vehicleId: null,
-      vehicleNumber: null,
-      driverId: null,
-      driverName: null,
-      route: "Gurgaon CW → NH-48 → South Delhi",
-      eta: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    };
-    generateDispatch(newDispatch);
-    notify.success(
-      "Dispatch Generated",
-      `${newDispatch.dispatchId} created successfully.`,
+    notify.info(
+      "Generate Dispatch",
+      "Dispatches are created via warehouse and hub workflows.",
     );
+  };
+
+  const openAssign = (item: DispatchRecord, type: "vehicle" | "driver") => {
+    setAssignTargetId(item.id);
+    setAssignTargetLabel(item.dispatchId);
+    setAssignTargetType(getDispatchTargetType(item));
+    setAssignDriverId(item.driverId);
+    setAssignVehicleId(item.vehicleId);
+    if (type === "vehicle") setAssignVehicleOpen(true);
+    else setAssignDriverOpen(true);
   };
 
   const handleAction = (action: string, item: DispatchRecord) => {
     if (action === "assign-vehicle") {
-      setAssignTargetId(item.dispatchId);
-      setAssignVehicleOpen(true);
+      openAssign(item, "vehicle");
     } else if (action === "assign-driver") {
-      setAssignTargetId(item.dispatchId);
-      setAssignDriverOpen(true);
+      openAssign(item, "driver");
     } else if (action === "view-route") {
       notify.info("View Route", `Route: ${item.route}`);
     }
+  };
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-red-100 bg-white p-10 text-center">
+        <p className="text-sm font-medium">Unable to load dispatches.</p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void refetch()}
+          disabled={isFetching}
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  const rows = data?.data ?? [];
+  const meta = data?.meta ?? {
+    page: 1,
+    limit: LOGISTICS_PAGE_SIZE,
+    total: 0,
+    totalPages: 1,
   };
 
   return (
@@ -264,11 +314,11 @@ export function RouteDispatchPage() {
               <div key={i} className="h-12 animate-pulse rounded bg-gray-100" />
             ))}
           </div>
-        ) : queryResult.data.length === 0 ? (
+        ) : rows.length === 0 ? (
           <div className="p-6">
             <EmptyState
-              title="No Dispatches"
-              description="Generate a dispatch to get started."
+              title="No dispatches found."
+              description="Dispatches are created via warehouse and hub workflows."
               icon={<Map className="size-8" />}
             />
           </div>
@@ -307,7 +357,7 @@ export function RouteDispatchPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {queryResult.data.map((item) => {
+                {rows.map((item) => {
                   const showAssignVehicle = canAssignVehicle(item);
                   const showAssignDriver = canAssignDriver(item);
                   const showReassignVehicle = canReassignVehicle(item);
@@ -405,12 +455,12 @@ export function RouteDispatchPage() {
           </div>
         )}
 
-        {!isLoading && queryResult.meta.total > 0 ? (
+        {!isLoading && meta.total > 0 ? (
           <Pagination
             currentPage={currentPage}
-            totalPages={queryResult.meta.totalPages}
+            totalPages={meta.totalPages}
             pageSize={LOGISTICS_PAGE_SIZE}
-            totalItems={queryResult.meta.total}
+            totalItems={meta.total}
             onPageChange={setCurrentPage}
             itemLabel="dispatches"
           />
@@ -421,13 +471,19 @@ export function RouteDispatchPage() {
         open={assignVehicleOpen}
         onOpenChange={setAssignVehicleOpen}
         targetId={assignTargetId}
-        targetType="dispatch"
+        targetLabel={assignTargetLabel}
+        targetType={assignTargetType}
+        driverId={assignDriverId}
+        onAssigned={() => void refetch()}
       />
       <AssignDriverDialog
         open={assignDriverOpen}
         onOpenChange={setAssignDriverOpen}
         targetId={assignTargetId}
-        targetType="dispatch"
+        targetLabel={assignTargetLabel}
+        targetType={assignTargetType}
+        vehicleId={assignVehicleId}
+        onAssigned={() => void refetch()}
       />
     </div>
   );

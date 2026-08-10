@@ -16,6 +16,7 @@ import {
 import { useMemo } from "react";
 
 import { InventoryStatusBadge } from "@/components/inventory/InventoryStatusBadge";
+import { SafeRemoteImage } from "@/components/shared/SafeRemoteImage";
 import { DataTableSkeleton } from "@/components/tables/data-table-skeleton";
 import { Button } from "@/components/ui/button";
 import {
@@ -172,11 +173,22 @@ export function InventoryTable({
         id: "product",
         header: "Product Name & SKU",
         cell: ({ row }) => (
-          <div>
-            <p className="font-semibold text-[#1A1A1A]">
-              {row.original.productName}
-            </p>
-            <p className="mt-0.5 text-xs text-[#64748B]">{row.original.sku}</p>
+          <div className="flex items-center gap-3">
+            <div className="relative size-10 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+              <SafeRemoteImage
+                src={row.original.imageUrl}
+                alt={row.original.productName}
+                fill
+                className="object-cover"
+                sizes="40px"
+              />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-[#1A1A1A]">
+                {row.original.productName}
+              </p>
+              <p className="mt-0.5 text-xs text-[#64748B]">{row.original.sku}</p>
+            </div>
           </div>
         ),
       }),

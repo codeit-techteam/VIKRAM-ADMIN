@@ -1,7 +1,7 @@
 "use client";
 
 import { Download } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -9,9 +9,9 @@ import {
   useState,
   useTransition,
 } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-import { DispatchAssignmentDrawer } from "@/components/sub-hub/dispatch-logs/DispatchAssignmentDrawer";
-import { DispatchAssignmentTable } from "@/components/sub-hub/dispatch-logs/DispatchAssignmentTable";
+import { HubContextSelector } from "@/components/sub-hub/HubContextSelector";
 import { DispatchLogDetailDrawer } from "@/components/sub-hub/dispatch-logs/DispatchLogDetailDrawer";
 import { DispatchLogFiltersBar } from "@/components/sub-hub/dispatch-logs/DispatchLogFilters";
 import {
@@ -20,100 +20,74 @@ import {
   type DispatchLogStatKey,
 } from "@/components/sub-hub/dispatch-logs/DispatchLogStatsCard";
 import { DispatchLogTable } from "@/components/sub-hub/dispatch-logs/DispatchLogTable";
-import { DispatchLogUpdateStatusModal } from "@/components/sub-hub/dispatch-logs/DispatchLogUpdateStatusModal";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
-import { ROUTES } from "@/constants/routes";
-import { useAuth } from "@/hooks/use-auth";
 import {
-  DISPATCH_LOG_HUB_OPTIONS,
-  DISPATCH_LOG_OPERATIONAL_FILTER_LABELS,
   DISPATCH_LOG_PAGE_SIZE,
   DISPATCH_LOG_STATUS_LABELS,
   EMPTY_DISPATCH_LOG_FILTERS,
-  fetchDispatchLogs,
-  filterDispatchLogs,
   formatDispatchLogDateTime,
-  isAssignedDispatchLog,
-  isPendingDispatchLog,
-} from "@/mock/dispatch-logs";
-import { useDispatchLogStore } from "@/store/dispatch-log-store";
+} from "@/constants/sub-hub-ops.constants";
+import { hubsService } from "@/services/hubs.service";
+import { useSelectedHubStore } from "@/store/selected-hub-store";
 import type {
-  DispatchAssignmentPayload,
   DispatchLog,
   DispatchLogFilters,
-  DispatchLogOperationalFilter,
   DispatchLogStatus,
 } from "@/types/dispatch-log.types";
-import { cn } from "@/lib/utils";
-import { printDispatchLogSlip } from "@/utils/dispatch-log-print";
-import { notify } from "@/utils/notify";
 
-const OPERATIONAL_FILTER_VALUES = Object.keys(
-  DISPATCH_LOG_OPERATIONAL_FILTER_LABELS,
-) as DispatchLogOperationalFilter[];
-
-type DispatchViewTab = "all" | "pending-dispatch" | "assigned";
-
-const DISPATCH_VIEW_TABS: Array<{ id: DispatchViewTab; label: string }> = [
-  { id: "all", label: "All Logs" },
-  { id: "pending-dispatch", label: "Pending Dispatch" },
-  { id: "assigned", label: "Assigned" },
-];
-
-function getInitialViewTab(statusParam: string | null): DispatchViewTab {
-  if (!statusParam) return "all";
-
-  const normalized = statusParam.toLowerCase();
-  if (normalized === "pending-dispatch" || normalized === "ready") {
-    return "pending-dispatch";
-  }
-  if (normalized === "assigned") {
-    return "assigned";
-  }
-
-  return "all";
-}
-
-function parseStatusParam(statusParam: string): DispatchLogFilters["status"] {
-  const normalized = statusParam.toLowerCase();
-
-  // Legacy URL support: old "ready" filter maps to pending dispatch.
-  if (normalized === "ready") {
-    return "pending-dispatch";
-  }
-
-  if (normalized === "assigned") {
-    return "ASSIGNED";
-  }
-
-  if (
-    OPERATIONAL_FILTER_VALUES.includes(
-      normalized as DispatchLogOperationalFilter,
-    )
-  ) {
-    return normalized as DispatchLogOperationalFilter;
-  }
-
-  const upper = statusParam.toUpperCase();
-
-  // Legacy entity statuses from older seed data.
-  if (upper === "PACKED" || upper === "READY" || upper === "LOADED") {
+function mapStatus(status: string): DispatchLogStatus {
+  const upper = status.toUpperCase();
+  if (upper === "READY_FOR_DISPATCH" || upper === "PACKED") {
     return "READY_FOR_DISPATCH";
   }
-  if (upper === "COMPLETED") {
-    return "DELIVERED";
+  if (upper === "ASSIGNED" || upper === "DRIVER_ASSIGNED") return "ASSIGNED";
+  if (
+    upper === "DISPATCHED" ||
+    upper === "OUT_FOR_DELIVERY" ||
+    upper === "REACHED_AREA"
+  ) {
+    return upper === "REACHED_AREA" ? "REACHED_AREA" : "DISPATCHED";
   }
-
-  return upper as DispatchLogStatus;
+  if (upper === "DELIVERED") return "DELIVERED";
+  return "READY_FOR_DISPATCH";
 }
 
-const STAT_FILTER_MAP: Partial<
-  Record<DispatchLogStatKey, Partial<DispatchLogFilters>>
-> = {
-  delivered: { status: "DELIVERED" },
-};
+function mapDispatchLog(row: Record<string, unknown>): DispatchLog {
+  return {
+    id: String(row.id ?? ""),
+    dispatchId: String(row.dispatchId ?? ""),
+    orderId: String(row.orderId ?? ""),
+    customerId: String(row.customerId ?? ""),
+    customerName: String(row.customerName ?? "Customer"),
+    customerMobile: String(row.customerMobile ?? ""),
+    deliveryAddress: String(row.deliveryAddress ?? "—"),
+    pincode: String(row.pincode ?? ""),
+    hubId: String(row.hubId ?? ""),
+    hubName: String(row.hubName ?? ""),
+    vehicleId: (row.vehicleId as string | null) ?? null,
+    vehicleNumber: (row.vehicleNumber as string | null) ?? null,
+    vehicleType: (row.vehicleType as string | null) ?? null,
+    driverId: (row.driverId as string | null) ?? null,
+    driverName: (row.driverName as string | null) ?? null,
+    driverMobile: (row.driverMobile as string | null) ?? null,
+    dispatchTime: (row.dispatchTime as string | null) ?? null,
+    expectedDelivery: String(row.expectedDelivery ?? new Date().toISOString()),
+    status: mapStatus(String(row.status ?? "READY_FOR_DISPATCH")),
+    isDelayed: Boolean(row.isDelayed),
+    lastUpdated: String(row.lastUpdated ?? new Date().toISOString()),
+    deliveryNotes: String(row.deliveryNotes ?? ""),
+    orderLines: Array.isArray(row.orderLines)
+      ? (row.orderLines as DispatchLog["orderLines"])
+      : [],
+    orderValue: Number(row.orderValue ?? 0),
+    timeline: Array.isArray(row.timeline)
+      ? (row.timeline as DispatchLog["timeline"])
+      : [],
+    createdAt: String(row.createdAt ?? new Date().toISOString()),
+  };
+}
 
 function downloadCsv(items: DispatchLog[]) {
   const header = [
@@ -158,20 +132,11 @@ function downloadCsv(items: DispatchLog[]) {
 }
 
 export function DispatchLogsPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const selectedHubId = useSelectedHubStore((s) => s.selectedHubId);
+  const selectedHubName = useSelectedHubStore((s) => s.selectedHubName);
+  const setSelectedHub = useSelectedHubStore((s) => s.setSelectedHub);
 
-  const logs = useDispatchLogStore((state) => state.logs);
-  const updateStatus = useDispatchLogStore((state) => state.updateStatus);
-  const assignDispatch = useDispatchLogStore((state) => state.assignDispatch);
-  const updateDeliveryNotes = useDispatchLogStore(
-    (state) => state.updateDeliveryNotes,
-  );
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [activeView, setActiveView] = useState<DispatchViewTab>("all");
   const [filters, setFilters] = useState<DispatchLogFilters>(
     EMPTY_DISPATCH_LOG_FILTERS,
   );
@@ -179,362 +144,201 @@ export function DispatchLogsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedLog, setSelectedLog] = useState<DispatchLog | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [assignmentDrawerOpen, setAssignmentDrawerOpen] = useState(false);
-  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const [, startTransition] = useTransition();
 
-  const adminName = user?.name ?? "Super Admin";
+  const hubsQuery = useQuery({
+    queryKey: ["admin-hubs", "dispatch-logs-page"],
+    queryFn: () => hubsService.list({ page: 1, limit: 100 }),
+  });
+  const hubs = hubsQuery.data?.data ?? [];
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 600);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    const hubParam = searchParams.get("hub");
-    const statusParam = searchParams.get("status");
-    const orderParam = searchParams.get("order");
-
-    setActiveView(getInitialViewTab(statusParam));
-    setFilters((current) => ({
-      ...current,
-      ...(hubParam ? { hubId: hubParam } : {}),
-      ...(statusParam ? { status: parseStatusParam(statusParam) } : {}),
-      ...(orderParam ? { customer: orderParam } : {}),
-    }));
-    setCurrentPage(1);
-  }, [searchParams]);
-
-  const assignmentItems = useMemo(() => {
-    let items = filterDispatchLogs(logs, { filters });
-
-    if (activeView === "pending-dispatch") {
-      items = items.filter(isPendingDispatchLog);
-    } else if (activeView === "assigned") {
-      items = items.filter(isAssignedDispatchLog);
-    }
-
-    return items;
-  }, [logs, filters, activeView]);
-
-  const queryFilters = useMemo(() => {
-    const statFilters = activeStat ? STAT_FILTER_MAP[activeStat] : undefined;
-    return { ...filters, ...statFilters };
-  }, [filters, activeStat]);
-
-  const delayedOnly = activeStat === "delayed";
-  const todaysOnly = activeStat === "todays-dispatch";
-
-  const queryResult = useMemo(() => {
-    let filtered = filterDispatchLogs(logs, { filters: queryFilters });
-
-    if (delayedOnly) {
-      filtered = filtered.filter((item) => item.isDelayed);
-    }
-
-    if (todaysOnly) {
-      const today = new Date();
-      filtered = filtered.filter(
-        (item) =>
-          item.dispatchTime &&
-          new Date(item.dispatchTime).toDateString() === today.toDateString(),
-      );
-    }
-
-    if (activeStat === "in-progress") {
-      filtered = filtered.filter((item) =>
-        ["READY_FOR_DISPATCH", "DISPATCHED", "REACHED_AREA"].includes(
-          item.status,
-        ),
-      );
-    }
-
-    if (activeStat === "delivered") {
-      filtered = filtered.filter((item) => item.status === "DELIVERED");
-    }
-
-    const paginated = fetchDispatchLogs(filtered, {
-      page: currentPage,
-      limit: DISPATCH_LOG_PAGE_SIZE,
-    });
-
-    return {
-      ...paginated,
-      stats: fetchDispatchLogs(logs).stats,
-    };
-  }, [logs, queryFilters, currentPage, delayedOnly, todaysOnly, activeStat]);
-
-  const allFilteredForExport = useMemo(() => {
-    let items = filterDispatchLogs(logs, { filters: queryFilters });
-    if (delayedOnly) items = items.filter((item) => item.isDelayed);
-    if (todaysOnly) {
-      const today = new Date();
-      items = items.filter(
-        (item) =>
-          item.dispatchTime &&
-          new Date(item.dispatchTime).toDateString() === today.toDateString(),
-      );
-    }
-    return items;
-  }, [logs, queryFilters, delayedOnly, todaysOnly]);
-
-  const statCards = useMemo(
-    () => buildDispatchLogStatCards(queryResult.stats),
-    [queryResult.stats],
-  );
-
-  const selectedLive = useMemo(() => {
-    if (!selectedLog) return null;
-    return logs.find((item) => item.id === selectedLog.id) ?? selectedLog;
-  }, [logs, selectedLog]);
-
-  useEffect(() => {
-    if (
-      queryResult.meta.total > 0 &&
-      currentPage > queryResult.meta.totalPages
-    ) {
-      setCurrentPage(queryResult.meta.totalPages);
-    }
-  }, [currentPage, queryResult.meta.total, queryResult.meta.totalPages]);
-
-  const handleFilterChange = (next: Partial<DispatchLogFilters>) => {
-    startTransition(() => {
-      setFilters((prev) => ({ ...prev, ...next }));
-      setActiveStat(null);
-      setCurrentPage(1);
-    });
-  };
-
-  const handleClearFilters = () => {
-    setFilters(EMPTY_DISPATCH_LOG_FILTERS);
-    setActiveStat(null);
-    setCurrentPage(1);
-  };
-
-  const handleStatClick = (statId: DispatchLogStatKey) => {
-    setActiveStat((current) => (current === statId ? null : statId));
-    setCurrentPage(1);
-  };
-
-  const openAssignmentDrawer = useCallback((item: DispatchLog) => {
-    setSelectedLog(item);
-    setAssignmentDrawerOpen(true);
-  }, []);
-
-  const handleAssignmentDrawerOpenChange = useCallback((open: boolean) => {
-    setAssignmentDrawerOpen(open);
-    if (!open) setSelectedLog(null);
-  }, []);
-
-  const handleAssignDispatch = useCallback(
-    (payload: DispatchAssignmentPayload) => {
-      if (!selectedLog) return;
-      assignDispatch(selectedLog.id, payload);
-      notify.success(
-        "Dispatch assigned",
-        `${selectedLog.orderId} is now assigned to ${payload.driverName}.`,
-      );
-    },
-    [assignDispatch, selectedLog],
-  );
-
-  const handleViewTabChange = useCallback(
-    (tab: DispatchViewTab) => {
-      setActiveView(tab);
-      setCurrentPage(1);
-      setActiveStat(null);
-
-      const params = new URLSearchParams(searchParams.toString());
-
-      if (tab === "pending-dispatch") {
-        params.set("status", "pending-dispatch");
-      } else if (tab === "assigned") {
-        params.set("status", "assigned");
-      } else {
-        params.delete("status");
-      }
-
-      const query = params.toString();
-      router.replace(
-        query
-          ? `${ROUTES.HUB_DISPATCH_LOGS}?${query}`
-          : ROUTES.HUB_DISPATCH_LOGS,
-        { scroll: false },
-      );
-    },
-    [router, searchParams],
-  );
-
-  const openDrawer = useCallback((item: DispatchLog) => {
-    setSelectedLog(item);
-    setDrawerOpen(true);
-  }, []);
-
-  const handleDrawerOpenChange = useCallback((open: boolean) => {
-    setDrawerOpen(open);
-    if (!open) setSelectedLog(null);
-  }, []);
-
-  const handleStatusSave = useCallback(
-    (payload: Parameters<typeof updateStatus>[1]) => {
-      if (!selectedLive) return;
-      updateStatus(selectedLive.id, payload);
-      notify.success("Status updated", `${selectedLive.dispatchId} saved.`);
-    },
-    [selectedLive, updateStatus],
-  );
-
-  const handleSaveNotes = useCallback(
-    (notes: string) => {
-      if (!selectedLive) return;
-      updateDeliveryNotes(selectedLive.id, notes);
-      notify.success("Notes saved", selectedLive.dispatchId);
-    },
-    [selectedLive, updateDeliveryNotes],
-  );
-
-  const handleViewOrder = useCallback(() => {
-    if (!selectedLive) return;
-    router.push(
-      `${ROUTES.CUSTOMER_EXECUTIVE_ORDERS}?order=${encodeURIComponent(selectedLive.orderId)}`,
+    const hubParam = searchParams.get("hubId") || searchParams.get("hub");
+    const nextHubId = hubParam || selectedHubId || "all";
+    setFilters((prev) =>
+      prev.hubId === nextHubId ? prev : { ...prev, hubId: nextHubId },
     );
-  }, [selectedLive, router]);
+    if (hubParam) {
+      const match = hubs.find((h) => h.id === hubParam);
+      setSelectedHub(hubParam, match?.name ?? null);
+    }
+  }, [searchParams, selectedHubId, hubs, setSelectedHub]);
 
-  const handlePrint = useCallback(
-    (item?: DispatchLog) => {
-      const target = item ?? selectedLive;
-      if (!target) return;
-      printDispatchLogSlip(target);
-      notify.success("Dispatch slip opened", target.dispatchId);
-    },
-    [selectedLive],
+  const scopedHubId =
+    filters.hubId !== "all" ? filters.hubId : undefined;
+
+  const logsQuery = useQuery({
+    queryKey: [
+      "hub-dispatch-logs",
+      scopedHubId ?? "all",
+      filters.status,
+      filters.date,
+      search,
+      currentPage,
+    ],
+    queryFn: () =>
+      hubsService.listDispatchLogs({
+        hubId: scopedHubId,
+        page: currentPage,
+        limit: DISPATCH_LOG_PAGE_SIZE,
+        search: search || undefined,
+        status:
+          filters.status === "all" ? undefined : String(filters.status),
+        date: filters.date || undefined,
+      }),
+    refetchInterval: 15000,
+  });
+
+  const items = useMemo(
+    () => (logsQuery.data?.data ?? []).map(mapDispatchLog),
+    [logsQuery.data],
   );
 
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    window.setTimeout(() => setIsRefreshing(false), 700);
+  const stats = logsQuery.data?.stats ?? {
+    todaysDispatch: 0,
+    inProgress: 0,
+    delivered: 0,
+    delayed: 0,
   };
 
-  const openStatusModal = (item?: DispatchLog) => {
-    if (item) setSelectedLog(item);
-    setStatusModalOpen(true);
-  };
+  const statCards = buildDispatchLogStatCards({
+    todaysDispatch: stats.todaysDispatch,
+    inProgress: stats.inProgress,
+    delivered: stats.delivered,
+    delayed: stats.delayed,
+  });
+
+  const hubLabel =
+    scopedHubId == null
+      ? "all hubs"
+      : selectedHubName ||
+        hubs.find((h) => h.id === scopedHubId)?.name ||
+        "this hub";
+
+  const handleFilterChange = useCallback(
+    (next: Partial<DispatchLogFilters>) => {
+      startTransition(() => {
+        setFilters((prev) => ({ ...prev, ...next }));
+        if (next.hubId !== undefined) {
+          if (next.hubId === "all") {
+            setSelectedHub(null, null);
+          } else {
+            const match = hubs.find((h) => h.id === next.hubId);
+            setSelectedHub(next.hubId, match?.name ?? null);
+          }
+        }
+        setCurrentPage(1);
+      });
+    },
+    [hubs, setSelectedHub],
+  );
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Dispatch Logs"
-        subtitle="Manual dispatch tracking, assignment, and status history for hub-to-customer deliveries."
+        subtitle={
+          scopedHubId
+            ? `Last-mile customer deliveries from ${hubLabel}.`
+            : "Last-mile customer deliveries from all hubs."
+        }
         breadcrumbs={getNavBreadcrumbsFromPath(
           "/sub-hub-network/dispatch-logs",
         )}
         actions={
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 gap-2 px-4"
-            onClick={() => downloadCsv(allFilteredForExport)}
-            disabled={allFilteredForExport.length === 0}
-          >
-            <Download className="size-4" />
-            Export CSV
-          </Button>
+          <>
+            <HubContextSelector className="mr-2" allowAll allLabel="All Hubs" />
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 gap-2 px-4"
+              onClick={() => downloadCsv(items)}
+              disabled={items.length === 0}
+            >
+              <Download className="size-4" />
+              Export CSV
+            </Button>
+          </>
         }
       />
 
-      <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {logsQuery.isError ? (
+        <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+          Unable to load dispatch logs
+          {scopedHubId ? ` for ${hubLabel}` : ""}.{" "}
+          <button
+            type="button"
+            className="font-semibold underline"
+            onClick={() => void logsQuery.refetch()}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {statCards.map((stat, index) => (
-          <div key={stat.id} className="min-w-0">
-            <DispatchLogStatsCard
-              stat={stat}
-              isLoading={isLoading}
-              index={index}
-              isActive={activeStat === stat.id}
-              onClick={() => handleStatClick(stat.id)}
-            />
-          </div>
+          <DispatchLogStatsCard
+            key={stat.id}
+            stat={stat}
+            index={index}
+            isLoading={logsQuery.isLoading}
+            isActive={activeStat === stat.id}
+            onClick={() => {
+              setActiveStat((curr) => (curr === stat.id ? null : stat.id));
+              if (stat.id === "delivered") {
+                handleFilterChange({
+                  status:
+                    activeStat === "delivered" ? "all" : "DELIVERED",
+                });
+              }
+            }}
+          />
         ))}
       </div>
 
       <DispatchLogFiltersBar
         filters={filters}
-        hubs={[...DISPATCH_LOG_HUB_OPTIONS]}
+        hubs={hubs.map((h) => ({ id: h.id, name: h.name }))}
         onChange={handleFilterChange}
-        onClear={handleClearFilters}
+        onClear={() => {
+          setFilters({ ...EMPTY_DISPATCH_LOG_FILTERS });
+          setSelectedHub(null, null);
+          setSearch("");
+          setActiveStat(null);
+          setCurrentPage(1);
+        }}
       />
 
-      <div className="rounded-xl border border-gray-100 bg-white p-1 shadow-sm">
-        <div className="flex flex-wrap gap-1 p-1">
-          {DISPATCH_VIEW_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => handleViewTabChange(tab.id)}
-              className={cn(
-                "cursor-pointer rounded-lg px-4 py-2 text-sm font-medium transition-all duration-150",
-                activeView === tab.id
-                  ? "bg-primary text-white shadow-sm"
-                  : "text-[#64748B] hover:bg-gray-50 hover:text-[#1A1A1A]",
-                "active:scale-[0.98]",
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {activeView === "pending-dispatch" || activeView === "assigned" ? (
-        <DispatchAssignmentTable
-          items={assignmentItems}
-          isLoading={isLoading}
-          onAssign={openAssignmentDrawer}
-          onPrint={handlePrint}
-        />
-      ) : (
-        <DispatchLogTable
-          items={queryResult.data}
-          isLoading={isLoading}
-          isRefreshing={isRefreshing}
-          currentPage={queryResult.meta.page}
-          totalItems={queryResult.meta.total}
-          pageSize={DISPATCH_LOG_PAGE_SIZE}
-          onPageChange={setCurrentPage}
-          onRefresh={handleRefresh}
-          onRowSelect={openDrawer}
-          onUpdateStatus={openStatusModal}
-          onPrint={handlePrint}
-        />
-      )}
-
-      <DispatchAssignmentDrawer
-        open={assignmentDrawerOpen}
-        onOpenChange={handleAssignmentDrawerOpenChange}
-        log={selectedLive}
-        onAssign={handleAssignDispatch}
-        updatedBy={adminName}
+      <DispatchLogTable
+        items={items}
+        isLoading={logsQuery.isLoading}
+        isRefreshing={logsQuery.isFetching && !logsQuery.isLoading}
+        currentPage={currentPage}
+        totalItems={logsQuery.data?.meta.total ?? items.length}
+        pageSize={DISPATCH_LOG_PAGE_SIZE}
+        onPageChange={setCurrentPage}
+        onRefresh={() => void logsQuery.refetch()}
+        onRowSelect={(item) => {
+          setSelectedLog(item);
+          setDrawerOpen(true);
+        }}
       />
+
+      {!logsQuery.isLoading && !logsQuery.isError && items.length === 0 ? (
+        <p className="text-center text-sm text-[#64748B]">
+          {scopedHubId
+            ? `No customer dispatches found for ${hubLabel}.`
+            : "No customer dispatches found."}
+        </p>
+      ) : null}
 
       <DispatchLogDetailDrawer
         open={drawerOpen}
-        onOpenChange={handleDrawerOpenChange}
-        log={selectedLive}
-        onUpdateStatus={() => setStatusModalOpen(true)}
-        onViewOrder={handleViewOrder}
-        onPrint={() => handlePrint()}
-        onSaveNotes={handleSaveNotes}
+        onOpenChange={setDrawerOpen}
+        log={selectedLog}
       />
-
-      {selectedLive ? (
-        <DispatchLogUpdateStatusModal
-          open={statusModalOpen}
-          onOpenChange={setStatusModalOpen}
-          currentStatus={selectedLive.status}
-          dispatchLabel={selectedLive.dispatchId}
-          updatedBy={adminName}
-          onSave={handleStatusSave}
-        />
-      ) : null}
     </div>
   );
 }

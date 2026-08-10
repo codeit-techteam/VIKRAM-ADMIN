@@ -1,6 +1,7 @@
 import { API_ENDPOINTS } from "@/constants/api-endpoints";
 import {
   computeTestimonialStats,
+  isPlayableMediaUrl,
   type CustomerTestimonial,
   type TestimonialDashboardStats,
   type TestimonialStatus,
@@ -26,6 +27,7 @@ export interface AdminTestimonial {
   sortOrder: number;
   featured?: boolean;
   isPublished: boolean;
+  mediaUnavailable?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -34,25 +36,32 @@ export interface CreateAdminTestimonialInput {
   type: string;
   customerName: string;
   designation?: string;
+  company?: string;
   location?: string;
+  city?: string;
   videoUrl?: string;
   thumbnail?: string;
   imageUrl?: string;
   review?: string;
   rating?: number;
   sortOrder?: number;
+  publish?: boolean;
 }
 
 export interface UpdateAdminTestimonialInput {
+  type?: string;
   customerName?: string;
   designation?: string;
+  company?: string;
   location?: string;
+  city?: string;
   videoUrl?: string;
   thumbnail?: string;
   imageUrl?: string;
   review?: string;
   rating?: number;
   sortOrder?: number;
+  isPublished?: boolean;
 }
 
 /** UI create/update shape used by TestimonialsPageContent */
@@ -68,46 +77,40 @@ export interface CreateTestimonialPayload {
   status: TestimonialStatus;
 }
 
-function splitLocationCity(location?: string | null, city?: string | null) {
-  if (city?.trim()) {
-    return { location: location?.trim() || "", city: city.trim() };
-  }
-  if (!location?.trim()) {
-    return { location: "", city: "" };
-  }
-  const parts = location.split(",").map((p) => p.trim()).filter(Boolean);
-  if (parts.length >= 2) {
-    return {
-      location: parts.slice(0, -1).join(", "),
-      city: parts[parts.length - 1] ?? "",
-    };
-  }
-  return { location: location.trim(), city: "" };
-}
-
-function combinedLocation(location: string, city: string): string | undefined {
-  const parts = [location.trim(), city.trim()].filter(Boolean);
-  return parts.length ? parts.join(", ") : undefined;
+function normalizeUiType(type: string): TestimonialType {
+  if (type === "VIDEO") return "VIDEO";
+  if (type === "TEXT") return "TEXT";
+  return "IMAGE";
 }
 
 export function toUiTestimonial(t: AdminTestimonial): CustomerTestimonial {
-  const { location, city } = splitLocationCity(t.location, t.city);
+  const type = normalizeUiType(t.type);
   const mediaUrl =
-    t.type === "VIDEO"
-      ? t.videoUrl || t.imageUrl || ""
-      : t.imageUrl || t.videoUrl || "";
+    type === "VIDEO"
+      ? t.videoUrl || ""
+      : type === "IMAGE"
+        ? t.imageUrl || t.profileImage || ""
+        : "";
+
+  const thumbnailUrl = t.thumbnail || undefined;
+  const hasMedia =
+    isPlayableMediaUrl(mediaUrl) || isPlayableMediaUrl(thumbnailUrl);
 
   return {
     id: t.id,
-    type: t.type === "VIDEO" ? "VIDEO" : "IMAGE",
+    type,
     status: t.isPublished ? "PUBLISHED" : "DRAFT",
     customerName: t.customerName,
-    location,
-    city,
+    location: t.location?.trim() || "",
+    city: t.city?.trim() || "",
     rating: t.rating ?? 5,
     review: t.review ?? "",
-    mediaUrl,
-    thumbnailUrl: t.thumbnail ?? undefined,
+    mediaUrl: isPlayableMediaUrl(mediaUrl) ? mediaUrl : "",
+    thumbnailUrl: isPlayableMediaUrl(thumbnailUrl) ? thumbnailUrl : undefined,
+    mediaUnavailable:
+      typeof t.mediaUnavailable === "boolean"
+        ? t.mediaUnavailable
+        : type !== "TEXT" && !hasMedia,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
     publishedAt: t.isPublished ? t.updatedAt : undefined,
@@ -119,13 +122,14 @@ export function toUiTestimonial(t: AdminTestimonial): CustomerTestimonial {
 function toCreateDto(
   payload: CreateTestimonialPayload,
 ): CreateAdminTestimonialInput {
-  const location = combinedLocation(payload.location, payload.city);
   const base: CreateAdminTestimonialInput = {
-    type: payload.type,
+    type: payload.type === "TEXT" ? "TEXT" : payload.type,
     customerName: payload.customerName,
-    location,
+    location: payload.location.trim() || undefined,
+    city: payload.city.trim() || undefined,
     review: payload.review,
     rating: payload.rating,
+    publish: payload.status === "PUBLISHED",
   };
 
   if (payload.type === "VIDEO") {
@@ -136,10 +140,14 @@ function toCreateDto(
     };
   }
 
-  return {
-    ...base,
-    imageUrl: payload.mediaUrl,
-  };
+  if (payload.type === "IMAGE") {
+    return {
+      ...base,
+      imageUrl: payload.mediaUrl,
+    };
+  }
+
+  return base;
 }
 
 function toUpdateDto(
@@ -150,18 +158,19 @@ function toUpdateDto(
   if (payload.customerName !== undefined) dto.customerName = payload.customerName;
   if (payload.review !== undefined) dto.review = payload.review;
   if (payload.rating !== undefined) dto.rating = payload.rating;
-  if (payload.location !== undefined || payload.city !== undefined) {
-    dto.location = combinedLocation(
-      payload.location ?? "",
-      payload.city ?? "",
-    );
+  if (payload.location !== undefined) {
+    dto.location = payload.location.trim() || undefined;
   }
+  if (payload.city !== undefined) {
+    dto.city = payload.city.trim() || undefined;
+  }
+  if (payload.type !== undefined) dto.type = payload.type;
 
   if (payload.mediaUrl !== undefined) {
     if (payload.type === "VIDEO") {
-      dto.videoUrl = payload.mediaUrl;
-    } else {
-      dto.imageUrl = payload.mediaUrl;
+      dto.videoUrl = payload.mediaUrl || undefined;
+    } else if (payload.type === "IMAGE") {
+      dto.imageUrl = payload.mediaUrl || undefined;
     }
   }
 
@@ -221,6 +230,8 @@ export const testimonialsService = {
     page?: number;
     limit?: number;
     type?: string;
+    status?: string;
+    search?: string;
   }): Promise<{
     data: AdminTestimonial[];
     meta: { page: number; limit: number; total: number; totalPages: number };
@@ -243,6 +254,8 @@ export const testimonialsService = {
         page: params?.page ?? 1,
         limit: params?.limit ?? 20,
         type: params?.type,
+        status: params?.status,
+        search: params?.search || undefined,
       },
     });
 
@@ -306,10 +319,6 @@ export const testimonialsService = {
     payload: CreateTestimonialPayload,
   ): Promise<CustomerTestimonial> => {
     const created = await testimonialsService.create(toCreateDto(payload));
-    if (payload.status === "PUBLISHED") {
-      const published = await testimonialsService.publish(created.id);
-      return toUiTestimonial(published);
-    }
     return toUiTestimonial(created);
   },
 
@@ -339,6 +348,8 @@ export const testimonialsService = {
     page?: number;
     limit?: number;
     type?: string;
+    status?: string;
+    search?: string;
   }): Promise<{
     data: CustomerTestimonial[];
     total: number;

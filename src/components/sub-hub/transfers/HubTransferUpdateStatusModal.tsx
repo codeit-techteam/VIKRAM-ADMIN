@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { HUB_TRANSFER_STATUS_OPTIONS } from "@/mock/hub-transfers";
+import { HUB_TRANSFER_STATUS_OPTIONS } from "@/constants/sub-hub-ops.constants";
 import type {
   HubTransferStatus,
   HubTransferStatusUpdatePayload,

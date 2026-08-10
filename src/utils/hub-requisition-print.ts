@@ -1,6 +1,6 @@
-import type { HubRequisitionDetailView } from "@/mock/hub-requisitions";
-import { formatHubRequisitionPrintDate } from "@/mock/hub-requisitions";
-import { formatRequisitionQuantity } from "@/mock/requisitions";
+import type { HubRequisitionDetailView } from "@/constants/sub-hub-ops.constants";
+import { formatHubRequisitionPrintDate } from "@/constants/sub-hub-ops.constants";
+import { formatRequisitionQuantity } from "@/constants/sub-hub-ops.constants";
 
 export function printHubRequisition(detail: HubRequisitionDetailView): void {
   const { requisition, hubManager, hubCity, hubRegion, inventory, timeline } =

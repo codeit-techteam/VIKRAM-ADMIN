@@ -2,7 +2,7 @@ import { Check } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { ShipmentTimeline } from "@/types/logistics.types";
-import { formatLogisticsDateTime } from "@/mock/logistics";
+import { formatLogisticsDateTime } from "@/features/logistics/utils/logistics-formatters";
 
 interface LogisticsTimelineProps {
   timeline: ShipmentTimeline;

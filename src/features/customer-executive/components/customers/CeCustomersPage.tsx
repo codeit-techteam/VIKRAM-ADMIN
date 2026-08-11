@@ -11,36 +11,21 @@ import {
   MoreHorizontal,
   Phone,
   ShoppingCart,
-  UserCog,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Pagination } from "@/components/shared/Pagination";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -56,8 +41,7 @@ import { CePageShell } from "@/features/customer-executive/components/shared/CeP
 import { CeSearchFilter } from "@/features/customer-executive/components/shared/CeSearchFilter";
 import { CeStatusBadge } from "@/features/customer-executive/components/shared/CeStatusBadge";
 import { CeTableSkeleton } from "@/features/customer-executive/components/shared/CeTableSkeleton";
-import { useCeLoading } from "@/features/customer-executive/hooks/use-ce-loading";
-import { CE_CITIES } from "@/features/customer-executive/mock/seed";
+import { CE_CITIES } from "@/features/customer-executive/constants/issue-types";
 import {
   CE_PAGE_SIZE,
   EMPTY_CUSTOMER_FILTERS,
@@ -66,7 +50,6 @@ import {
 } from "@/features/customer-executive/types";
 import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
 import { formatCurrency } from "@/utils/format-currency";
-import { notify } from "@/utils/notify";
 import {
   initiateCall,
   openWhatsApp,
@@ -118,10 +101,11 @@ function buildStatCardFilters(statId: CustomerStatKey): CeCustomerFilters {
 
 export function CeCustomersPage() {
   const router = useRouter();
-  const { isLoading } = useCeLoading();
+  const loadCustomers = useCustomerExecutiveStore((s) => s.loadCustomers);
+  const customersLoading = useCustomerExecutiveStore((s) => s.customersLoading);
+  const customersError = useCustomerExecutiveStore((s) => s.customersError);
   const queryCustomers = useCustomerExecutiveStore((s) => s.queryCustomers);
-  const executives = useCustomerExecutiveStore((s) => s.executives);
-  const assignExecutive = useCustomerExecutiveStore((s) => s.assignExecutive);
+  const customersMeta = useCustomerExecutiveStore((s) => s.customersMeta);
   const getCustomerPendingAmount = useCustomerExecutiveStore(
     (s) => s.getCustomerPendingAmount,
   );
@@ -135,11 +119,22 @@ export function CeCustomersPage() {
   );
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [assignTargetIds, setAssignTargetIds] = useState<string[]>([]);
-  const [selectedExecutiveId, setSelectedExecutiveId] = useState("");
   const [sortBy, setSortBy] = useState<string>("lastOrderAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const fetchCustomers = useCallback(() => {
+    void loadCustomers({
+      page: currentPage,
+      limit: CE_PAGE_SIZE,
+      filters: appliedFilters,
+      sortBy,
+      sortDir,
+    });
+  }, [loadCustomers, currentPage, appliedFilters, sortBy, sortDir]);
+
+  useEffect(() => {
+    fetchCustomers();
+  }, [fetchCustomers]);
 
   const toggleSort = (column: string) => {
     if (sortBy === column) {
@@ -195,24 +190,7 @@ export function CeCustomersPage() {
     [customers],
   );
 
-  const handleAssign = () => {
-    if (!selectedExecutiveId || assignTargetIds.length === 0) return;
-    assignExecutive(assignTargetIds, selectedExecutiveId);
-    const exec = executives.find((e) => e.id === selectedExecutiveId);
-    notify.success(
-      "Executive assigned",
-      `${assignTargetIds.length} customer(s) assigned to ${exec?.name}`,
-    );
-    setAssignDialogOpen(false);
-    setAssignTargetIds([]);
-    setSelectedIds([]);
-    setSelectedExecutiveId("");
-  };
-
-  const openAssignDialog = (ids: string[]) => {
-    setAssignTargetIds(ids);
-    setAssignDialogOpen(true);
-  };
+  const totalCustomers = customersMeta?.total ?? customers.length;
 
   const columns = useMemo(
     () => [
@@ -275,12 +253,7 @@ export function CeCustomersPage() {
       columnHelper.display({
         id: "executive",
         header: "Assigned Executive",
-        cell: ({ row }) => {
-          const exec = executives.find(
-            (e) => e.id === row.original.assignedExecutiveId,
-          );
-          return exec?.name ?? "—";
-        },
+        cell: () => "—",
       }),
       columnHelper.display({
         id: "lastOrder",
@@ -350,24 +323,13 @@ export function CeCustomersPage() {
                 >
                   WhatsApp
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => openAssignDialog([c.id])}>
-                  <UserCog className="size-4" />
-                  Assign Executive
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           );
         },
       }),
     ],
-    [
-      executives,
-      getCustomerPendingAmount,
-      router,
-      sortBy,
-      sortDir,
-      appliedFilters.search,
-    ],
+    [getCustomerPendingAmount, router, sortBy, sortDir, appliedFilters.search],
   );
 
   const table = useReactTable({
@@ -408,22 +370,22 @@ export function CeCustomersPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <CeMetricCard
           label="Total Customers"
-          value={customers.length}
-          isLoading={isLoading}
+          value={totalCustomers}
+          isLoading={customersLoading}
           isActive={activeStatKey === "total"}
           onClick={() => handleStatCardClick("total")}
         />
         <CeMetricCard
           label="VIP Customers"
           value={vipCount}
-          isLoading={isLoading}
+          isLoading={customersLoading}
           isActive={activeStatKey === "vip"}
           onClick={() => handleStatCardClick("vip")}
         />
         <CeMetricCard
           label="Active This Month"
           value={activeThisMonthCount}
-          isLoading={isLoading}
+          isLoading={customersLoading}
           isActive={activeStatKey === "activeThisMonth"}
           onClick={() => handleStatCardClick("activeThisMonth")}
         />
@@ -491,21 +453,25 @@ export function CeCustomersPage() {
         <Button size="sm" onClick={applyFilters}>
           Apply Filters
         </Button>
-        {selectedIds.length > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => openAssignDialog(selectedIds)}
-          >
-            <UserCog className="size-4" />
-            Assign Executive ({selectedIds.length})
-          </Button>
-        )}
       </div>
 
-      {isLoading ? (
+      {customersError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p>{customersError}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={fetchCustomers}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
+      {customersLoading ? (
         <CeTableSkeleton columns={8} />
-      ) : queryResult.items.length === 0 ? (
+      ) : queryResult.total === 0 ? (
         <EmptyState
           title="No customers found"
           description="Try adjusting your filters or register a new customer."
@@ -558,44 +524,6 @@ export function CeCustomersPage() {
         </div>
       )}
 
-      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Assign Executive</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="mb-3 text-sm text-[#64748B]">
-              Select an executive for {assignTargetIds.length} customer(s)
-            </p>
-            <Select
-              value={selectedExecutiveId}
-              onValueChange={(v) => v && setSelectedExecutiveId(v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select executive" />
-              </SelectTrigger>
-              <SelectContent>
-                {executives.map((exec) => (
-                  <SelectItem key={exec.id} value={exec.id}>
-                    {exec.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setAssignDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleAssign} disabled={!selectedExecutiveId}>
-              Save Assignment
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </CePageShell>
   );
 }

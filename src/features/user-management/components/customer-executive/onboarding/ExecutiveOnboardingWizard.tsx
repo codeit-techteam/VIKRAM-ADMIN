@@ -28,7 +28,8 @@ import {
 } from "@/features/user-management/schema/executive-onboarding.schema";
 import type { CreateExecutiveResult } from "@/features/user-management/types/executive-onboarding.types";
 import { EXECUTIVE_WIZARD_STEPS } from "@/mock/executive-onboarding";
-import { useCustomerStore } from "@/store/customer-store";
+import { getApiErrorMessage } from "@/services/api";
+import { createAdminUser } from "@/services/admin-users";
 import { useExecutiveDraftStore } from "@/store/executive-draft-store";
 import { notify } from "@/utils/notify";
 
@@ -65,11 +66,6 @@ export function ExecutiveOnboardingWizard() {
   const setCurrentStep = useExecutiveDraftStore((s) => s.setCurrentStep);
   const markSaved = useExecutiveDraftStore((s) => s.markSaved);
   const resetDraft = useExecutiveDraftStore((s) => s.resetDraft);
-
-  const createExecutiveFromDraft = useCustomerStore(
-    (s) => s.createExecutiveFromDraft,
-  );
-  const onboardedExecutives = useCustomerStore((s) => s.onboardedExecutives);
 
   const [currentStep, setStep] = useState(draft.currentStep || 1);
   const [isLoading, setIsLoading] = useState(true);
@@ -191,18 +187,38 @@ export function ExecutiveOnboardingWizard() {
   const onCreateExecutive = async (data: ExecutiveOnboardingSchema) => {
     setIsCreating(true);
     try {
-      const result = createExecutiveFromDraft(data);
+      if (!data.tempPassword) {
+        throw new Error("Generate credentials before creating the executive.");
+      }
+
+      const created = await createAdminUser({
+        email: data.email,
+        password: data.tempPassword,
+        fullName: data.fullName,
+        phone: data.phone,
+        role: "CUSTOMER_EXECUTIVE",
+      });
+
+      const result: CreateExecutiveResult = {
+        id: created.id,
+        employeeId: created.id.slice(0, 8).toUpperCase(),
+        name: created.fullName,
+        hubName: "Not available",
+        region: "Not available",
+        username: created.email,
+        credentialsSent: false,
+      };
+
       setCreatedExecutive(result);
-      const existingIds = onboardedExecutives.map((e) => e.employeeId);
-      resetDraft(existingIds);
+      resetDraft([]);
       notify.success(
         "Executive Created Successfully",
-        `${result.name} has been onboarded and assigned to ${result.hubName}.`,
+        `${result.name} has been created. Share the temporary password securely.`,
       );
     } catch (error) {
       notify.error(
         "Unable to create executive",
-        error instanceof Error ? error.message : "Please review and try again.",
+        getApiErrorMessage(error),
       );
     } finally {
       setIsCreating(false);
@@ -210,10 +226,7 @@ export function ExecutiveOnboardingWizard() {
   };
 
   const handleCreateAnother = () => {
-    const existingIds = useCustomerStore
-      .getState()
-      .onboardedExecutives.map((e) => e.employeeId);
-    resetDraft(existingIds);
+    resetDraft([]);
     reset(useExecutiveDraftStore.getState().draft as ExecutiveOnboardingSchema);
     setCreatedExecutive(null);
     goToStep(1);

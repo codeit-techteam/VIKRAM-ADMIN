@@ -93,9 +93,12 @@ export function ShipmentTrackingPage() {
                     : "out_for_delivery")
                 }
                 label={
-                  resolvedTimeline.shipmentType === "warehouse_transfer"
-                    ? "Warehouse Transfer"
-                    : "Customer Delivery"
+                  resolvedTimeline.status === "delivered" ||
+                  resolvedTimeline.status === "completed"
+                    ? "Delivered"
+                    : resolvedTimeline.shipmentType === "warehouse_transfer"
+                      ? "Warehouse Transfer"
+                      : "Customer Delivery"
                 }
               />
             </div>

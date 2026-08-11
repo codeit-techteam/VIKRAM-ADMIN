@@ -32,10 +32,12 @@ export const API_ENDPOINTS = {
   },
   CUSTOMERS: {
     BASE: "/admin/customers",
+    STATS: "/admin/customers/stats",
     BY_ID: (id: string) => `/admin/customers/${id}`,
     STATUS: (id: string) => `/admin/customers/${id}/status`,
     ACTIVATE: (id: string) => `/admin/customers/${id}/activate`,
     DISABLE: (id: string) => `/admin/customers/${id}/disable`,
+    ASSIGNMENT: (id: string) => `/admin/customers/${id}/assignment`,
     UPGRADE_MEMBERSHIP: (id: string) =>
       `/admin/customers/${id}/membership/upgrade`,
     SITES: (id: string) => `/admin/customers/${id}/sites`,
@@ -43,6 +45,23 @@ export const API_ENDPOINTS = {
       `/admin/customers/${id}/sites/${siteId}`,
     SITE_PRIMARY: (id: string, siteId: string) =>
       `/admin/customers/${id}/sites/${siteId}/primary`,
+  },
+  ADMIN_USERS: {
+    BASE: "/admin/users",
+    BY_ID: (id: string) => `/admin/users/${id}`,
+    STATUS: (id: string) => `/admin/users/${id}/status`,
+    ROLE: (id: string) => `/admin/users/${id}/role`,
+    PASSWORD: (id: string) => `/admin/users/${id}/password`,
+  },
+  MEMBERSHIPS: {
+    BASE: "/admin/memberships",
+    STATS: "/admin/memberships/stats",
+    BY_ID: (id: string) => `/admin/memberships/${id}`,
+    APPROVE: (id: string) => `/admin/memberships/${id}/approve`,
+    CANCEL: (id: string) => `/admin/memberships/${id}/cancel`,
+    RENEW: (id: string) => `/admin/memberships/${id}/renew`,
+    PLANS: "/admin/memberships/plans",
+    PLAN_BY_ID: (id: string) => `/admin/memberships/plans/${id}`,
   },
   CMS: {
     BASE: "/cms",
@@ -154,7 +173,11 @@ export const API_ENDPOINTS = {
   CUSTOMER_EXECUTIVE: {
     BASE: "/admin/customer-executive",
     DASHBOARD: "/admin/customer-executive/dashboard",
+    ACTIVITY: "/admin/customer-executive/activity",
     CUSTOMERS: "/admin/customer-executive/customers",
+    CUSTOMER_LOOKUP: "/admin/customer-executive/customers/lookup",
+    CUSTOMER_SEND_OTP: "/admin/customer-executive/customers/send-otp",
+    CUSTOMER_VERIFY_OTP: "/admin/customer-executive/customers/verify-otp",
     CUSTOMER_BY_ID: (id: string) => `/admin/customer-executive/customers/${id}`,
     CUSTOMER_SEARCH: "/admin/customer-executive/customers/search",
     CUSTOMER_NOTE: (id: string) =>
@@ -177,8 +200,31 @@ export const API_ENDPOINTS = {
       `/admin/customer-executive/orders/${id}/payment`,
     ORDER_TRACKING: (id: string) =>
       `/admin/customer-executive/orders/${id}/tracking`,
+    TRACKING_SEARCH: "/admin/customer-executive/tracking/search",
+    PAYMENTS: "/admin/customer-executive/payments",
     BULK: "/admin/customer-executive/bulk",
+    BULK_STATS: "/admin/customer-executive/bulk/stats",
     BULK_BY_ID: (id: string) => `/admin/customer-executive/bulk/${id}`,
+    BULK_STATUS: (id: string) =>
+      `/admin/customer-executive/bulk/${id}/status`,
+    BULK_ASSIGN: (id: string) =>
+      `/admin/customer-executive/bulk/${id}/assign`,
+    BULK_FOLLOW_UPS: (id: string) =>
+      `/admin/customer-executive/bulk/${id}/follow-ups`,
+    BULK_FOLLOW_UP: (id: string, followUpId: string) =>
+      `/admin/customer-executive/bulk/${id}/follow-ups/${followUpId}`,
+    BULK_NOTES: (id: string) =>
+      `/admin/customer-executive/bulk/${id}/notes`,
+    BULK_QUOTATIONS: (id: string) =>
+      `/admin/customer-executive/bulk/${id}/quotations`,
+    BULK_QUOTATION_STATUS: (id: string, quotationId: string) =>
+      `/admin/customer-executive/bulk/${id}/quotations/${quotationId}/status`,
+    BULK_CONVERT: (id: string) =>
+      `/admin/customer-executive/bulk/${id}/convert`,
+    BULK_REJECT: (id: string) =>
+      `/admin/customer-executive/bulk/${id}/reject`,
+    BULK_CANCEL: (id: string) =>
+      `/admin/customer-executive/bulk/${id}/cancel`,
     EMERGENCY: "/admin/customer-executive/emergency",
     EMERGENCY_BY_ID: (id: string) =>
       `/admin/customer-executive/emergency/${id}`,
@@ -199,6 +245,14 @@ export const API_ENDPOINTS = {
     TRACKING: (shipmentId: string) =>
       `/admin/logistics/tracking/${encodeURIComponent(shipmentId)}`,
     BY_ID: (id: string) => `/admin/logistics/${id}`,
+  },
+  DELIVERY_PRICING: {
+    BASE: "/admin/delivery-pricing",
+    SUMMARY: "/admin/delivery-pricing/summary",
+    BENEFIT_CONFIG: "/admin/delivery-pricing/benefit-config",
+    BY_ID: (id: string) => `/admin/delivery-pricing/${id}`,
+    HISTORY: (id: string) => `/admin/delivery-pricing/${id}/history`,
+    STATUS: (id: string) => `/admin/delivery-pricing/${id}/status`,
   },
   ADMIN_VEHICLES: {
     BASE: "/admin/vehicles",

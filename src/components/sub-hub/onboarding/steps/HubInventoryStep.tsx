@@ -21,7 +21,7 @@ import { notify } from "@/utils/notify";
 
 const CATEGORY_COLORS: Record<string, string> = {
   "Cementing Materials": "bg-blue-50 text-blue-700",
-  "Structural Steel": "bg-amber-50 text-amber-800",
+  RMC: "bg-amber-50 text-amber-800",
   "Masonry & Blockwork": "bg-purple-50 text-purple-700",
   "Paints & Coatings": "bg-rose-50 text-rose-700",
   Electricals: "bg-teal-50 text-teal-700",

@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,6 @@ import { CePageShell } from "@/features/customer-executive/components/shared/CeP
 import { CeStatusBadge } from "@/features/customer-executive/components/shared/CeStatusBadge";
 import { CeTimeline } from "@/features/customer-executive/components/shared/CeTimeline";
 import { CeConfirmationDialog } from "@/features/customer-executive/components/shared/CeConfirmationDialog";
-import { useCeLoading } from "@/features/customer-executive/hooks/use-ce-loading";
 import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
 import { formatCurrency } from "@/utils/format-currency";
 import { notify } from "@/utils/notify";
@@ -44,6 +43,7 @@ import {
   openWhatsApp,
 } from "@/features/customer-executive/utils/communication";
 import { notFound } from "next/navigation";
+import { customerExecutiveService } from "@/services/customerExecutive";
 
 interface CeCustomerProfilePageProps {
   customerId: string;
@@ -53,7 +53,12 @@ export function CeCustomerProfilePage({
   customerId,
 }: CeCustomerProfilePageProps) {
   const router = useRouter();
-  const { isLoading } = useCeLoading(customerId);
+  const loadCustomerById = useCustomerExecutiveStore((s) => s.loadCustomerById);
+  const loadOrders = useCustomerExecutiveStore((s) => s.loadOrders);
+  const loadPayments = useCustomerExecutiveStore((s) => s.loadPayments);
+  const loadComplaints = useCustomerExecutiveStore((s) => s.loadComplaints);
+  const customersLoading = useCustomerExecutiveStore((s) => s.customersLoading);
+  const customersError = useCustomerExecutiveStore((s) => s.customersError);
   const getCustomer = useCustomerExecutiveStore((s) => s.getCustomer);
   const getCustomerOrders = useCustomerExecutiveStore(
     (s) => s.getCustomerOrders,
@@ -71,7 +76,7 @@ export function CeCustomerProfilePage({
   const getCustomerOrderStats = useCustomerExecutiveStore(
     (s) => s.getCustomerOrderStats,
   );
-  const executives = useCustomerExecutiveStore((s) => s.executives);
+  const currentExecutive = useCustomerExecutiveStore((s) => s.currentExecutive);
   const addNote = useCustomerExecutiveStore((s) => s.addNote);
   const updateNote = useCustomerExecutiveStore((s) => s.updateNote);
   const deleteNote = useCustomerExecutiveStore((s) => s.deleteNote);
@@ -86,6 +91,16 @@ export function CeCustomerProfilePage({
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
   const [deleteNoteId, setDeleteNoteId] = useState<string | null>(null);
+  const [loyalty, setLoyalty] = useState<{
+    availablePoints: number;
+    availableValue: number;
+    lifetimeEarned: number;
+    lifetimeRedeemed: number;
+    tier?: string;
+    firstOrderBonusClaimed?: boolean;
+    freeBikeDeliveriesUsed?: number;
+    freeBikeDeliveriesAllowed?: number;
+  } | null>(null);
 
   const orders = useMemo(
     () => getCustomerOrders(customerId),
@@ -112,13 +127,63 @@ export function CeCustomerProfilePage({
     [getCustomerOrderStats, customerId],
   );
 
-  if (!customer && !isLoading) {
+  useEffect(() => {
+    void loadCustomerById(customerId);
+    void loadOrders({ page: 1, limit: 50, customerId });
+    void loadPayments({ page: 1, limit: 50, filters: { search: "", status: "ALL", linkStatus: "ALL", dateRange: "ALL" } });
+    void loadComplaints({ page: 1, limit: 50, filters: { search: "", status: "ALL", priority: "ALL", issueType: "ALL" } });
+    void customerExecutiveService
+      .getCustomerLoyalty(customerId)
+      .then((data) =>
+        setLoyalty({
+          availablePoints: data.availablePoints ?? data.redeemablePoints ?? 0,
+          availableValue: data.availableValue ?? 0,
+          lifetimeEarned: data.lifetimeEarned ?? data.currentPoints ?? 0,
+          lifetimeRedeemed: data.lifetimeRedeemed ?? data.redeemedPoints ?? 0,
+          tier: data.tier,
+          firstOrderBonusClaimed: data.firstOrderBonusClaimed,
+          freeBikeDeliveriesUsed: data.freeBikeDeliveriesUsed,
+          freeBikeDeliveriesAllowed: data.freeBikeDeliveriesAllowed,
+        }),
+      )
+      .catch(() => setLoyalty(null));
+  }, [customerId, loadCustomerById, loadOrders, loadPayments, loadComplaints]);
+
+  if (!customer && !customersLoading) {
+    if (customersError) {
+      return (
+        <CePageShell
+          breadcrumbs={[
+            { label: "Customer Executive", href: ROUTES.CUSTOMER_EXECUTIVE },
+            { label: "Customer" },
+          ]}
+          title="Customer Profile"
+        >
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p>{customersError}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={() => void loadCustomerById(customerId)}
+            >
+              Retry
+            </Button>
+          </div>
+        </CePageShell>
+      );
+    }
     notFound();
   }
 
-  const executive = executives.find(
-    (e) => e.id === customer?.assignedExecutiveId,
-  );
+  if (!customer) {
+    return null;
+  }
+
+  const executiveName =
+    currentExecutive?.id === customer.assignedExecutiveId
+      ? currentExecutive.name
+      : "Assigned Executive";
 
   const handleAddNote = () => {
     if (!newNote.trim()) return;
@@ -143,7 +208,7 @@ export function CeCustomerProfilePage({
 
   const handleGeneratePaymentLink = async () => {
     if (!customer) return;
-    const payment = generatePaymentLinkForCustomer({ customerId: customer.id });
+    const payment = await generatePaymentLinkForCustomer({ customerId: customer.id });
     if (!payment) {
       notify.error(
         "No pending payment",
@@ -193,7 +258,7 @@ export function CeCustomerProfilePage({
                       {customer.phone}
                     </span>
                     {customer.gst && <span>GSTIN: {customer.gst}</span>}
-                    <span>Executive: {executive?.name}</span>
+                    <span>Executive: {executiveName}</span>
                   </div>
                   <div className="mt-4 flex gap-6">
                     <div>
@@ -213,12 +278,38 @@ export function CeCustomerProfilePage({
                     <div>
                       <p className="text-xs text-[#64748B]">Orders</p>
                       <p className="text-lg font-bold">
-                        {orderStats.total}{" "}
+                        {orderStats.totalOrders}{" "}
                         <span className="text-xs font-normal text-[#64748B]">
-                          (App: {orderStats.app} / Exec: {orderStats.executive})
+                          ({orderStats.deliveredOrders} delivered)
                         </span>
                       </p>
                     </div>
+                    {loyalty ? (
+                      <div>
+                        <p className="text-xs text-[#64748B]">BajriPro Points</p>
+                        <p className="text-lg font-bold">
+                          {loyalty.availablePoints.toLocaleString("en-IN")}
+                          {loyalty.tier ? (
+                            <span className="ml-2 text-xs font-semibold text-orange-600">
+                              {loyalty.tier}
+                            </span>
+                          ) : null}
+                        </p>
+                        <p className="text-xs text-[#64748B]">
+                          ≈ {formatCurrency(loyalty.availableValue)} · earned{" "}
+                          {loyalty.lifetimeEarned.toLocaleString("en-IN")} ·
+                          redeemed{" "}
+                          {loyalty.lifetimeRedeemed.toLocaleString("en-IN")}
+                        </p>
+                        <p className="text-xs text-[#64748B]">
+                          First-order bonus:{" "}
+                          {loyalty.firstOrderBonusClaimed ? "Claimed" : "Pending"}
+                          {loyalty.freeBikeDeliveriesAllowed != null
+                            ? ` · Free bike: ${loyalty.freeBikeDeliveriesUsed ?? 0}/${loyalty.freeBikeDeliveriesAllowed}`
+                            : null}
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </CardContent>

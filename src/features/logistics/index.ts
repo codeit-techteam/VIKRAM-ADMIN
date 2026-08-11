@@ -6,3 +6,4 @@ export { FleetDriversPage } from "./components/FleetDriversPage";
 export { ShipmentTrackingPage } from "./components/ShipmentTrackingPage";
 export { RouteDispatchPage } from "./components/RouteDispatchPage";
 export { MaintenancePage } from "./components/MaintenancePage";
+export { DeliveryPricingPage } from "./components/DeliveryPricingPage";

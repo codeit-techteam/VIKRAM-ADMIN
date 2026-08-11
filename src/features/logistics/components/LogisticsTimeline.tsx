@@ -26,14 +26,14 @@ export function LogisticsTimeline({
               <div
                 className={cn(
                   "flex size-8 shrink-0 items-center justify-center rounded-full border-2",
-                  isCurrent
-                    ? "border-primary bg-primary text-white"
-                    : isCompleted
-                      ? "border-emerald-500 bg-emerald-500 text-white"
+                  isCompleted
+                    ? "border-emerald-500 bg-emerald-500 text-white"
+                    : isCurrent
+                      ? "border-primary bg-primary text-white"
                       : "border-gray-200 bg-white text-gray-300",
                 )}
               >
-                {isCompleted && !isCurrent ? (
+                {isCompleted ? (
                   <Check className="size-4" strokeWidth={2.5} />
                 ) : (
                   <span className="text-xs font-bold">{index + 1}</span>
@@ -52,10 +52,10 @@ export function LogisticsTimeline({
               <p
                 className={cn(
                   "text-sm font-medium",
-                  isCurrent
-                    ? "text-primary"
-                    : isCompleted
-                      ? "text-[#1A1A1A]"
+                  isCompleted
+                    ? "text-[#1A1A1A]"
+                    : isCurrent
+                      ? "text-primary"
                       : "text-gray-400",
                 )}
               >

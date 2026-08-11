@@ -9,8 +9,8 @@ import {
   Plus,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { Controller, useFieldArray, useForm } from "react-hook-form";
+import { useEffect, useMemo, useState } from "react";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { FormSectionCard } from "@/components/shared/FormSectionCard";
@@ -26,6 +26,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  BRICK_GRADE_OPTIONS,
+  BRICK_PRODUCT_TYPE_OPTIONS,
+  isBricksCategory,
+  isRmcCategory,
+} from "@/constants/catalog-attributes";
 import { BulkPricingTierRow } from "@/features/catalog/components/BulkPricingTierRow";
 import { MediaUploadGrid } from "@/features/catalog/components/MediaUploadGrid";
 import {
@@ -75,6 +81,8 @@ function mapProductToFormValues(product: CatalogProduct): ProductFormSchema {
       product.category?.id ||
       product.categoryId ||
       PRODUCT_FORM_DEFAULT_VALUES.category,
+    productType: product.productType ?? "",
+    grade: product.grade ?? "",
     description:
       product.description?.trim() ||
       "<p>Update this product description for the Customer App.</p>",
@@ -108,7 +116,7 @@ export function ProductForm({ productId }: ProductFormProps) {
   const [categories, setCategories] = useState<CatalogCategory[]>([]);
   const [saving, setSaving] = useState(false);
   const [loadingProduct, setLoadingProduct] = useState(isEdit);
-  const { control, handleSubmit, getValues, reset } =
+  const { control, handleSubmit, getValues, reset, setValue, setError } =
     useForm<ProductFormSchema>({
       resolver: zodResolver(productFormSchema),
       defaultValues: PRODUCT_FORM_DEFAULT_VALUES,
@@ -118,6 +126,14 @@ export function ProductForm({ productId }: ProductFormProps) {
     control,
     name: "bulkTiers",
   });
+
+  const selectedCategoryId = useWatch({ control, name: "category" });
+  const selectedCategory = useMemo(
+    () => categories.find((category) => category.id === selectedCategoryId),
+    [categories, selectedCategoryId],
+  );
+  const showBrickFields = isBricksCategory(selectedCategory);
+  const showRmcGrade = isRmcCategory(selectedCategory) && !showBrickFields;
 
   useEffect(() => {
     void catalogService
@@ -159,6 +175,21 @@ export function ProductForm({ productId }: ProductFormProps) {
   }, [productId, reset, router]);
 
   const persist = async (data: ProductFormSchema, publish: boolean) => {
+    const category = categories.find((item) => item.id === data.category);
+    const bricks = isBricksCategory(category);
+    const rmc = isRmcCategory(category) && !bricks;
+
+    if (bricks) {
+      if (!data.productType) {
+        setError("productType", { message: "Select a brick type" });
+        return;
+      }
+      if (!data.grade) {
+        setError("grade", { message: "Select a grade" });
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const imagePayload = data.images.map((img) => ({
@@ -171,6 +202,13 @@ export function ProductForm({ productId }: ProductFormProps) {
       }
 
       const firstTier = data.bulkTiers[0];
+      const productType = bricks ? data.productType || null : null;
+      const grade = bricks
+        ? data.grade || null
+        : rmc
+          ? data.grade?.trim() || null
+          : null;
+
       const coreFields = {
         name: data.name.trim(),
         categoryId: data.category,
@@ -180,6 +218,8 @@ export function ProductForm({ productId }: ProductFormProps) {
         mrp: data.mrp,
         bulkPrice: firstTier?.discountPrice ?? null,
         bulkThreshold: firstTier?.minQty ?? 50,
+        productType,
+        grade,
         isVisible: publish,
         entityStatus: publish ? "ACTIVE" : "DRAFT",
       };
@@ -203,6 +243,8 @@ export function ProductForm({ productId }: ProductFormProps) {
           mrp: coreFields.mrp,
           bulkPrice: coreFields.bulkPrice ?? undefined,
           bulkThreshold: coreFields.bulkThreshold,
+          productType: coreFields.productType,
+          grade: coreFields.grade,
           unit: "Bag",
           imageUrls: data.images.map((img) => img.url),
           isVisible: publish,
@@ -320,7 +362,26 @@ export function ProductForm({ productId }: ProductFormProps) {
                 render={({ field, fieldState }) => (
                   <div className="space-y-2">
                     <Label className={fieldLabelClassName}>Category</Label>
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        const next = categories.find(
+                          (category) => category.id === value,
+                        );
+                        if (isBricksCategory(next)) {
+                          setValue("productType", "");
+                          setValue("grade", "");
+                          return;
+                        }
+                        if (isRmcCategory(next)) {
+                          setValue("productType", "");
+                          return;
+                        }
+                        setValue("productType", "");
+                        setValue("grade", "");
+                      }}
+                    >
                       <SelectTrigger aria-invalid={!!fieldState.error}>
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
@@ -341,6 +402,95 @@ export function ProductForm({ productId }: ProductFormProps) {
                 )}
               />
             </div>
+
+            {showBrickFields && (
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <Controller
+                  control={control}
+                  name="productType"
+                  render={({ field, fieldState }) => (
+                    <div className="space-y-2">
+                      <Label className={fieldLabelClassName}>Brick Type</Label>
+                      <Select
+                        value={field.value || null}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger aria-invalid={!!fieldState.error}>
+                          <SelectValue placeholder="Select brick type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BRICK_PRODUCT_TYPE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {fieldState.error && (
+                        <p className="text-destructive text-sm">
+                          {fieldState.error.message}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                />
+
+                <Controller
+                  control={control}
+                  name="grade"
+                  render={({ field, fieldState }) => (
+                    <div className="space-y-2">
+                      <Label className={fieldLabelClassName}>Grade</Label>
+                      <Select
+                        value={field.value || null}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger aria-invalid={!!fieldState.error}>
+                          <SelectValue placeholder="Select grade" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BRICK_GRADE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {fieldState.error && (
+                        <p className="text-destructive text-sm">
+                          {fieldState.error.message}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                />
+              </div>
+            )}
+
+            {showRmcGrade && (
+              <Controller
+                control={control}
+                name="grade"
+                render={({ field, fieldState }) => (
+                  <div className="space-y-2">
+                    <Label className={fieldLabelClassName}>
+                      Grade (optional)
+                    </Label>
+                    <Input
+                      {...field}
+                      value={field.value ?? ""}
+                      placeholder="e.g. M25"
+                      aria-invalid={!!fieldState.error}
+                    />
+                    {fieldState.error && (
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
+                    )}
+                  </div>
+                )}
+              />
+            )}
 
             <Controller
               control={control}

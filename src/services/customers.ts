@@ -20,6 +20,10 @@ export interface AdminCustomerListItem {
   orders: number;
   wallet: { balance: number; tier: string | null };
   addresses: number;
+  assignedHubId?: string | null;
+  assignedHubName?: string | null;
+  assignedExecutiveId?: string | null;
+  assignedExecutiveName?: string | null;
 }
 
 export interface AdminCustomersListResponse {
@@ -44,6 +48,10 @@ export interface AdminCustomerDetail {
   createdAt: string;
   updatedAt?: string;
   lastLogin: string | null;
+  assignedHubId?: string | null;
+  assignedHubName?: string | null;
+  assignedExecutiveId?: string | null;
+  assignedExecutiveName?: string | null;
   profile: {
     companyName?: string | null;
     legalEntityName?: string | null;
@@ -78,6 +86,14 @@ export interface AdminCustomerDetail {
   orders: unknown[];
 }
 
+export interface AdminCustomerStats {
+  total: number;
+  active: number;
+  pendingVerification: number;
+  blocked: number;
+  newToday: number;
+}
+
 type ApiEnvelope<T> = {
   success: boolean;
   message: string;
@@ -88,12 +104,37 @@ export async function fetchAdminCustomers(params?: {
   search?: string;
   status?: string;
   membership?: string;
+  hubId?: string;
+  executiveId?: string;
   page?: number;
   limit?: number;
 }): Promise<AdminCustomersListResponse> {
   const { data } = await api.get<ApiEnvelope<AdminCustomersListResponse>>(
     API_ENDPOINTS.CUSTOMERS.BASE,
     { params },
+  );
+  return data.data;
+}
+
+export async function fetchAdminCustomerStats(): Promise<AdminCustomerStats> {
+  const { data } = await api.get<ApiEnvelope<AdminCustomerStats>>(
+    API_ENDPOINTS.CUSTOMERS.STATS,
+  );
+  return data.data;
+}
+
+export async function assignAdminCustomer(
+  id: string,
+  payload: {
+    hubId?: string | null;
+    executiveId?: string | null;
+    reason?: string;
+    notes?: string;
+  },
+): Promise<AdminCustomerDetail> {
+  const { data } = await api.patch<ApiEnvelope<AdminCustomerDetail>>(
+    API_ENDPOINTS.CUSTOMERS.ASSIGNMENT(id),
+    payload,
   );
   return data.data;
 }

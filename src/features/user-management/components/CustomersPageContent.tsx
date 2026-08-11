@@ -33,16 +33,18 @@ import {
   type CustomerFilters,
   type CustomerListItem,
   type CustomerStats,
-  type CustomerStatus,
 } from "@/features/user-management/types/customer.types";
-import { getFilterOptions } from "@/mock/customer-service";
+import {
+  mapAdminCustomerToListItem,
+  mapUiStatusToApiStatus,
+} from "@/features/user-management/utils/map-admin-customer";
 import { getApiErrorMessage } from "@/services/api";
 import {
   activateAdminCustomer,
   disableAdminCustomer,
+  fetchAdminCustomerStats,
   fetchAdminCustomers,
   updateAdminCustomer,
-  type AdminCustomerListItem,
 } from "@/services/customers";
 import { notify } from "@/utils/notify";
 
@@ -53,6 +55,14 @@ const DEFAULT_META = {
   page: 1,
   limit: CUSTOMER_PAGE_SIZE,
   totalPages: 1,
+};
+
+const EMPTY_STATS: CustomerStats = {
+  total: 0,
+  active: 0,
+  pendingVerification: 0,
+  blocked: 0,
+  newToday: 0,
 };
 
 function formatDateInputValue(date: Date): string {
@@ -117,85 +127,6 @@ function buildStatCardFilters(statId: CustomerStatKey): CustomerFilters {
   };
 }
 
-/** Backend customer status -> UI status. */
-function mapApiStatusToUiStatus(status: string): CustomerStatus {
-  switch (status) {
-    case "ACTIVE":
-      return "ACTIVE";
-    case "SUSPENDED":
-      return "BLOCKED";
-    case "INACTIVE":
-      return "INACTIVE";
-    default:
-      return "INACTIVE";
-  }
-}
-
-/** UI status filter -> backend status query param. Returns undefined when there's no backend equivalent. */
-function mapUiStatusToApiStatus(status: string): string | undefined {
-  switch (status) {
-    case "ACTIVE":
-      return "ACTIVE";
-    case "INACTIVE":
-      return "INACTIVE";
-    case "BLOCKED":
-      return "SUSPENDED";
-    default:
-      return undefined;
-  }
-}
-
-function mapAdminCustomerToListItem(
-  row: AdminCustomerListItem,
-): CustomerListItem {
-  const status = mapApiStatusToUiStatus(row.status);
-  const name = row.name?.trim() || row.phone;
-
-  return {
-    id: row.id,
-    customerId: row.id,
-    name,
-    phone: row.phone,
-    email: row.email ?? "",
-    customerType: "CONTRACTOR",
-    status,
-    kycStatus: row.gst ? "VERIFIED" : "PENDING",
-    registrationDate: row.createdAt,
-    address: {
-      primaryAddress: row.company ?? "",
-      city: "",
-      state: "",
-      pincode: "",
-    },
-    activity: {
-      registeredAt: row.createdAt,
-      firstLoginAt: row.lastLogin ?? undefined,
-      latestOrderAt: row.lastLogin ?? undefined,
-    },
-    assignedHub: "—",
-    assignedExecutive: "—",
-    activeOrders: row.orders,
-    lastOrderDate: null,
-    assignedOperations: {
-      hubName: "—",
-      executiveName: "—",
-      isAssigned: false,
-    },
-    orderSummary: {
-      totalOrders: row.orders,
-      activeOrders: row.orders,
-      deliveredOrders: 0,
-      cancelledOrders: 0,
-      lastOrderDate: null,
-    },
-    company: row.company ?? undefined,
-    gst: row.gst ?? undefined,
-    membership: row.membership ?? undefined,
-    lastLogin: row.lastLogin ?? undefined,
-    walletBalance: row.wallet?.balance,
-  };
-}
-
 function toCustomerDetail(item: CustomerListItem): CustomerDetail {
   return {
     ...item,
@@ -205,29 +136,12 @@ function toCustomerDetail(item: CustomerListItem): CustomerDetail {
   };
 }
 
-function computeStats(
-  customers: CustomerListItem[],
-  total: number,
-): CustomerStats {
-  const today = getTodayDateInputValue();
-
-  return {
-    total,
-    active: customers.filter((customer) => customer.status === "ACTIVE").length,
-    pendingVerification: 0,
-    blocked: customers.filter((customer) => customer.status === "BLOCKED")
-      .length,
-    newToday: customers.filter(
-      (customer) => customer.registrationDate?.slice(0, 10) === today,
-    ).length,
-  };
-}
-
 export function CustomersPageContent() {
   const searchParams = useSearchParams();
 
   const [customers, setCustomers] = useState<CustomerListItem[]>([]);
   const [meta, setMeta] = useState(DEFAULT_META);
+  const [stats, setStats] = useState<CustomerStats>(EMPTY_STATS);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [draftFilters, setDraftFilters] = useState<CustomerFilters>(
@@ -272,22 +186,35 @@ export function CustomersPageContent() {
       setIsLoading(true);
       try {
         const search = appliedFilters.search.trim();
-        const response = await fetchAdminCustomers({
-          search: search && !search.startsWith("kyc:") ? search : undefined,
-          status: mapUiStatusToApiStatus(appliedFilters.status),
-          page: currentPage,
-          limit: CUSTOMER_PAGE_SIZE,
-        });
+        const [response, nextStats] = await Promise.all([
+          fetchAdminCustomers({
+            search: search && !search.startsWith("kyc:") ? search : undefined,
+            status: mapUiStatusToApiStatus(appliedFilters.status),
+            hubId:
+              appliedFilters.assignedHub !== "all"
+                ? appliedFilters.assignedHub
+                : undefined,
+            executiveId:
+              appliedFilters.assignedExecutive !== "all"
+                ? appliedFilters.assignedExecutive
+                : undefined,
+            page: currentPage,
+            limit: CUSTOMER_PAGE_SIZE,
+          }),
+          fetchAdminCustomerStats(),
+        ]);
 
         if (ignore) return;
 
         setCustomers(response.data.map(mapAdminCustomerToListItem));
         setMeta(response.meta);
+        setStats(nextStats);
       } catch (error) {
         if (ignore) return;
         notify.error("Failed to load customers", getApiErrorMessage(error));
         setCustomers([]);
         setMeta(DEFAULT_META);
+        setStats(EMPTY_STATS);
       } finally {
         if (!ignore) setIsLoading(false);
       }
@@ -300,11 +227,14 @@ export function CustomersPageContent() {
     };
   }, [currentPage, appliedFilters, refreshToken]);
 
-  const filterOptions = useMemo(() => getFilterOptions([]), []);
-
-  const stats = useMemo(
-    () => computeStats(customers, meta.total),
-    [customers, meta.total],
+  const filterOptions = useMemo(
+    () => ({
+      hubs: [] as Array<{ id: string; label: string }>,
+      executives: [] as Array<{ id: string; label: string }>,
+      states: [] as string[],
+      cities: [] as string[],
+    }),
+    [],
   );
 
   useEffect(() => {

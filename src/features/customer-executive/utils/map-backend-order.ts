@@ -270,7 +270,12 @@ export function mapBackendOrderToCeOrder(order: BackendAdminOrder): CeOrder {
   const status = mapStatus(rawBackendStatus);
   const address = order.deliveryAddress ?? order.address;
   const deliveryAddress =
-    [address?.line1 ?? address?.address, address?.line2, address?.city]
+    [
+      address?.line1 ??
+        (address as { address?: string } | null | undefined)?.address,
+      address?.line2,
+      address?.city,
+    ]
       .filter(Boolean)
       .join(", ") || "Delivery address";
 

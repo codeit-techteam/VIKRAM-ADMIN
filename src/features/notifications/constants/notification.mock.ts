@@ -35,6 +35,7 @@ export const DEEP_LINK_OFFER_OPTIONS = [
 
 export const DEEP_LINK_CATEGORY_OPTIONS = [
   { value: "cement", label: "Cement" },
-  { value: "steel", label: "Steel & TMT" },
+  { value: "rmc", label: "RMC" },
+  { value: "bricks", label: "Bricks" },
   { value: "machinery", label: "Machinery" },
 ] as const;

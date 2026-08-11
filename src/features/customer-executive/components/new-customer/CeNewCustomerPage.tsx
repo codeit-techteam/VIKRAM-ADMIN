@@ -31,7 +31,7 @@ import {
 } from "@/features/customer-executive/utils/draft-storage";
 import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
 import { notify } from "@/utils/notify";
-import type { CustomerType } from "@/features/customer-executive/types";
+import type { CeCustomer, CustomerType } from "@/features/customer-executive/types";
 
 const registrationSchema = z.object({
   phone: z.string().min(10, "Enter valid 10-digit mobile number"),
@@ -66,18 +66,29 @@ const INDIAN_STATES = [
 
 export function CeNewCustomerPage() {
   const router = useRouter();
-  const getCustomerByPhone = useCustomerExecutiveStore(
-    (s) => s.getCustomerByPhone,
-  );
+  const lookupCustomer = useCustomerExecutiveStore((s) => s.lookupCustomer);
+  const sendOtp = useCustomerExecutiveStore((s) => s.sendOtp);
+  const verifyOtp = useCustomerExecutiveStore((s) => s.verifyOtp);
   const registerCustomer = useCustomerExecutiveStore((s) => s.registerCustomer);
+  const loadCurrentExecutive = useCustomerExecutiveStore(
+    (s) => s.loadCurrentExecutive,
+  );
   const currentExecutive = useCustomerExecutiveStore((s) => s.currentExecutive);
 
   const [step, setStep] = useState(1);
   const [lookupPhone, setLookupPhone] = useState("");
-  const [existingCustomer, setExistingCustomer] =
-    useState<ReturnType<typeof getCustomerByPhone>>(undefined);
+  const [existingCustomer, setExistingCustomer] = useState<CeCustomer | null>(
+    null,
+  );
   const [lookupDone, setLookupDone] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpValue, setOtpValue] = useState("");
+  const [verificationToken, setVerificationToken] = useState("");
+  const [isLookingUp, setIsLookingUp] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
 
   const form = useForm<RegistrationForm>({
     resolver: zodResolver(registrationSchema),
@@ -94,6 +105,10 @@ export function CeNewCustomerPage() {
       pincode: "",
     },
   });
+
+  useEffect(() => {
+    void loadCurrentExecutive();
+  }, [loadCurrentExecutive]);
 
   useEffect(() => {
     const draft = loadCustomerDraft();
@@ -129,36 +144,117 @@ export function CeNewCustomerPage() {
     notify.success("Draft saved", "You can continue registration later");
   };
 
-  const handleLookup = () => {
-    const found = getCustomerByPhone(lookupPhone);
-    setExistingCustomer(found);
-    setLookupDone(true);
-    if (found) {
-      notify.info("Existing customer found", found.name);
-    } else {
-      form.setValue("phone", lookupPhone);
-      setStep(2);
+  const handleLookup = async () => {
+    setIsLookingUp(true);
+    try {
+      const result = await lookupCustomer(lookupPhone);
+      setLookupDone(true);
+      if (result.assignedToOtherExecutive) {
+        notify.warning(
+          "Customer exists",
+          "This customer is assigned to another executive",
+        );
+        setExistingCustomer(null);
+        return;
+      }
+      if (result.exists && result.customer) {
+        setExistingCustomer(result.customer);
+        notify.info("Existing customer found", result.customer.name);
+      } else {
+        setExistingCustomer(null);
+        form.setValue("phone", lookupPhone);
+        setStep(2);
+      }
+    } catch (error) {
+      notify.error(
+        "Lookup failed",
+        error instanceof Error ? error.message : "Try again",
+      );
+    } finally {
+      setIsLookingUp(false);
+    }
+  };
+
+  const handleSendOtp = async () => {
+    setIsSendingOtp(true);
+    try {
+      const result = await sendOtp(lookupPhone || form.getValues("phone"));
+      setOtpSent(true);
+      if (result.otp) {
+        setOtpValue(result.otp);
+        notify.info("Development OTP", result.otp);
+      } else {
+        notify.success("OTP sent", "Check the customer's mobile");
+      }
+    } catch (error) {
+      notify.error(
+        "Failed to send OTP",
+        error instanceof Error ? error.message : "Try again",
+      );
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otpValue.trim()) {
+      notify.error("Enter OTP");
+      return;
+    }
+    setIsVerifyingOtp(true);
+    try {
+      const result = await verifyOtp(
+        lookupPhone || form.getValues("phone"),
+        otpValue.trim(),
+      );
+      setVerificationToken(result.verificationToken);
+      notify.success("Phone verified", "You can complete registration");
+    } catch (error) {
+      notify.error(
+        "OTP verification failed",
+        error instanceof Error ? error.message : "Try again",
+      );
+    } finally {
+      setIsVerifyingOtp(false);
     }
   };
 
   const handleRegister = (andCreateOrder = false) => {
-    form.handleSubmit((data) => {
-      const customer = registerCustomer({
-        ...data,
-        gst: data.gst ?? "",
-        customerType: data.customerType as CustomerType,
-      });
-      clearCustomerDraft();
-      notify.success(
-        "Customer registered",
-        `${customer.name} added successfully`,
-      );
-      if (andCreateOrder) {
-        router.push(
-          `${ROUTES.CUSTOMER_EXECUTIVE}/orders/new?customer=${customer.id}`,
+    if (!verificationToken) {
+      notify.error("Verify OTP first");
+      return;
+    }
+
+    form.handleSubmit(async (data) => {
+      setIsRegistering(true);
+      try {
+        const customer = await registerCustomer(
+          {
+            ...data,
+            gst: data.gst ?? "",
+            customerType: data.customerType as CustomerType,
+          },
+          verificationToken,
         );
-      } else {
-        router.push(`${ROUTES.CUSTOMER_EXECUTIVE}/customers/${customer.id}`);
+        clearCustomerDraft();
+        notify.success(
+          "Customer registered",
+          `${customer.name} added successfully`,
+        );
+        if (andCreateOrder) {
+          router.push(
+            `${ROUTES.CUSTOMER_EXECUTIVE}/orders/new?customer=${customer.id}`,
+          );
+        } else {
+          router.push(`${ROUTES.CUSTOMER_EXECUTIVE}/customers/${customer.id}`);
+        }
+      } catch (error) {
+        notify.error(
+          "Registration failed",
+          error instanceof Error ? error.message : "Try again",
+        );
+      } finally {
+        setIsRegistering(false);
       }
     })();
   };
@@ -198,9 +294,9 @@ export function CeNewCustomerPage() {
                     placeholder="Enter 10-digit mobile number"
                     className="flex-1"
                   />
-                  <Button onClick={handleLookup}>
+                  <Button onClick={handleLookup} disabled={isLookingUp}>
                     <Check className="size-4" />
-                    Verify & Search
+                    {isLookingUp ? "Searching..." : "Verify & Search"}
                   </Button>
                 </div>
                 <p className="text-xs text-[#64748B]">
@@ -263,9 +359,56 @@ export function CeNewCustomerPage() {
           >
             <Card>
               <CardHeader>
+                <CardTitle className="text-base">
+                  Step 2: Phone Verification
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleSendOtp}
+                    disabled={isSendingOtp}
+                  >
+                    {isSendingOtp ? "Sending..." : "Send OTP"}
+                  </Button>
+                  <Input
+                    value={otpValue}
+                    onChange={(e) => setOtpValue(e.target.value)}
+                    placeholder="Enter OTP"
+                    className="max-w-[180px]"
+                  />
+                  <Button
+                    onClick={handleVerifyOtp}
+                    disabled={isVerifyingOtp || !otpSent}
+                  >
+                    {isVerifyingOtp ? "Verifying..." : "Verify OTP"}
+                  </Button>
+                </div>
+                {verificationToken ? (
+                  <p className="text-xs text-green-700">
+                    Phone verified. Complete the registration details below.
+                  </p>
+                ) : (
+                  <p className="text-xs text-[#64748B]">
+                    Send and verify OTP before registering the customer.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {step >= 2 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <Card>
+              <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Grid3X3 className="text-primary size-4" />
-                  Step 2: Registration Details
+                  Step 3: Registration Details
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -339,7 +482,7 @@ export function CeNewCustomerPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <MapPin className="text-primary size-4" />
-                  Step 3: Address & Logistics
+                  Step 4: Address & Logistics
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -389,16 +532,23 @@ export function CeNewCustomerPage() {
             <p className="text-xs text-[#64748B]">
               {draftSavedAt
                 ? `Draft saved ${new Date(draftSavedAt).toLocaleString("en-IN")}`
-                : `Draft will be saved by ${currentExecutive.name}`}
+                : `Draft will be saved by ${currentExecutive?.name ?? "your executive"}`}
             </p>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={handleSaveDraft}>
                 Save Draft
               </Button>
-              <Button variant="outline" onClick={() => handleRegister(false)}>
+              <Button
+                variant="outline"
+                onClick={() => handleRegister(false)}
+                disabled={isRegistering || !verificationToken}
+              >
                 Register Customer
               </Button>
-              <Button onClick={() => handleRegister(true)}>
+              <Button
+                onClick={() => handleRegister(true)}
+                disabled={isRegistering || !verificationToken}
+              >
                 Register & Create Order →
               </Button>
             </div>

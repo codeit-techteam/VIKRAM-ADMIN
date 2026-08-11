@@ -86,9 +86,6 @@ export function CeOrderDetailSheet({
   onOpenChange,
   order,
 }: CeOrderDetailSheetProps) {
-  const hubs = useCustomerExecutiveStore((s) => s.hubs);
-  const drivers = useCustomerExecutiveStore((s) => s.drivers);
-  const vehicles = useCustomerExecutiveStore((s) => s.vehicles);
   const loadOrderDetailFromApi = useCustomerExecutiveStore(
     (s) => s.loadOrderDetailFromApi,
   );
@@ -106,13 +103,10 @@ export function CeOrderDetailSheet({
     return null;
   }
 
-  const hub = hubs.find((h) => h.id === liveOrder.hubId);
-  const driver = drivers.find((d) => d.id === liveOrder.driverId);
-  const vehicle = vehicles.find((v) => v.id === liveOrder.vehicleId);
-  const hubName = liveOrder.hubName || hub?.name;
-  const driverName = liveOrder.driverName || driver?.name;
-  const driverPhone = liveOrder.driverPhone || driver?.phone;
-  const vehicleNumber = liveOrder.vehicleNumber || vehicle?.registration;
+  const hubName = liveOrder.hubName;
+  const driverName = liveOrder.driverName;
+  const driverPhone = liveOrder.driverPhone;
+  const vehicleNumber = liveOrder.vehicleNumber;
   const paymentStatus = paymentStatusDisplay(liveOrder);
   const paymentTone =
     liveOrder.paymentStatus === "PAID" ||
@@ -270,7 +264,7 @@ export function CeOrderDetailSheet({
                 <DetailField label="Hub" value={hubName} />
                 <DetailField
                   label="Code"
-                  value={liveOrder.hubCode || hub?.city || "—"}
+                  value={liveOrder.hubCode || "—"}
                 />
                 <DetailField
                   label="Manager"

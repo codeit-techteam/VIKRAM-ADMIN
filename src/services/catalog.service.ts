@@ -41,7 +41,9 @@ export interface CatalogProduct {
   entityStatus?: string;
   isVisible?: boolean;
   categoryId?: string;
-  category?: { id: string; name: string } | null;
+  category?: { id: string; name: string; slug?: string | null } | null;
+  productType?: string | null;
+  grade?: string | null;
   images?: CatalogProductImage[];
   variants?: CatalogProductVariant[];
 }
@@ -72,6 +74,8 @@ export interface CreateCatalogProductInput {
   bulkThreshold?: number | null;
   membershipPrice?: number;
   unit?: string;
+  productType?: string | null;
+  grade?: string | null;
   isFeatured?: boolean;
   imageUrls?: string[];
   isVisible?: boolean;
@@ -122,6 +126,8 @@ export const catalogService = {
       search?: string;
       categoryId?: string;
       status?: string;
+      productType?: string;
+      grade?: string;
     },
   ): Promise<PaginatedResponse<CatalogProduct>> => {
     const { data } = await api.get<
@@ -141,6 +147,8 @@ export const catalogService = {
         search: params?.search,
         categoryId: params?.categoryId,
         status: params?.status,
+        productType: params?.productType,
+        grade: params?.grade,
       },
     });
 

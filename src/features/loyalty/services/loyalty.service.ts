@@ -1,10 +1,11 @@
+import { API_ENDPOINTS } from "@/constants/api-endpoints";
 import api, { getApiErrorMessage } from "@/services/api";
-import {
-  TIER_THRESHOLDS,
-  type CustomerLoyalty,
-  type LoyaltyDashboardStats,
-  type LoyaltyTier,
-} from "@/mock/mockLoyalty";
+import type {
+  CustomerLoyalty,
+  LoyaltyDashboardStats,
+  LoyaltyPointHistory,
+  LoyaltyTier,
+} from "@/features/loyalty/types";
 
 export const LOYALTY_PAGE_SIZE = 10;
 
@@ -37,15 +38,36 @@ interface LoyaltyAccountApiRow {
   id: string;
   customerId: string;
   currentPoints: number;
+  lifetimeEarned?: number;
   redeemedPoints: number;
+  lifetimeRedeemed?: number;
   availablePoints: number;
   tier: LoyaltyTier;
+  tierProgress?: number;
+  nextTier?: LoyaltyTier | null;
+  pointsToNextTier?: number;
+  customerCity?: string | null;
+  customerCompany?: string | null;
+  firstOrderBonusClaimed?: boolean;
+  freeBikeDeliveriesAllowed?: number;
+  freeBikeDeliveriesUsed?: number;
+  freeBikeDeliveriesRemaining?: number;
   customer: {
     id: string;
     phone: string;
-    fullName: string;
+    fullName: string | null;
+    profile?: { companyName?: string | null } | null;
   };
-  customerCity?: string | null;
+  transactions?: Array<{
+    id: string;
+    points: number;
+    type: string;
+    reason: string;
+    referenceId?: string | null;
+    referenceOrderId?: string | null;
+    closingPoints?: number | null;
+    createdAt: string;
+  }>;
 }
 
 interface LoyaltyListResponse {
@@ -61,79 +83,98 @@ interface LoyaltyListResponse {
 interface LoyaltyStatsResponse {
   totalPointsIssued: number;
   redeemedPoints: number;
-  pendingRedemptions: number;
-  activeAccounts: number;
+  pendingRedemptions?: number;
+  pending?: number;
+  activeAccounts?: number;
+  topCustomersCount?: number;
+  topCustomers?: number;
   tierDistribution: Array<{ tier: LoyaltyTier; count: number }>;
 }
 
-function computeTierProgress(
-  tier: LoyaltyTier,
-  points: number,
-): {
-  nextTier: LoyaltyTier | null;
-  pointsToNextTier: number;
-  tierProgress: number;
-} {
-  const tiers: LoyaltyTier[] = ["BRONZE", "SILVER", "GOLD", "PLATINUM"];
-  const index = tiers.indexOf(tier);
-
-  if (index >= tiers.length - 1) {
-    return { nextTier: null, pointsToNextTier: 0, tierProgress: 100 };
+function mapHistoryType(type: string, reason: string): LoyaltyPointHistory["type"] {
+  if (type === "REDEEM") return "REDEEMED";
+  if (type === "EXPIRE") return "EXPIRED";
+  if (type === "ADJUSTMENT" || type === "ADMIN") return "ADJUSTMENT";
+  if (
+    reason.toLowerCase().includes("first order") ||
+    reason.toLowerCase().includes("bonus")
+  ) {
+    return "BONUS";
   }
-
-  const nextTier = tiers[index + 1];
-  const currentThreshold = TIER_THRESHOLDS[tier];
-  const nextThreshold = TIER_THRESHOLDS[nextTier];
-  const span = nextThreshold - currentThreshold;
-  const progressInTier = points - currentThreshold;
-
-  return {
-    nextTier,
-    pointsToNextTier: Math.max(0, nextThreshold - points),
-    tierProgress:
-      span > 0 ? Math.min(100, Math.round((progressInTier / span) * 100)) : 0,
-  };
+  return "EARNED";
 }
 
 function mapAccountRow(row: LoyaltyAccountApiRow): CustomerLoyalty {
-  const tierProgress = computeTierProgress(row.tier, row.currentPoints);
+  const lifetimeEarned = row.lifetimeEarned ?? row.currentPoints;
+  const lifetimeRedeemed = row.lifetimeRedeemed ?? row.redeemedPoints;
 
   return {
     id: row.id,
     customerId: row.customerId,
-    customerName: row.customer.fullName,
+    customerName: row.customer.fullName?.trim() || row.customer.phone || "—",
     customerPhone: row.customer.phone,
     customerCity: row.customerCity ?? "—",
+    customerCompany:
+      row.customerCompany ?? row.customer.profile?.companyName ?? undefined,
     currentTier: row.tier,
     currentPoints: row.currentPoints,
+    lifetimeEarned,
     redeemedPoints: row.redeemedPoints,
+    lifetimeRedeemed,
     availablePoints: row.availablePoints,
-    tierProgress: tierProgress.tierProgress,
-    nextTier: tierProgress.nextTier,
-    pointsToNextTier: tierProgress.pointsToNextTier,
+    tierProgress: row.tierProgress ?? 0,
+    nextTier: row.nextTier ?? null,
+    pointsToNextTier: row.pointsToNextTier ?? 0,
+    firstOrderBonusClaimed: row.firstOrderBonusClaimed,
+    freeBikeDeliveriesAllowed: row.freeBikeDeliveriesAllowed,
+    freeBikeDeliveriesUsed: row.freeBikeDeliveriesUsed,
+    freeBikeDeliveriesRemaining: row.freeBikeDeliveriesRemaining,
     pointHistory: [],
     redemptions: [],
     ordersEarnedFrom: [],
   };
 }
 
-function filterClientSide(
-  items: CustomerLoyalty[],
-  filters: LoyaltyFilters,
-): CustomerLoyalty[] {
-  let result = [...items];
+function attachTransactions(
+  account: CustomerLoyalty,
+  transactions: NonNullable<LoyaltyAccountApiRow["transactions"]>,
+): CustomerLoyalty {
+  account.pointHistory = transactions.map((tx) => ({
+    id: tx.id,
+    type: mapHistoryType(tx.type, tx.reason),
+    points: tx.points,
+    description: tx.reason,
+    orderId: tx.referenceOrderId ?? undefined,
+    orderNumber: tx.referenceId ?? undefined,
+    balanceAfter: tx.closingPoints ?? undefined,
+    status: "COMPLETED",
+    date: tx.createdAt,
+  }));
 
-  if (filters.search.trim()) {
-    const q = filters.search.toLowerCase();
-    result = result.filter(
-      (c) =>
-        c.customerName.toLowerCase().includes(q) ||
-        c.customerPhone.includes(q) ||
-        c.customerCity.toLowerCase().includes(q),
-    );
-  }
+  account.redemptions = transactions
+    .filter((tx) => tx.type === "REDEEM")
+    .map((tx) => ({
+      id: tx.id,
+      points: tx.points,
+      reward: tx.reason,
+      date: tx.createdAt,
+      status: "COMPLETED" as const,
+    }));
 
-  return result;
+  account.ordersEarnedFrom = transactions
+    .filter((tx) => tx.type === "EARN")
+    .map((tx) => ({
+      orderId: tx.referenceOrderId ?? tx.id,
+      orderNumber:
+        tx.referenceId?.replace(/^ORDER_EARNED:/, "") ||
+        tx.reason.replace(/^Points earned on order /, "") ||
+        "—",
+      amount: 0,
+      pointsEarned: tx.points,
+      date: tx.createdAt,
+    }));
+
+  return account;
 }
 
 export async function getLoyaltyCustomers(
@@ -142,19 +183,17 @@ export async function getLoyaltyCustomers(
   try {
     const { data: response } = await api.get<{
       data: LoyaltyListResponse;
-    }>("/admin/loyalty", {
+    }>(API_ENDPOINTS.LOYALTY.BASE, {
       params: {
         page: params.page,
         limit: params.limit,
         tier: params.filters.tier === "all" ? undefined : params.filters.tier,
+        search: params.filters.search.trim() || undefined,
       },
     });
 
-    const mapped = response.data.data.map(mapAccountRow);
-    const filtered = filterClientSide(mapped, params.filters);
-
     return {
-      data: filtered,
+      data: response.data.data.map(mapAccountRow),
       total: response.data.meta.total,
       totalPages: response.data.meta.totalPages,
       page: response.data.meta.page,
@@ -167,76 +206,41 @@ export async function getLoyaltyCustomers(
 export async function getLoyaltyStats(): Promise<LoyaltyDashboardStats> {
   try {
     const { data: response } = await api.get<{ data: LoyaltyStatsResponse }>(
-      "/admin/loyalty/stats",
+      API_ENDPOINTS.LOYALTY.STATS,
     );
 
+    const stats = response.data;
     return {
-      totalPointsIssued: response.data.totalPointsIssued,
-      redeemedPoints: response.data.redeemedPoints,
-      pendingRedemptions: response.data.pendingRedemptions,
-      topCustomersCount: response.data.activeAccounts,
+      totalPointsIssued: stats.totalPointsIssued,
+      redeemedPoints: stats.redeemedPoints,
+      pendingRedemptions: stats.pendingRedemptions ?? stats.pending ?? 0,
+      topCustomersCount: stats.topCustomersCount ?? stats.topCustomers ?? 0,
     };
   } catch (error) {
     throw new Error(getApiErrorMessage(error));
   }
 }
 
+export async function getLoyaltyByCustomerId(
+  customerId: string,
+): Promise<CustomerLoyalty> {
+  try {
+    const { data: response } = await api.get<{ data: LoyaltyAccountApiRow }>(
+      API_ENDPOINTS.LOYALTY.BY_CUSTOMER(customerId),
+    );
+
+    return attachTransactions(mapAccountRow(response.data), response.data.transactions ?? []);
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error));
+  }
+}
+
+/** @deprecated Prefer getLoyaltyByCustomerId */
 export async function getLoyaltyById(
-  id: string,
+  customerId: string,
 ): Promise<CustomerLoyalty | null> {
   try {
-    const { data: response } = await api.get<{
-      data: LoyaltyAccountApiRow & {
-        transactions?: Array<{
-          id: string;
-          points: number;
-          type: string;
-          reason: string;
-          referenceOrderId?: string | null;
-          createdAt: string;
-        }>;
-      };
-    }>(`/admin/loyalty/${id}`);
-
-    const account = mapAccountRow(response.data);
-
-    account.pointHistory = (response.data.transactions ?? []).map((tx) => ({
-      id: tx.id,
-      type:
-        tx.type === "EARN"
-          ? "EARNED"
-          : tx.type === "REDEEM"
-            ? "REDEEMED"
-            : tx.type === "EXPIRE"
-              ? "EXPIRED"
-              : "BONUS",
-      points: tx.points,
-      description: tx.reason,
-      orderId: tx.referenceOrderId ?? undefined,
-      date: tx.createdAt,
-    }));
-
-    account.redemptions = (response.data.transactions ?? [])
-      .filter((tx) => tx.type === "REDEEM")
-      .map((tx) => ({
-        id: tx.id,
-        points: tx.points,
-        reward: tx.reason,
-        date: tx.createdAt,
-        status: "COMPLETED" as const,
-      }));
-
-    account.ordersEarnedFrom = (response.data.transactions ?? [])
-      .filter((tx) => tx.type === "EARN")
-      .map((tx) => ({
-        orderId: tx.referenceOrderId ?? tx.id,
-        orderNumber: tx.reason.replace(/^Points earned on order /, ""),
-        amount: 0,
-        pointsEarned: tx.points,
-        date: tx.createdAt,
-      }));
-
-    return account;
+    return await getLoyaltyByCustomerId(customerId);
   } catch {
     return null;
   }
@@ -247,7 +251,7 @@ export async function adjustLoyaltyPoints(
   points: number,
   reason: string,
 ) {
-  const { data } = await api.patch(`/admin/loyalty/${customerId}/adjust`, {
+  const { data } = await api.patch(API_ENDPOINTS.LOYALTY.ADJUST(customerId), {
     points,
     reason,
   });
@@ -259,7 +263,7 @@ export async function creditLoyaltyPoints(
   points: number,
   reason: string,
 ) {
-  const { data } = await api.post(`/admin/loyalty/${customerId}/reward`, {
+  const { data } = await api.post(API_ENDPOINTS.LOYALTY.REWARD(customerId), {
     points,
     reason,
   });
@@ -271,7 +275,7 @@ export async function debitLoyaltyPoints(
   points: number,
   reason: string,
 ) {
-  const { data } = await api.post(`/admin/loyalty/${customerId}/redeem`, {
+  const { data } = await api.post(API_ENDPOINTS.LOYALTY.REDEEM(customerId), {
     points,
     reason,
   });
@@ -279,15 +283,8 @@ export async function debitLoyaltyPoints(
 }
 
 export async function getLoyaltyLeaderboard(limit = 10) {
-  const { data } = await api.get("/admin/loyalty/leaderboard", {
+  const { data } = await api.get(API_ENDPOINTS.LOYALTY.LEADERBOARD, {
     params: { limit },
   });
   return data.data;
-}
-
-export async function getLoyaltyTierDistribution() {
-  const { data } = await api.get<{ data: LoyaltyStatsResponse }>(
-    "/admin/loyalty/stats",
-  );
-  return data.data.tierDistribution;
 }

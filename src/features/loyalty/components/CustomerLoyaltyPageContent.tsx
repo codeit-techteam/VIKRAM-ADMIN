@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Award,
   Eye,
   Gift,
   MoreHorizontal,
@@ -10,7 +9,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -46,23 +45,18 @@ import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { LoyaltyDetailDrawer } from "@/features/loyalty/components/LoyaltyDetailDrawer";
 import { LoyaltyTierBadge } from "@/features/loyalty/components/LoyaltyTierBadge";
 import {
+  useLoyaltyCustomers,
+  useLoyaltyStats,
+} from "@/features/loyalty/hooks/use-loyalty";
+import {
   EMPTY_LOYALTY_FILTERS,
-  getLoyaltyCustomers,
-  getLoyaltyStats,
   LOYALTY_PAGE_SIZE,
   type LoyaltyFilters,
 } from "@/features/loyalty/services/loyalty.service";
-import type {
-  CustomerLoyalty,
-  LoyaltyDashboardStats,
-} from "@/mock/mockLoyalty";
+import type { CustomerLoyalty } from "@/features/loyalty/types";
+import { getApiErrorMessage } from "@/services/api";
 
 export function CustomerLoyaltyPageContent() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState<LoyaltyDashboardStats | null>(null);
-  const [customers, setCustomers] = useState<CustomerLoyalty[]>([]);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState<LoyaltyFilters>(EMPTY_LOYALTY_FILTERS);
   const [searchInput, setSearchInput] = useState("");
@@ -70,34 +64,43 @@ export function CustomerLoyaltyPageContent() {
     useState<CustomerLoyalty | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const loadData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const [statsData, queryResult] = await Promise.all([
-        getLoyaltyStats(),
-        getLoyaltyCustomers({
-          page: currentPage,
-          limit: LOYALTY_PAGE_SIZE,
-          filters,
-        }),
-      ]);
-      setStats(statsData);
-      setCustomers(queryResult.data);
-      setTotal(queryResult.total);
-      setTotalPages(queryResult.totalPages);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentPage, filters]);
+  const queryParams = useMemo(
+    () => ({
+      page: currentPage,
+      limit: LOYALTY_PAGE_SIZE,
+      filters,
+    }),
+    [currentPage, filters],
+  );
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const statsQuery = useLoyaltyStats();
+  const listQuery = useLoyaltyCustomers(queryParams);
+
+  const isLoading = statsQuery.isLoading || listQuery.isLoading;
+  const loadError =
+    statsQuery.error || listQuery.error
+      ? getApiErrorMessage(statsQuery.error || listQuery.error)
+      : null;
+
+  const stats = statsQuery.data ?? null;
+  const customers = listQuery.data?.data ?? [];
+  const total = listQuery.data?.total ?? 0;
+  const totalPages = listQuery.data?.totalPages ?? 1;
 
   const breadcrumbs = useMemo(
     () => getNavBreadcrumbsFromPath("/user-management/customer-loyalty"),
     [],
   );
+
+  const applySearch = () => {
+    setFilters((prev) => ({ ...prev, search: searchInput }));
+    setCurrentPage(1);
+  };
+
+  const handleRetry = () => {
+    void statsQuery.refetch();
+    void listQuery.refetch();
+  };
 
   return (
     <div className="space-y-6">
@@ -109,6 +112,21 @@ export function CustomerLoyaltyPageContent() {
 
       <UserManagementTabs activeTab="customer-loyalty" />
 
+      {loadError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p>Unable to load customer loyalty data.</p>
+          <p className="mt-1 text-xs opacity-80">{loadError}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={handleRetry}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Total Points Issued"
@@ -117,7 +135,7 @@ export function CustomerLoyaltyPageContent() {
           icon={Star}
           iconContainerClassName="bg-amber-50"
           iconClassName="text-amber-600"
-          isLoading={isLoading}
+          isLoading={isLoading && !stats}
         />
         <StatCard
           label="Redeemed"
@@ -126,7 +144,7 @@ export function CustomerLoyaltyPageContent() {
           icon={Gift}
           iconContainerClassName="bg-green-50"
           iconClassName="text-green-600"
-          isLoading={isLoading}
+          isLoading={isLoading && !stats}
         />
         <StatCard
           label="Pending"
@@ -136,7 +154,7 @@ export function CustomerLoyaltyPageContent() {
           iconContainerClassName="bg-orange-50"
           iconClassName="text-primary"
           valueVariant="warning"
-          isLoading={isLoading}
+          isLoading={isLoading && !stats}
         />
         <StatCard
           label="Top Customers"
@@ -145,7 +163,7 @@ export function CustomerLoyaltyPageContent() {
           icon={Users}
           iconContainerClassName="bg-purple-50"
           iconClassName="text-purple-600"
-          isLoading={isLoading}
+          isLoading={isLoading && !stats}
         />
       </div>
 
@@ -158,17 +176,15 @@ export function CustomerLoyaltyPageContent() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  setFilters((prev) => ({ ...prev, search: searchInput }));
-                  setCurrentPage(1);
-                }
+                if (e.key === "Enter") applySearch();
               }}
               className="pl-9"
             />
           </div>
           <Select
             value={filters.tier}
-            onValueChange={(v) => {
+            onValueChange={(v: string | null) => {
+              if (!v) return;
               setFilters((prev) => ({
                 ...prev,
                 tier: v as LoyaltyFilters["tier"],
@@ -189,10 +205,7 @@ export function CustomerLoyaltyPageContent() {
           </Select>
           <Button
             className="bg-primary hover:bg-primary/90"
-            onClick={() => {
-              setFilters((prev) => ({ ...prev, search: searchInput }));
-              setCurrentPage(1);
-            }}
+            onClick={applySearch}
           >
             Search
           </Button>
@@ -226,7 +239,7 @@ export function CustomerLoyaltyPageContent() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
+              {isLoading && customers.length === 0 ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
                     {Array.from({ length: 7 }).map((__, j) => (
@@ -240,7 +253,7 @@ export function CustomerLoyaltyPageContent() {
                 <TableRow>
                   <TableCell colSpan={7}>
                     <EmptyState
-                      title="No loyalty members found"
+                      title="No loyalty customers yet."
                       description="Try adjusting your search or filters."
                     />
                   </TableCell>

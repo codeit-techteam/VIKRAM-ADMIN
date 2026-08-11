@@ -9,7 +9,7 @@ import {
   Plus,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -45,9 +45,8 @@ import { CeStatusBadge } from "@/features/customer-executive/components/shared/C
 import { CeRaiseComplaintDialog } from "@/features/customer-executive/components/shared/CeRaiseComplaintDialog";
 import { CeTableSkeleton } from "@/features/customer-executive/components/shared/CeTableSkeleton";
 import { CeTimeline } from "@/features/customer-executive/components/shared/CeTimeline";
-import { useCeLoading } from "@/features/customer-executive/hooks/use-ce-loading";
 import { initiateCall } from "@/features/customer-executive/utils/communication";
-import { CE_ISSUE_TYPES } from "@/features/customer-executive/mock/seed";
+import { CE_ISSUE_TYPES } from "@/features/customer-executive/constants/issue-types";
 import {
   CE_PAGE_SIZE,
   EMPTY_COMPLAINT_FILTERS,
@@ -59,10 +58,12 @@ import { notify } from "@/utils/notify";
 
 export function CeComplaintsPage() {
   const searchParams = useSearchParams();
-  const { isLoading } = useCeLoading();
+  const loadComplaints = useCustomerExecutiveStore((s) => s.loadComplaints);
+  const complaintsLoading = useCustomerExecutiveStore((s) => s.complaintsLoading);
+  const complaintsError = useCustomerExecutiveStore((s) => s.complaintsError);
   const queryComplaints = useCustomerExecutiveStore((s) => s.queryComplaints);
   const complaints = useCustomerExecutiveStore((s) => s.complaints);
-  const executives = useCustomerExecutiveStore((s) => s.executives);
+  const currentExecutive = useCustomerExecutiveStore((s) => s.currentExecutive);
   const updateComplaintStatus = useCustomerExecutiveStore(
     (s) => s.updateComplaintStatus,
   );
@@ -88,6 +89,18 @@ export function CeComplaintsPage() {
   const [noteInput, setNoteInput] = useState("");
   const [showEscalation, setShowEscalation] = useState(true);
   const [raiseDialogOpen, setRaiseDialogOpen] = useState(false);
+
+  const fetchComplaints = useCallback(() => {
+    void loadComplaints({
+      page: currentPage,
+      limit: CE_PAGE_SIZE,
+      filters: appliedFilters,
+    });
+  }, [loadComplaints, currentPage, appliedFilters]);
+
+  useEffect(() => {
+    fetchComplaints();
+  }, [fetchComplaints]);
 
   useEffect(() => {
     const orderParam = searchParams.get("order");
@@ -130,14 +143,22 @@ export function CeComplaintsPage() {
     (n) => n.type === "error" && !n.read,
   );
 
-  const handleStatusChange = (
+  const handleStatusChange = async (
     complaintId: string,
     status: CeComplaint["status"],
   ) => {
-    updateComplaintStatus(complaintId, status);
-    notify.success(`Complaint ${status.toLowerCase().replace("_", " ")}`);
-    if (selectedComplaint?.id === complaintId) {
-      setSelectedComplaint({ ...selectedComplaint, status });
+    try {
+      await updateComplaintStatus(complaintId, status);
+      notify.success(`Complaint ${status.toLowerCase().replace("_", " ")}`);
+      if (selectedComplaint?.id === complaintId) {
+        setSelectedComplaint({ ...selectedComplaint, status });
+      }
+      fetchComplaints();
+    } catch (error) {
+      notify.error(
+        "Update failed",
+        error instanceof Error ? error.message : "Try again",
+      );
     }
   };
 
@@ -167,23 +188,23 @@ export function CeComplaintsPage() {
         <CeMetricCard
           label="Open Complaints"
           value={stats.open}
-          isLoading={isLoading}
+          isLoading={complaintsLoading}
         />
         <CeMetricCard
           label="In Progress"
           value={stats.inProgress}
-          isLoading={isLoading}
+          isLoading={complaintsLoading}
           valueVariant="warning"
         />
         <CeMetricCard
           label="Resolved Today"
           value={stats.resolved}
-          isLoading={isLoading}
+          isLoading={complaintsLoading}
         />
         <CeMetricCard
           label="Escalated"
           value={stats.escalated}
-          isLoading={isLoading}
+          isLoading={complaintsLoading}
         />
       </div>
 
@@ -255,9 +276,23 @@ export function CeComplaintsPage() {
         Apply Filters
       </Button>
 
-      {isLoading ? (
+      {complaintsError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p>{complaintsError}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={fetchComplaints}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
+      {complaintsLoading ? (
         <CeTableSkeleton columns={7} />
-      ) : queryResult.items.length === 0 ? (
+      ) : queryResult.total === 0 ? (
         <EmptyState title="No complaints found" />
       ) : (
         <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
@@ -275,9 +310,10 @@ export function CeComplaintsPage() {
             </TableHeader>
             <TableBody>
               {queryResult.items.map((complaint) => {
-                const exec = executives.find(
-                  (e) => e.id === complaint.assignedExecutiveId,
-                );
+                const execName =
+                  currentExecutive?.id === complaint.assignedExecutiveId
+                    ? currentExecutive.name
+                    : "Assigned";
                 return (
                   <TableRow key={complaint.id}>
                     <TableCell className="text-primary font-medium">
@@ -298,7 +334,7 @@ export function CeComplaintsPage() {
                     <TableCell>
                       <CeStatusBadge status={complaint.status} />
                     </TableCell>
-                    <TableCell>{exec?.name ?? "—"}</TableCell>
+                    <TableCell>{execName}</TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger

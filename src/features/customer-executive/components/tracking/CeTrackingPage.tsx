@@ -2,7 +2,7 @@
 
 import { Check, MapPin, Phone, Search, Truck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,13 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { ROUTES } from "@/constants/routes";
 import { CePageShell } from "@/features/customer-executive/components/shared/CePageShell";
 import { CeStatusBadge } from "@/features/customer-executive/components/shared/CeStatusBadge";
-import {
-  getLatestOrderForCustomer,
-  searchOrders,
-} from "@/features/customer-executive/utils/search";
 import { initiateCall } from "@/features/customer-executive/utils/communication";
 import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
-import type { TrackingStep } from "@/features/customer-executive/types";
+import type { CeOrder, TrackingStep } from "@/features/customer-executive/types";
 import { notify } from "@/utils/notify";
 import { formatDate } from "@/utils/format-date";
 import { cn } from "@/lib/utils";
@@ -83,75 +79,69 @@ function MapMock({ vehicleLabel }: { vehicleLabel: string }) {
 export function CeTrackingPage() {
   const searchParams = useSearchParams();
   const initialOrder = searchParams.get("order") ?? "";
-  const initialCustomer = searchParams.get("customer") ?? "";
 
-  const getOrderByNumber = useCustomerExecutiveStore((s) => s.getOrderByNumber);
   const orders = useCustomerExecutiveStore((s) => s.orders);
-  const customers = useCustomerExecutiveStore((s) => s.customers);
-  const loadOrdersFromApi = useCustomerExecutiveStore(
-    (s) => s.loadOrdersFromApi,
-  );
+  const searchTracking = useCustomerExecutiveStore((s) => s.searchTracking);
   const loadOrderDetailFromApi = useCustomerExecutiveStore(
     (s) => s.loadOrderDetailFromApi,
   );
 
-  const [searchQuery, setSearchQuery] = useState(
-    initialOrder || initialCustomer,
-  );
-  const [selectedOrderNumber, setSelectedOrderNumber] = useState(initialOrder);
+  const [searchQuery, setSearchQuery] = useState(initialOrder);
+  const [selectedOrder, setSelectedOrder] = useState<CeOrder | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
-  useEffect(() => {
-    void loadOrdersFromApi();
-    const timer = window.setInterval(() => {
-      void loadOrdersFromApi();
-    }, 10_000);
-    return () => window.clearInterval(timer);
-  }, [loadOrdersFromApi]);
+  const handleSearch = useCallback(
+    async (query: string) => {
+      if (!query.trim()) {
+        notify.error("Enter a search term");
+        return;
+      }
+
+      setIsSearching(true);
+      setSearchError(null);
+      try {
+        const results = await searchTracking(query.trim());
+        if (results.length === 0) {
+          setSelectedOrder(null);
+          notify.error("Order not found", "Check the order ID, phone, or name");
+          return;
+        }
+        setSelectedOrder(results[0]);
+        notify.success("Order found", results[0].orderNumber);
+      } catch (error) {
+        setSelectedOrder(null);
+        const message =
+          error instanceof Error ? error.message : "Tracking search failed";
+        setSearchError(message);
+        notify.error("Search failed", message);
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    [searchTracking],
+  );
 
   useEffect(() => {
     if (initialOrder) {
       setSearchQuery(initialOrder);
-      setSelectedOrderNumber(initialOrder);
-      return;
+      void handleSearch(initialOrder);
     }
-    if (initialCustomer) {
-      const latest = getLatestOrderForCustomer(orders, initialCustomer);
-      if (latest) {
-        setSearchQuery(latest.orderNumber);
-        setSelectedOrderNumber(latest.orderNumber);
-      }
-    }
-  }, [initialOrder, initialCustomer, orders]);
+  }, [initialOrder, handleSearch]);
 
-  const order = useMemo(() => {
-    if (!selectedOrderNumber)
-      return orders.find((o) => o.status === "IN_TRANSIT");
-    return getOrderByNumber(selectedOrderNumber);
-  }, [selectedOrderNumber, getOrderByNumber, orders]);
+  const liveOrder = useMemo(() => {
+    if (!selectedOrder) return null;
+    return orders.find((o) => o.id === selectedOrder.id) ?? selectedOrder;
+  }, [selectedOrder, orders]);
 
   useEffect(() => {
-    if (!order?.id) return;
-    void loadOrderDetailFromApi(order.id);
-  }, [order?.id, loadOrderDetailFromApi]);
+    if (!liveOrder?.id) return;
+    void loadOrderDetailFromApi(liveOrder.id);
+  }, [liveOrder?.id, loadOrderDetailFromApi]);
 
-  const liveOrder = order
-    ? (orders.find((o) => o.id === order.id) ?? order)
-    : null;
   const currentStepIndex = liveOrder
     ? getStepIndex(liveOrder.trackingStep)
     : -1;
-
-  const handleSearch = () => {
-    const found =
-      searchOrders(orders, customers, searchQuery) ??
-      getOrderByNumber(searchQuery);
-    if (found) {
-      setSelectedOrderNumber(found.orderNumber);
-      notify.success("Order found", found.orderNumber);
-    } else {
-      notify.error("Order not found", "Check the order ID, phone, or name");
-    }
-  };
 
   const driverName = liveOrder?.driverName;
   const driverPhone = liveOrder?.driverPhone;
@@ -175,14 +165,33 @@ export function CeTrackingPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search Order ID, Customer Mobile, or Name..."
             className="flex-1"
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            onKeyDown={(e) =>
+              e.key === "Enter" && void handleSearch(searchQuery)
+            }
           />
-          <Button onClick={handleSearch}>
+          <Button
+            onClick={() => void handleSearch(searchQuery)}
+            disabled={isSearching}
+          >
             <Search className="size-4" />
-            Search
+            {isSearching ? "Searching..." : "Search"}
           </Button>
         </CardContent>
       </Card>
+
+      {searchError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p>{searchError}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={() => void handleSearch(searchQuery)}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
 
       {liveOrder ? (
         <div className="space-y-5">

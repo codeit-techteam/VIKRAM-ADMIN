@@ -77,8 +77,8 @@ const MATERIAL_DETAILS: Record<string, MaterialWorkflowDetail> = {
     spec: "12mm",
     sku: "MT-00234",
     grade: "Fe 500D High Strength",
-    category: "steel-rebar",
-    categoryLabel: "STEEL",
+    category: "rmc",
+    categoryLabel: "RMC",
     specifications: [
       "Diameter: 12mm",
       "Standard Length: 12 Meters",
@@ -108,8 +108,8 @@ const MATERIAL_DETAILS: Record<string, MaterialWorkflowDetail> = {
     spec: "12mm",
     sku: "MT-00089",
     grade: "FE 500D",
-    category: "steel-rebar",
-    categoryLabel: "STEEL",
+    category: "rmc",
+    categoryLabel: "RMC",
     specifications: [
       "Diameter: 12mm",
       "Grade: FE 500D",

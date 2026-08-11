@@ -10,8 +10,9 @@ export const BRAND_OPTIONS = [
 export const CATEGORY_OPTIONS = [
   { value: "construction-materials", label: "Construction Materials" },
   { value: "cement", label: "Cement" },
-  { value: "steel", label: "Steel" },
+  { value: "rmc", label: "RMC" },
   { value: "aggregates", label: "Aggregates" },
+  { value: "bricks", label: "Bricks" },
 ] as const;
 
 export const PLACEHOLDER_GALLERY_IMAGES = [
@@ -31,6 +32,8 @@ export const PRODUCT_FORM_DEFAULT_VALUES: ProductFormSchema = {
   name: "",
   brand: "ultratech-cement",
   category: "construction-materials",
+  productType: "",
+  grade: "",
   description: "",
   images: [],
   mrp: 0,

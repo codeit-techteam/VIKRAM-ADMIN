@@ -17,18 +17,20 @@ export const MATERIAL_CATEGORIES: MaterialCategory[] = [
     ],
   },
   {
-    id: "steel",
-    label: "Steel",
-    subCategories: ["TMT Bars", "Structural Steel", "Steel Rebar", "Wire Rods"],
+    id: "rmc",
+    label: "RMC",
+    subCategories: ["M20", "M25", "M30", "M35"],
   },
   {
     id: "bricks",
     label: "Bricks",
     subCategories: [
-      "Red Bricks",
-      "Fly Ash Bricks",
-      "AAC Blocks",
-      "Hollow Blocks",
+      "Red Bricks — A+",
+      "Red Bricks — A",
+      "Red Bricks — B+",
+      "Grey Ash Bricks (Fly Ash Bricks) — A+",
+      "Grey Ash Bricks (Fly Ash Bricks) — A",
+      "Grey Ash Bricks (Fly Ash Bricks) — B+",
     ],
   },
   {

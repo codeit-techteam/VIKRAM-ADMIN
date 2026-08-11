@@ -17,6 +17,8 @@ export const productFormSchema = z
     name: z.string().min(3, "Product name must be at least 3 characters"),
     brand: z.string().min(1, "Select a brand"),
     category: z.string().min(1, "Select a category"),
+    productType: z.string().optional(),
+    grade: z.string().optional(),
     description: z
       .string()
       .refine((val) => val.replace(/<[^>]*>/g, "").trim().length >= 10, {

@@ -84,6 +84,21 @@ function canReassignDriver(item: DispatchRecord) {
   return ASSIGNABLE_STATUSES.includes(item.status) && Boolean(item.driverId);
 }
 
+/** Block Hub → same Hub routes (only Warehouse→Hub or Hub→Customer allowed). */
+function isInvalidSameHubRoute(item: DispatchRecord): boolean {
+  const source = item.source.trim().toLowerCase();
+  const destination = item.destination.trim().toLowerCase();
+  if (!source || !destination) return false;
+  if (source === destination) return true;
+  // Explicit Hub→Hub same-name pattern in route string
+  const route = (item.route ?? "").toLowerCase();
+  if (route.includes("→")) {
+    const [from, to] = route.split("→").map((p) => p.trim());
+    if (from && to && from === to) return true;
+  }
+  return false;
+}
+
 export function RouteDispatchPage() {
   const [filters, setFilters] = useState<DispatchFilters>(EMPTY_DISPATCH_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
@@ -223,11 +238,18 @@ export function RouteDispatchPage() {
   const handleGenerateDispatch = () => {
     notify.info(
       "Generate Dispatch",
-      "Dispatches are created via warehouse and hub workflows.",
+      "Allowed routes: Central Warehouse → Hub, or Hub → Customer. Same-hub (Hub → Hub) dispatch is not allowed.",
     );
   };
 
   const openAssign = (item: DispatchRecord, type: "vehicle" | "driver") => {
+    if (isInvalidSameHubRoute(item)) {
+      notify.error(
+        "Invalid route",
+        "Dispatch cannot be Hub → same Hub. Use Central Warehouse → Hub or Hub → Customer.",
+      );
+      return;
+    }
     setAssignTargetId(item.id);
     setAssignTargetLabel(item.dispatchId);
     setAssignTargetType(getDispatchTargetType(item));
@@ -263,7 +285,7 @@ export function RouteDispatchPage() {
     );
   }
 
-  const rows = data?.data ?? [];
+  const rows = (data?.data ?? []).filter((item) => !isInvalidSameHubRoute(item));
   const meta = data?.meta ?? {
     page: 1,
     limit: LOGISTICS_PAGE_SIZE,

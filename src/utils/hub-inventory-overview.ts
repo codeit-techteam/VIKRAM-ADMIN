@@ -20,7 +20,7 @@ import {
 import { formatHubStockValue } from "@/utils/sub-hub-metrics";
 
 export const MATERIAL_TYPES = [
-  "steel-rebar",
+  "rmc",
   "cement",
   "electrical",
   "masonry",
@@ -30,7 +30,7 @@ export const MATERIAL_TYPES = [
 export type MaterialTypeSlug = (typeof MATERIAL_TYPES)[number] | "all";
 
 export const MATERIAL_TYPE_LABELS: Record<string, string> = {
-  "steel-rebar": "Steel / Rebar",
+  rmc: "RMC",
   cement: "Cement",
   electrical: "Electrical",
   masonry: "Masonry",

@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Pagination } from "@/components/shared/Pagination";
@@ -41,7 +41,6 @@ import { CeStatusBadge } from "@/features/customer-executive/components/shared/C
 import { CeTableSkeleton } from "@/features/customer-executive/components/shared/CeTableSkeleton";
 import { CeConfirmationDialog } from "@/features/customer-executive/components/shared/CeConfirmationDialog";
 import { CeCreatePaymentLinkDialog } from "@/features/customer-executive/components/shared/CeCreatePaymentLinkDialog";
-import { useCeLoading } from "@/features/customer-executive/hooks/use-ce-loading";
 import { exportPaymentsCsv } from "@/features/customer-executive/utils/export";
 import {
   initiateCall,
@@ -59,12 +58,13 @@ import { notify } from "@/utils/notify";
 
 export function CePaymentsPage() {
   const searchParams = useSearchParams();
-  const { isLoading } = useCeLoading();
+  const loadPayments = useCustomerExecutiveStore((s) => s.loadPayments);
+  const paymentsLoading = useCustomerExecutiveStore((s) => s.paymentsLoading);
+  const paymentsError = useCustomerExecutiveStore((s) => s.paymentsError);
   const queryPayments = useCustomerExecutiveStore((s) => s.queryPayments);
   const payments = useCustomerExecutiveStore((s) => s.payments);
   const sendPaymentLink = useCustomerExecutiveStore((s) => s.sendPaymentLink);
   const copyPaymentLink = useCustomerExecutiveStore((s) => s.copyPaymentLink);
-  const markPaymentPaid = useCustomerExecutiveStore((s) => s.markPaymentPaid);
 
   const [draftFilters, setDraftFilters] = useState<CePaymentFilters>(
     EMPTY_PAYMENT_FILTERS,
@@ -75,6 +75,18 @@ export function CePaymentsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [confirmPaidId, setConfirmPaidId] = useState<string | null>(null);
   const [createLinkOpen, setCreateLinkOpen] = useState(false);
+
+  const fetchPayments = useCallback(() => {
+    void loadPayments({
+      page: currentPage,
+      limit: CE_PAGE_SIZE,
+      filters: appliedFilters,
+    });
+  }, [loadPayments, currentPage, appliedFilters]);
+
+  useEffect(() => {
+    fetchPayments();
+  }, [fetchPayments]);
 
   useEffect(() => {
     const orderParam = searchParams.get("order");
@@ -139,9 +151,17 @@ export function CePaymentsPage() {
     [payments],
   );
 
-  const handleSendLink = (payment: CePayment) => {
-    sendPaymentLink(payment.id);
-    notify.success("Payment link sent", `Sent to ${payment.customerName}`);
+  const handleSendLink = async (payment: CePayment) => {
+    try {
+      await sendPaymentLink(payment.id);
+      notify.success("Payment link sent", `Sent to ${payment.customerName}`);
+      fetchPayments();
+    } catch (error) {
+      notify.error(
+        "Failed to send link",
+        error instanceof Error ? error.message : "Try again",
+      );
+    }
   };
 
   const handleCopyLink = async (payment: CePayment) => {
@@ -152,9 +172,11 @@ export function CePaymentsPage() {
 
   const handleMarkPaid = () => {
     if (!confirmPaidId) return;
-    markPaymentPaid(confirmPaidId);
     setConfirmPaidId(null);
-    notify.success("Payment marked as received");
+    notify.error(
+      "Manual mark paid disabled",
+      "Payments update only via the payment provider webhook after the customer pays.",
+    );
   };
 
   return (
@@ -183,26 +205,26 @@ export function CePaymentsPage() {
           label="Total Pending"
           value={formatCurrency(stats.pendingAmount)}
           subtext={`${stats.pendingCount} Active Orders`}
-          isLoading={isLoading}
+          isLoading={paymentsLoading}
         />
         <CeMetricCard
           label="Paid Today"
           value={formatCurrency(stats.paidTodayAmount)}
           subtext={`${stats.paidTodayCount} Orders Verified`}
-          isLoading={isLoading}
+          isLoading={paymentsLoading}
         />
         <CeMetricCard
           label="Overdue"
           value={formatCurrency(stats.overdueAmount)}
           subtext={`${stats.overdueCount} Critical`}
-          isLoading={isLoading}
+          isLoading={paymentsLoading}
           valueVariant="warning"
         />
         <CeMetricCard
           label="Links Sent"
           value={stats.linksSentCount}
           subtext="Payment links active"
-          isLoading={isLoading}
+          isLoading={paymentsLoading}
         />
       </div>
 
@@ -279,11 +301,25 @@ export function CePaymentsPage() {
         Apply Filters
       </Button>
 
+      {paymentsError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p>{paymentsError}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={fetchPayments}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          {isLoading ? (
+          {paymentsLoading ? (
             <CeTableSkeleton columns={7} />
-          ) : queryResult.items.length === 0 ? (
+          ) : queryResult.total === 0 ? (
             <EmptyState title="No payments found" />
           ) : (
             <div className="rounded-xl border border-gray-100 bg-white shadow-sm">

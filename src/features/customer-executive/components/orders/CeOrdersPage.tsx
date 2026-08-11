@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   CE_ORDERS_IN_TRANSIT_STATUSES,
@@ -42,7 +42,6 @@ import { CeSearchFilter } from "@/features/customer-executive/components/shared/
 import { CeStatusBadge } from "@/features/customer-executive/components/shared/CeStatusBadge";
 import { CeTableSkeleton } from "@/features/customer-executive/components/shared/CeTableSkeleton";
 import { HighlightText } from "@/features/customer-executive/utils/highlight";
-import { useCeLoading } from "@/features/customer-executive/hooks/use-ce-loading";
 import {
   CE_PAGE_SIZE,
   EMPTY_ORDER_FILTERS,
@@ -55,14 +54,12 @@ import { notify } from "@/utils/notify";
 export function CeOrdersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isLoading } = useCeLoading();
+  const loadOrders = useCustomerExecutiveStore((s) => s.loadOrders);
   const queryOrders = useCustomerExecutiveStore((s) => s.queryOrders);
   const orders = useCustomerExecutiveStore((s) => s.orders);
   const getOrder = useCustomerExecutiveStore((s) => s.getOrder);
-  const loadOrdersFromApi = useCustomerExecutiveStore(
-    (s) => s.loadOrdersFromApi,
-  );
   const ordersLoading = useCustomerExecutiveStore((s) => s.ordersLoading);
+  const ordersError = useCustomerExecutiveStore((s) => s.ordersError);
 
   const [draftFilters, setDraftFilters] =
     useState<CeOrderFilters>(EMPTY_ORDER_FILTERS);
@@ -72,13 +69,19 @@ export function CeOrdersPage() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
+  const fetchOrders = useCallback(() => {
+    void loadOrders({
+      page: currentPage,
+      limit: CE_PAGE_SIZE,
+      filters: appliedFilters,
+    });
+  }, [loadOrders, currentPage, appliedFilters]);
+
   useEffect(() => {
-    void loadOrdersFromApi();
-    const timer = window.setInterval(() => {
-      void loadOrdersFromApi();
-    }, 10_000);
+    fetchOrders();
+    const timer = window.setInterval(fetchOrders, 10_000);
     return () => window.clearInterval(timer);
-  }, [loadOrdersFromApi]);
+  }, [fetchOrders]);
 
   const selectedOrder = useMemo(
     () => (selectedOrderId ? (getOrder(selectedOrderId) ?? null) : null),
@@ -193,25 +196,25 @@ export function CeOrdersPage() {
         <CeMetricCard
           label="Active Orders"
           value={stats.active}
-          isLoading={isLoading}
+          isLoading={ordersLoading}
           href={NAV_FILTER_PRESETS.ordersByStatus("ACTIVE")}
         />
         <CeMetricCard
           label="In Transit"
           value={stats.inTransit}
-          isLoading={isLoading}
+          isLoading={ordersLoading}
           href={NAV_FILTER_PRESETS.ordersInTransit()}
         />
         <CeMetricCard
           label="Delivered"
           value={stats.delivered}
-          isLoading={isLoading}
+          isLoading={ordersLoading}
           href={NAV_FILTER_PRESETS.ordersByStatus("DELIVERED")}
         />
         <CeMetricCard
           label="Cancelled"
           value={stats.cancelled}
-          isLoading={isLoading}
+          isLoading={ordersLoading}
           href={NAV_FILTER_PRESETS.ordersByStatus("CANCELLED")}
         />
       </div>
@@ -274,9 +277,23 @@ export function CeOrdersPage() {
         Apply Filters
       </Button>
 
-      {isLoading || ordersLoading ? (
+      {ordersError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p>{ordersError}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={fetchOrders}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
+      {ordersLoading ? (
         <CeTableSkeleton columns={9} />
-      ) : queryResult.items.length === 0 ? (
+      ) : queryResult.total === 0 ? (
         <EmptyState title="No orders found" />
       ) : (
         <div className="rounded-xl border border-gray-100 bg-white shadow-sm">

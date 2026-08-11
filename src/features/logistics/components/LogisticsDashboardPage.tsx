@@ -5,6 +5,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock,
+  IndianRupee,
   MapPin,
   Package,
   Route,
@@ -62,6 +63,11 @@ const QUICK_ACTIONS = [
     label: "Customer Deliveries",
     href: `${ROUTES.LOGISTICS}/customer`,
     icon: Truck,
+  },
+  {
+    label: "Delivery Pricing",
+    href: `${ROUTES.LOGISTICS}/delivery-pricing`,
+    icon: IndianRupee,
   },
   {
     label: "Shipment Tracking",

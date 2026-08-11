@@ -74,7 +74,7 @@ export function HubContextSelector({
 
   const value = allowAll
     ? (selectedHubId ?? "all")
-    : (selectedHubId ?? undefined);
+    : (selectedHubId ?? null);
 
   const onChange = (next: string | null) => {
     const hubId = !next || next === "all" ? null : next;

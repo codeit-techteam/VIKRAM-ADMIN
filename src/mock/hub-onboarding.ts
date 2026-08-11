@@ -101,7 +101,7 @@ export const PRODUCT_CATEGORY_OPTIONS = [
   "Electricals",
   "Finishing",
   "Cementing Materials",
-  "Structural Steel",
+  "RMC",
   "Masonry & Blockwork",
   "Paints & Coatings",
 ] as const;

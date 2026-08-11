@@ -4,14 +4,13 @@ import { format } from "date-fns";
 import {
   AlertTriangle,
   Crown,
-  Download,
   Eye,
   IndianRupee,
   MoreHorizontal,
   Search,
   Users,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -50,27 +49,24 @@ import {
   MembershipStatusBadge,
 } from "@/features/membership/components/MembershipStatusBadge";
 import {
-  cancelMembership,
+  useCancelMembership,
+  useMemberships,
+  useMembershipStats,
+  useRenewMembership,
+} from "@/features/membership/hooks/use-membership";
+import {
   EMPTY_MEMBERSHIP_FILTERS,
-  getMemberships,
-  getMembershipStats,
   MEMBERSHIP_PAGE_SIZE,
-  renewMembership,
   type MembershipFilters,
 } from "@/features/membership/services/membership.service";
-import type { CustomerMembership } from "@/mock/mockMemberships";
-import type { MembershipDashboardStats } from "@/mock/mockMemberships";
+import type { CustomerMembership } from "@/features/membership/types";
 import { formatCurrency } from "@/utils/format-currency";
+import { getApiErrorMessage } from "@/services/api";
 import { notify } from "@/utils/notify";
 
 type StatFilter = "all" | "active" | "expiring" | "revenue";
 
 export function MembershipPlansPageContent() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState<MembershipDashboardStats | null>(null);
-  const [memberships, setMemberships] = useState<CustomerMembership[]>([]);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState<MembershipFilters>(
     EMPTY_MEMBERSHIP_FILTERS,
@@ -81,29 +77,30 @@ export function MembershipPlansPageContent() {
     useState<CustomerMembership | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const loadData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const [statsData, queryResult] = await Promise.all([
-        getMembershipStats(),
-        getMemberships({
-          page: currentPage,
-          limit: MEMBERSHIP_PAGE_SIZE,
-          filters,
-        }),
-      ]);
-      setStats(statsData);
-      setMemberships(queryResult.data);
-      setTotal(queryResult.total);
-      setTotalPages(queryResult.totalPages);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentPage, filters]);
+  const queryParams = useMemo(
+    () => ({
+      page: currentPage,
+      limit: MEMBERSHIP_PAGE_SIZE,
+      filters,
+    }),
+    [currentPage, filters],
+  );
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const statsQuery = useMembershipStats();
+  const listQuery = useMemberships(queryParams);
+  const renewMutation = useRenewMembership();
+  const cancelMutation = useCancelMembership();
+
+  const isLoading = statsQuery.isLoading || listQuery.isLoading;
+  const loadError =
+    statsQuery.error || listQuery.error
+      ? getApiErrorMessage(statsQuery.error || listQuery.error)
+      : null;
+
+  const stats = statsQuery.data ?? null;
+  const memberships = listQuery.data?.data ?? [];
+  const total = listQuery.data?.total ?? 0;
+  const totalPages = listQuery.data?.totalPages ?? 1;
 
   const handleSearch = () => {
     setFilters((prev) => ({ ...prev, search: searchInput }));
@@ -133,18 +130,17 @@ export function MembershipPlansPageContent() {
   };
 
   const handleRenew = async (id: string) => {
-    const updated = await renewMembership(id);
+    const updated = await renewMutation.mutateAsync(id);
     setSelectedMembership(updated);
-    await loadData();
   };
 
   const handleCancel = async (id: string) => {
-    await cancelMembership(id);
-    await loadData();
+    await cancelMutation.mutateAsync(id);
   };
 
-  const handleExport = () => {
-    notify.success("Export started", "Membership data exported to CSV.");
+  const handleRetry = () => {
+    void statsQuery.refetch();
+    void listQuery.refetch();
   };
 
   const breadcrumbs = useMemo(
@@ -158,15 +154,24 @@ export function MembershipPlansPageContent() {
         title="Membership Plans"
         subtitle="Manage customer memberships, renewals, and benefits."
         breadcrumbs={breadcrumbs}
-        actions={
-          <Button variant="outline" className="gap-2" onClick={handleExport}>
-            <Download className="size-4" />
-            Export
-          </Button>
-        }
       />
 
       <UserManagementTabs activeTab="membership-plans" />
+
+      {loadError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p>Unable to load membership data.</p>
+          <p className="mt-1 text-xs opacity-80">{loadError}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={handleRetry}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -176,7 +181,7 @@ export function MembershipPlansPageContent() {
           icon={Users}
           iconContainerClassName="bg-blue-50"
           iconClassName="text-blue-600"
-          isLoading={isLoading}
+          isLoading={isLoading && !stats}
           isActive={activeStat === "all"}
           onClick={() => handleStatClick("all")}
         />
@@ -187,7 +192,7 @@ export function MembershipPlansPageContent() {
           icon={Crown}
           iconContainerClassName="bg-green-50"
           iconClassName="text-green-600"
-          isLoading={isLoading}
+          isLoading={isLoading && !stats}
           isActive={activeStat === "active"}
           onClick={() => handleStatClick("active")}
         />
@@ -199,7 +204,7 @@ export function MembershipPlansPageContent() {
           iconContainerClassName="bg-amber-50"
           iconClassName="text-amber-600"
           valueVariant="warning"
-          isLoading={isLoading}
+          isLoading={isLoading && !stats}
           isActive={activeStat === "expiring"}
           onClick={() => handleStatClick("expiring")}
         />
@@ -210,7 +215,7 @@ export function MembershipPlansPageContent() {
           icon={IndianRupee}
           iconContainerClassName="bg-orange-50"
           iconClassName="text-primary"
-          isLoading={isLoading}
+          isLoading={isLoading && !stats}
           isActive={activeStat === "revenue"}
           onClick={() => handleStatClick("revenue")}
         />
@@ -230,7 +235,8 @@ export function MembershipPlansPageContent() {
           </div>
           <Select
             value={filters.status}
-            onValueChange={(v) => {
+            onValueChange={(v: string | null) => {
+              if (!v) return;
               setFilters((prev) => ({
                 ...prev,
                 status: v as MembershipFilters["status"],
@@ -248,6 +254,7 @@ export function MembershipPlansPageContent() {
               <SelectItem value="EXPIRED">Expired</SelectItem>
               <SelectItem value="EXPIRING_SOON">Expiring Soon</SelectItem>
               <SelectItem value="CANCELLED">Cancelled</SelectItem>
+              <SelectItem value="PENDING">Pending</SelectItem>
             </SelectContent>
           </Select>
           <Button
@@ -286,7 +293,7 @@ export function MembershipPlansPageContent() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
+              {isLoading && memberships.length === 0 ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
                     {Array.from({ length: 7 }).map((__, j) => (
@@ -323,7 +330,9 @@ export function MembershipPlansPageContent() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <MembershipPlanBadge plan={membership.membership} />
+                      <MembershipPlanBadge
+                        plan={membership.planName ?? membership.membership}
+                      />
                     </TableCell>
                     <TableCell className="text-sm text-[#64748B]">
                       {format(new Date(membership.purchaseDate), "dd MMM yyyy")}
@@ -382,8 +391,17 @@ export function MembershipPlansPageContent() {
         membership={selectedMembership}
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
-        onRenew={handleRenew}
-        onCancel={handleCancel}
+        onRenew={async (id) => {
+          await handleRenew(id);
+          notify.success("Membership renewed", "Membership has been renewed.");
+        }}
+        onCancel={async (id) => {
+          await handleCancel(id);
+          notify.success(
+            "Membership cancelled",
+            "Membership has been cancelled.",
+          );
+        }}
       />
     </div>
   );

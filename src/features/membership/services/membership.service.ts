@@ -1,12 +1,12 @@
-import {
-  computeMembershipStats,
-  MOCK_MEMBERSHIPS,
-  type CustomerMembership,
-  type MembershipDashboardStats,
-  type MembershipStatus,
-} from "@/mock/mockMemberships";
-
-const MOCK_DELAY_MS = 300;
+import api from "@/services/api";
+import { API_ENDPOINTS } from "@/constants/api-endpoints";
+import type {
+  CustomerMembership,
+  MembershipDashboardStats,
+  MembershipPaymentStatus,
+  MembershipPlanType,
+  MembershipStatus,
+} from "@/features/membership/types";
 
 export const MEMBERSHIP_PAGE_SIZE = 10;
 
@@ -35,113 +35,188 @@ export interface MembershipQueryResult {
   page: number;
 }
 
-const membershipsStore = structuredClone(MOCK_MEMBERSHIPS);
+type ApiEnvelope<T> = {
+  success: boolean;
+  message: string;
+  data: T;
+};
 
-function delay(ms = MOCK_DELAY_MS) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+type ApiMembershipRow = {
+  id: string;
+  customerId: string;
+  status: string;
+  paymentStatus: string;
+  purchaseDate: string;
+  expiryDate: string;
+  amount?: number;
+  customerCity?: string | null;
+  customerCompany?: string | null;
+  customer?: {
+    id: string;
+    phone: string;
+    fullName: string | null;
+    profile?: { companyName?: string | null } | null;
+  } | null;
+  plan?: {
+    id: string;
+    name: string;
+    price: number | string;
+    benefits?: unknown;
+  } | null;
+  history?: Array<{
+    id: string;
+    plan: string;
+    purchaseDate: string;
+    expiryDate: string;
+    amount: number;
+    status: string;
+    paymentStatus: string;
+  }>;
+};
+
+function mapPlanName(name?: string | null): MembershipPlanType {
+  const upper = (name ?? "").toUpperCase();
+  if (upper.includes("PLATINUM") || upper.includes("ENTERPRISE")) {
+    return upper.includes("PLATINUM") ? "PLATINUM" : name ?? "Enterprise";
+  }
+  if (upper.includes("GOLD")) return "GOLD";
+  if (upper.includes("SILVER")) return "SILVER";
+  return name?.trim() || "—";
 }
 
-function filterMemberships(
-  items: CustomerMembership[],
-  filters: MembershipFilters,
-): CustomerMembership[] {
-  let result = [...items];
+function mapStatus(status: string, expiryDate: string): MembershipStatus {
+  if (status === "CANCELLED") return "CANCELLED";
+  if (status === "EXPIRED") return "EXPIRED";
+  if (status === "PENDING") return "PENDING";
+  if (status === "EXPIRING_SOON") return "EXPIRING_SOON";
 
-  if (filters.status !== "all") {
-    result = result.filter((m) => m.status === filters.status);
-  }
-
-  if (filters.search.trim()) {
-    const q = filters.search.toLowerCase();
-    result = result.filter(
-      (m) =>
-        m.customerName.toLowerCase().includes(q) ||
-        m.customerPhone.includes(q) ||
-        m.customerCity.toLowerCase().includes(q) ||
-        m.membership.toLowerCase().includes(q),
-    );
-  }
-
-  return result;
+  const expiry = new Date(expiryDate).getTime();
+  const soon = Date.now() + 30 * 24 * 60 * 60 * 1000;
+  if (Number.isFinite(expiry) && expiry < Date.now()) return "EXPIRED";
+  if (Number.isFinite(expiry) && expiry <= soon) return "EXPIRING_SOON";
+  return "ACTIVE";
 }
 
-/** Future: GET /admin/memberships */
+function mapPaymentStatus(status: string): MembershipPaymentStatus {
+  if (status === "PAID") return "PAID";
+  if (status === "REFUNDED") return "REFUNDED";
+  if (status === "FAILED") return "FAILED";
+  return "PENDING";
+}
+
+function mapBenefits(raw: unknown): CustomerMembership["benefits"] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item, index) => {
+    if (typeof item === "string") {
+      return { id: `b-${index}`, label: item, enabled: true };
+    }
+    if (item && typeof item === "object") {
+      const record = item as Record<string, unknown>;
+      return {
+        id: String(record.id ?? `b-${index}`),
+        label: String(record.label ?? record.name ?? "Benefit"),
+        enabled: Boolean(record.enabled ?? true),
+      };
+    }
+    return { id: `b-${index}`, label: "Benefit", enabled: true };
+  });
+}
+
+function mapMembership(row: ApiMembershipRow): CustomerMembership {
+  const planName = row.plan?.name ?? undefined;
+  return {
+    id: row.id,
+    customerId: row.customerId,
+    customerName: row.customer?.fullName?.trim() || row.customer?.phone || "—",
+    customerPhone: row.customer?.phone ?? "—",
+    customerCity: row.customerCity ?? "—",
+    customerCompany:
+      row.customerCompany ?? row.customer?.profile?.companyName ?? undefined,
+    membership: mapPlanName(planName),
+    planName,
+    purchaseDate: String(row.purchaseDate).slice(0, 10),
+    expiryDate: String(row.expiryDate).slice(0, 10),
+    status: mapStatus(row.status, row.expiryDate),
+    paymentStatus: mapPaymentStatus(row.paymentStatus),
+    amount: Number(row.amount ?? row.plan?.price ?? 0),
+    benefits: mapBenefits(row.plan?.benefits),
+    history: (row.history ?? []).map((entry) => ({
+      id: entry.id,
+      plan: mapPlanName(entry.plan),
+      purchaseDate: String(entry.purchaseDate).slice(0, 10),
+      expiryDate: String(entry.expiryDate).slice(0, 10),
+      amount: Number(entry.amount ?? 0),
+      status: mapStatus(entry.status, entry.expiryDate),
+      paymentStatus: mapPaymentStatus(entry.paymentStatus),
+    })),
+  };
+}
+
 export async function getMemberships(
   params: MembershipQueryParams,
 ): Promise<MembershipQueryResult> {
-  await delay();
-  const filtered = filterMemberships(membershipsStore, params.filters);
-  const total = filtered.length;
-  const totalPages = Math.max(1, Math.ceil(total / params.limit));
-  const page = Math.min(params.page, totalPages);
-  const start = (page - 1) * params.limit;
+  const { data } = await api.get<
+    ApiEnvelope<{
+      data: ApiMembershipRow[];
+      meta: { page: number; limit: number; total: number; totalPages: number };
+    }>
+  >(API_ENDPOINTS.MEMBERSHIPS.BASE, {
+    params: {
+      page: params.page,
+      limit: params.limit,
+      status:
+        params.filters.status !== "all" ? params.filters.status : undefined,
+      search: params.filters.search.trim() || undefined,
+    },
+  });
 
   return {
-    data: filtered.slice(start, start + params.limit),
-    total,
-    totalPages,
-    page,
+    data: data.data.data.map(mapMembership),
+    total: data.data.meta.total,
+    totalPages: data.data.meta.totalPages,
+    page: data.data.meta.page,
   };
 }
 
-/** Future: GET /admin/memberships/stats */
 export async function getMembershipStats(): Promise<MembershipDashboardStats> {
-  await delay();
-  return computeMembershipStats(membershipsStore);
+  const { data } = await api.get<ApiEnvelope<MembershipDashboardStats>>(
+    API_ENDPOINTS.MEMBERSHIPS.STATS,
+  );
+  return data.data;
 }
 
-/** Future: GET /admin/memberships/:id */
 export async function getMembershipById(
   id: string,
-): Promise<CustomerMembership | null> {
-  await delay();
-  return membershipsStore.find((m) => m.id === id) ?? null;
+): Promise<CustomerMembership> {
+  const { data } = await api.get<ApiEnvelope<ApiMembershipRow>>(
+    API_ENDPOINTS.MEMBERSHIPS.BY_ID(id),
+  );
+  return mapMembership(data.data);
 }
 
-/** Future: POST /admin/memberships/:id/renew */
 export async function renewMembership(id: string): Promise<CustomerMembership> {
-  await delay();
-  const index = membershipsStore.findIndex((m) => m.id === id);
-  if (index === -1) throw new Error("Membership not found");
-
-  const membership = membershipsStore[index];
-  const renewed: CustomerMembership = {
-    ...membership,
-    status: "ACTIVE",
-    purchaseDate: new Date().toISOString().slice(0, 10),
-    expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .slice(0, 10),
-    paymentStatus: "PAID",
-  };
-  membershipsStore[index] = renewed;
-  return structuredClone(renewed);
+  const { data } = await api.patch<ApiEnvelope<ApiMembershipRow>>(
+    API_ENDPOINTS.MEMBERSHIPS.RENEW(id),
+  );
+  return mapMembership(data.data);
 }
 
-/** Future: POST /admin/memberships/:id/cancel */
 export async function cancelMembership(
   id: string,
 ): Promise<CustomerMembership> {
-  await delay();
-  const index = membershipsStore.findIndex((m) => m.id === id);
-  if (index === -1) throw new Error("Membership not found");
-
-  membershipsStore[index] = {
-    ...membershipsStore[index],
-    status: "CANCELLED",
-    paymentStatus: "REFUNDED",
-  };
-  return structuredClone(membershipsStore[index]);
+  const { data } = await api.patch<ApiEnvelope<ApiMembershipRow>>(
+    API_ENDPOINTS.MEMBERSHIPS.CANCEL(id),
+  );
+  return mapMembership(data.data);
 }
 
 export async function getRecentMembershipPurchases(
   limit = 5,
 ): Promise<CustomerMembership[]> {
-  await delay(120);
-  return [...membershipsStore]
-    .sort(
-      (a, b) =>
-        new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime(),
-    )
-    .slice(0, limit);
+  const result = await getMemberships({
+    page: 1,
+    limit,
+    filters: EMPTY_MEMBERSHIP_FILTERS,
+  });
+  return result.data;
 }

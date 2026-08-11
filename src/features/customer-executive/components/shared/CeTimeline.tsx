@@ -10,7 +10,7 @@ import {
   Truck,
 } from "lucide-react";
 
-import { formatRelativeTime } from "@/features/customer-executive/mock/queries";
+import { formatRelativeTime } from "@/features/customer-executive/utils/format-relative-time";
 import type {
   CeActivity,
   ActivityType,

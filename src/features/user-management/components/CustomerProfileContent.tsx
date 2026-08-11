@@ -46,16 +46,25 @@ import {
   type DeliverySiteType,
   type UpdateDeliverySitePayload,
 } from "@/features/user-management/types/customer.types";
-import { buildCustomerActivityTimeline } from "@/mock/customer-service";
 import { ROUTES } from "@/constants/routes";
+import {
+  buildCustomerTimelineFromDetail,
+  mapAdminCustomerToDetail,
+  mapUiStatusToApiStatus,
+} from "@/features/user-management/utils/map-admin-customer";
 import { getApiErrorMessage } from "@/services/api";
 import {
+  activateAdminCustomer,
   deleteCustomerSite,
+  disableAdminCustomer,
+  fetchAdminCustomer,
   fetchCustomerSites,
   setPrimaryCustomerSite,
+  updateAdminCustomer,
   updateCustomerSite,
+  type AdminCustomerDetail,
 } from "@/services/customers";
-import { useCustomerStore } from "@/store/customer-store";
+import type { CustomerDetail } from "@/features/user-management/types/customer.types";
 import { formatDate } from "@/utils/format-date";
 import { notify } from "@/utils/notify";
 import { cn } from "@/lib/utils";
@@ -131,20 +140,11 @@ function SitesSkeleton() {
 export function CustomerProfileContent({
   customerId,
 }: CustomerProfileContentProps) {
-  const getCustomer = useCustomerStore((state) => state.getCustomer);
-  const getOrder = useCustomerStore((state) => state.getOrder);
-  const customers = useCustomerStore((state) => state.customers);
-  const orders = useCustomerStore((state) => state.orders);
-  const addresses = useCustomerStore((state) => state.addresses);
-  const supportExecutiveAssignmentHistory = useCustomerStore(
-    (state) => state.supportExecutiveAssignmentHistory,
-  );
-  const updateCustomer = useCustomerStore((state) => state.updateCustomer);
-  const blockCustomer = useCustomerStore((state) => state.blockCustomer);
-  const unblockCustomer = useCustomerStore((state) => state.unblockCustomer);
-  const resetPassword = useCustomerStore((state) => state.resetPassword);
-
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [customer, setCustomer] = useState<CustomerDetail | null>(null);
+  const [rawDetail, setRawDetail] = useState<AdminCustomerDetail | null>(null);
+  const [isMutating, setIsMutating] = useState(false);
   const [activeTab, setActiveTab] = useState<ProfileTab>("orders");
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isResetOpen, setIsResetOpen] = useState(false);
@@ -161,6 +161,22 @@ export function CustomerProfileContent({
   const [siteDraft, setSiteDraft] =
     useState<UpdateDeliverySitePayload>(EMPTY_SITE_DRAFT);
 
+  const loadCustomer = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const detail = await fetchAdminCustomer(customerId);
+      setRawDetail(detail);
+      setCustomer(mapAdminCustomerToDetail(detail));
+    } catch (error) {
+      setRawDetail(null);
+      setCustomer(null);
+      setLoadError(getApiErrorMessage(error));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [customerId]);
+
   const loadSites = useCallback(async () => {
     setIsSitesLoading(true);
     try {
@@ -175,35 +191,65 @@ export function CustomerProfileContent({
   }, [customerId]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 450);
-    return () => window.clearTimeout(timer);
-  }, [customerId]);
+    void loadCustomer();
+  }, [loadCustomer]);
 
   useEffect(() => {
     void loadSites();
   }, [loadSites]);
 
-  const customer = useMemo(
-    () => getCustomer(customerId),
-    [
-      getCustomer,
-      customerId,
-      customers,
-      orders,
-      addresses,
-      supportExecutiveAssignmentHistory,
-    ],
-  );
-
   const timeline = useMemo(
-    () => (customer ? buildCustomerActivityTimeline(customer) : []),
-    [customer],
+    () =>
+      customer && rawDetail
+        ? buildCustomerTimelineFromDetail(rawDetail, customer)
+        : [],
+    [customer, rawDetail],
   );
 
-  const selectedOrder = useMemo(
-    () => (selectedOrderId ? getOrder(selectedOrderId) : null),
-    [getOrder, selectedOrderId, orders],
-  );
+  const selectedOrder = useMemo(() => {
+    const order = customer?.orders.find((item) => item.id === selectedOrderId);
+    if (!order || !customer) return null;
+
+    return {
+      ...order,
+      customerName: customer.name,
+      products: [],
+      timeline: [
+        {
+          status: order.status,
+          label: order.status.replaceAll("_", " "),
+          timestamp: order.date,
+        },
+      ],
+      deliveryAddress: customer.deliveryAddresses[0] ?? {
+        id: "na",
+        customerId: customer.id,
+        recipient: customer.name,
+        phone: customer.phone,
+        address: customer.address.primaryAddress || "Not available",
+        city: customer.address.city || "Not available",
+        state: customer.address.state || "Not available",
+        pincode: customer.address.pincode || "—",
+        serviceHubId: customer.assignedOperations.hubId ?? "",
+        serviceHubName: customer.assignedOperations.hubName,
+        isDefault: true,
+      },
+      hub: {
+        id: customer.assignedOperations.hubId ?? "",
+        name: customer.assignedOperations.hubName,
+        city: customer.address.city || "Not available",
+        state: customer.address.state || "Not available",
+        address: "Not available",
+      },
+      executive: {
+        id: customer.assignedOperations.executiveId ?? "",
+        name: customer.assignedOperations.executiveName,
+        phone: "Not available",
+        email: "Not available",
+        hubId: customer.assignedOperations.hubId ?? "",
+      },
+    };
+  }, [customer, selectedOrderId]);
 
   const primarySites = useMemo(
     () => sites.filter((site) => site.isPrimary),
@@ -230,7 +276,10 @@ export function CustomerProfileContent({
         />
         <EmptyState
           title="Customer not found"
-          description="The requested customer profile could not be located."
+          description={
+            loadError ??
+            "The requested customer profile could not be located."
+          }
         />
       </div>
     );
@@ -239,31 +288,55 @@ export function CustomerProfileContent({
   const hasOrders = customer.orderSummary.totalOrders > 0;
   const isBlocked = customer.status === "BLOCKED";
 
-  const handleSaveCustomer = (payload: CustomerEditPayload) => {
-    updateCustomer(customer.id, payload);
-    notify.success("Customer updated", "Profile changes saved successfully.");
+  const handleSaveCustomer = async (payload: CustomerEditPayload) => {
+    setIsMutating(true);
+    try {
+      const apiStatus = mapUiStatusToApiStatus(payload.status);
+      const detail = await updateAdminCustomer(customer.id, {
+        fullName: payload.name,
+        email: payload.email || undefined,
+        ...(apiStatus ? { status: apiStatus } : {}),
+        companyName: payload.address.primaryAddress || undefined,
+        businessType: payload.customerType,
+      });
+      setRawDetail(detail);
+      setCustomer(mapAdminCustomerToDetail(detail));
+      notify.success("Customer updated", "Profile changes saved successfully.");
+    } catch (error) {
+      notify.error("Update failed", getApiErrorMessage(error));
+    } finally {
+      setIsMutating(false);
+    }
   };
 
   const handleResetPassword = () => {
-    const password = resetPassword(customer.id);
     setIsResetOpen(false);
-    notify.success("Temporary password generated", `New password: ${password}`);
+    notify.error(
+      "Not available",
+      "Customer app accounts use OTP login. Password reset is not available.",
+    );
   };
 
-  const handleBlockToggle = () => {
-    if (isBlocked) {
-      unblockCustomer(customer.id);
+  const handleBlockToggle = async () => {
+    setIsMutating(true);
+    try {
+      const detail = isBlocked
+        ? await activateAdminCustomer(customer.id)
+        : await disableAdminCustomer(customer.id);
+      setRawDetail(detail);
+      setCustomer(mapAdminCustomerToDetail(detail));
       setIsBlockOpen(false);
-      notify.success("Customer unblocked", "Customer can place orders again.");
-      return;
+      notify.success(
+        isBlocked ? "Customer unblocked" : "Customer blocked",
+        isBlocked
+          ? "Customer can place orders again."
+          : "Customer cannot place new orders. Existing completed orders remain visible.",
+      );
+    } catch (error) {
+      notify.error("Status update failed", getApiErrorMessage(error));
+    } finally {
+      setIsMutating(false);
     }
-
-    blockCustomer(customer.id, blockReason);
-    setIsBlockOpen(false);
-    notify.success(
-      "Customer blocked",
-      "Customer cannot place new orders. Existing completed orders remain visible.",
-    );
   };
 
   const handleViewOrder = (orderId: string) => {
@@ -428,6 +501,9 @@ export function CustomerProfileContent({
         <CustomerProfileCard
           customer={customer}
           className="xl:sticky xl:top-4 xl:self-start"
+          onCustomerChanged={() => {
+            void loadCustomer();
+          }}
         />
 
         <div className="min-w-0 rounded-xl border border-gray-100 bg-white shadow-sm">

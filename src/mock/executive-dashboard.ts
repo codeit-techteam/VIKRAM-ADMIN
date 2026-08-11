@@ -41,18 +41,21 @@ import {
 } from "@/mock/dispatch-logs";
 import {
   computeMembershipStats,
-  MOCK_MEMBERSHIPS,
 } from "@/mock/mockMemberships";
-import { MOCK_LOYALTY_CUSTOMERS } from "@/mock/mockLoyalty";
-import {
-  computeBulkProcurementStats,
-  MOCK_BULK_PROCUREMENT,
-} from "@/mock/mockBulkProcurement";
+import type { CustomerMembership } from "@/features/membership/types";
 import {
   computeTestimonialStats,
   MOCK_TESTIMONIALS,
 } from "@/mock/mockTestimonials";
 import { formatCurrency } from "@/utils/format-currency";
+
+/** Safe defaults — production bulk data comes from CE `/bulk` APIs, not mocks. */
+const EMPTY_BULK_STATS = {
+  openRequests: 0,
+  assigned: 0,
+  completed: 0,
+  revenuePotential: 0,
+};
 
 export type {
   DashboardDateFilter,
@@ -176,9 +179,11 @@ export function fetchExecutiveDashboardData(
   const quarterRevenue = computeQuarterRevenue(kpiOrders, filter);
   const activeCustomers = computeActiveCustomers(kpiOrders, filter);
 
-  const membershipStats = computeMembershipStats(MOCK_MEMBERSHIPS);
-  const bulkStats = computeBulkProcurementStats(MOCK_BULK_PROCUREMENT);
+  const membershipStats = computeMembershipStats();
+  const bulkStats = EMPTY_BULK_STATS;
   const testimonialStats = computeTestimonialStats(MOCK_TESTIMONIALS);
+  const loyaltyMembersCount = 0;
+  const recentMembershipPurchases: CustomerMembership[] = [];
 
   return {
     statCards: [
@@ -231,7 +236,7 @@ export function fetchExecutiveDashboardData(
       },
       {
         label: "Loyalty Members",
-        value: String(MOCK_LOYALTY_CUSTOMERS.length),
+        value: String(loyaltyMembersCount),
         subtext: "Enrolled in loyalty program",
         href: ROUTES.USER_MANAGEMENT_CUSTOMER_LOYALTY,
         icon: Award,
@@ -259,16 +264,10 @@ export function fetchExecutiveDashboardData(
     ],
     customerFeatures: {
       membershipRevenue: formatCurrency(membershipStats.membershipRevenue),
-      loyaltyMembers: MOCK_LOYALTY_CUSTOMERS.length,
+      loyaltyMembers: loyaltyMembersCount,
       bulkProcurementLeads: bulkStats.openRequests + bulkStats.assigned,
       testimonialCount: testimonialStats.published,
-      recentMembershipPurchases: [...MOCK_MEMBERSHIPS]
-        .sort(
-          (a, b) =>
-            new Date(b.purchaseDate).getTime() -
-            new Date(a.purchaseDate).getTime(),
-        )
-        .slice(0, 5)
+      recentMembershipPurchases: recentMembershipPurchases
         .map((m) => ({
           id: m.id,
           customer: m.customerName,
@@ -293,17 +292,14 @@ export function fetchExecutiveDashboardData(
           date: r.requestedDate,
           href: ROUTES.FINANCE_PAYMENTS,
         })),
-      bulkLeads: [...MOCK_BULK_PROCUREMENT]
-        .filter((r) => r.status === "OPEN" || r.status === "ASSIGNED")
-        .slice(0, 5)
-        .map((r) => ({
-          id: r.id,
-          company: r.company,
-          project: r.project,
-          value: formatCurrency(r.expectedOrderValue),
-          status: r.status,
-          href: ROUTES.CUSTOMER_EXECUTIVE_BULK_PROCUREMENT,
-        })),
+      bulkLeads: [] as Array<{
+        id: string;
+        company: string;
+        project: string;
+        value: string;
+        status: string;
+        href: string;
+      }>,
       latestTestimonials: [...MOCK_TESTIMONIALS]
         .sort(
           (a, b) =>

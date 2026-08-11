@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 interface CustomerProfileCardProps {
   customer: CustomerDetail;
   className?: string;
+  onCustomerChanged?: () => void;
 }
 
 const AVATAR_COLORS = [
@@ -77,6 +78,7 @@ function InfoRow({
 export function CustomerProfileCard({
   customer,
   className,
+  onCustomerChanged,
 }: CustomerProfileCardProps) {
   const hasOrders = customer.orderSummary.totalOrders > 0;
   const kycStyles =
@@ -187,7 +189,10 @@ export function CustomerProfileCard({
         </div>
 
         <div className="mt-6 border-t border-gray-100 pt-6">
-          <SupportExecutiveSection customer={customer} />
+          <SupportExecutiveSection
+            customer={customer}
+            onChanged={onCustomerChanged}
+          />
         </div>
 
         <div className="mt-6 border-t border-gray-100 pt-6">

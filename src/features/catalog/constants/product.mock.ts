@@ -20,7 +20,7 @@ export const MOCK_PRODUCTS: Product[] = [
     name: "TATA Tiscon TMT Bar",
     sku: "TT-S-442",
     brand: "TATA Tiscon",
-    category: "Steel",
+    category: "RMC",
     price: 68500,
     priceUnit: "ton",
     stockUnits: 12,
@@ -59,8 +59,9 @@ export const CATALOG_FILTER_OPTIONS = {
   categories: [
     { value: "all", label: "All Categories" },
     { value: "cement", label: "Cement" },
-    { value: "steel", label: "Steel" },
+    { value: "rmc", label: "RMC" },
     { value: "aggregates", label: "Aggregates" },
+    { value: "bricks", label: "Bricks" },
   ],
   brands: [
     { value: "all", label: "All Brands" },

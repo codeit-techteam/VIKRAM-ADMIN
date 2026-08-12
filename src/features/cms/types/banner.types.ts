@@ -10,6 +10,7 @@ export interface Banner {
   location: string;
   ctaLabel: string;
   ctaPath: string;
+  linkType?: string | null;
   status: BannerStatus;
   startsAt?: string | null;
   endsAt?: string | null;

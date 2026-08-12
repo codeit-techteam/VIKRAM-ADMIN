@@ -116,7 +116,7 @@ export function HomepageLayoutPageContent() {
     <div className="space-y-6">
       <PageHeader
         title="Homepage Layout Manager"
-        subtitle="Reorder and toggle sections to control the Customer App Home Screen. Edit titles where supported — changes appear after the next CMS fetch."
+        subtitle="Reorder and toggle sections on the Customer App Home Screen. Home Promo Banner shows banners with placement Home Promo from Banner Management — edit those banners to set Shop Now → Product or Catalog."
         breadcrumbs={getNavBreadcrumbsFromPath(
           "/customer-app-cms/homepage-layout",
         )}
@@ -168,6 +168,9 @@ export function HomepageLayoutPageContent() {
                   <p className="text-muted-foreground truncate text-xs">
                     {section.sectionType}
                     {section.layoutType ? ` · ${section.layoutType}` : ""}
+                    {section.sectionType === "PROMO_BANNER"
+                      ? " · content from Banner Management → Home Promo"
+                      : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

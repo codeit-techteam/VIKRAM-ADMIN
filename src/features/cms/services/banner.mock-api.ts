@@ -36,6 +36,7 @@ export async function getBanners(): Promise<Banner[]> {
       location: ui.location,
       ctaLabel: ui.ctaLabel,
       ctaPath: ui.ctaPath,
+      linkType: ui.linkType,
       status: ui.status,
       startsAt: item.startsAt ?? null,
       endsAt: item.endsAt ?? null,
@@ -100,6 +101,7 @@ export async function createBanner(
     location: ui.location,
     ctaLabel: ui.ctaLabel,
     ctaPath: ui.ctaPath,
+    linkType: ui.linkType,
     status: data.status,
   };
 }
@@ -145,6 +147,7 @@ export async function updateBanner(
     location: ui.location,
     ctaLabel: ui.ctaLabel,
     ctaPath: ui.ctaPath,
+    linkType: ui.linkType,
     status: data.status,
   };
 }

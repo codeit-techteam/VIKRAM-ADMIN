@@ -81,3 +81,44 @@ export interface UpsertDeliveryPricingPayload {
   status?: DeliveryPricingStatus;
   reason?: string;
 }
+
+export interface DeliveryVehicleConfig {
+  id: string;
+  vehicleType: DeliveryVehicleType;
+  displayName: string;
+  maxWeightKg: number | null;
+  maxVolumeCft: number | null;
+  maxQuantity: number | null;
+  capacityUtilizationLimit: number;
+  usableWeightKg: number | null;
+  usableVolumeCft: number | null;
+  usableQuantity: number | null;
+  priority: number;
+  active: boolean;
+  hasConfiguredCapacity: boolean;
+  allowedProductCategories: string[] | null;
+}
+
+export interface DeliveryEngineConfig {
+  id: string;
+  configKey: string;
+  multiVehicleMode: "AUTO_SPLIT" | "BULK_QUOTE" | "REJECT";
+  enablePartialDelivery: boolean;
+  qtyTierFallbackEnabled: boolean;
+  bulkOrderThresholdKg: number | null;
+  bulkOrderThresholdCft: number | null;
+  bulkOrderThresholdQty: number | null;
+  updatedBy: string | null;
+  updatedByName: string | null;
+  updatedAt: string;
+}
+
+export interface UpdateDeliveryVehicleConfigPayload {
+  displayName?: string;
+  maxWeightKg?: number | null;
+  maxVolumeCft?: number | null;
+  maxQuantity?: number | null;
+  capacityUtilizationLimit?: number;
+  priority?: number;
+  active?: boolean;
+}

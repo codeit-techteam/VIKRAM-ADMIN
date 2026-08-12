@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 
 import {
   FileDropzone,
@@ -26,9 +26,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { BannerCtaDestinationPicker } from "@/features/cms/components/BannerCtaDestinationPicker";
 import {
   BANNER_FORM_DEFAULT_VALUES,
   bannerFormSchema,
+  inferBannerCtaDestination,
   type BannerFormSchema,
 } from "@/features/cms/schema/banner-form.schema";
 import {
@@ -58,6 +60,7 @@ function toDatetimeLocalValue(value?: string | null): string {
 }
 
 function bannerToFormValues(banner: Banner): BannerFormSchema {
+  const cta = inferBannerCtaDestination(banner.linkType, banner.ctaPath);
   return {
     ...BANNER_FORM_DEFAULT_VALUES,
     title: banner.title,
@@ -65,7 +68,7 @@ function bannerToFormValues(banner: Banner): BannerFormSchema {
     location: banner.location,
     placement: banner.location,
     ctaLabel: banner.ctaLabel,
-    ctaPath: banner.ctaPath,
+    ...cta,
     startsAt: toDatetimeLocalValue(banner.startsAt),
     endsAt: toDatetimeLocalValue(banner.endsAt),
     status: banner.status,
@@ -95,6 +98,11 @@ export function AddBannerDialog({
     resolver: zodResolver(bannerFormSchema),
     defaultValues: BANNER_FORM_DEFAULT_VALUES,
   });
+
+  const ctaDestination = useWatch({ control, name: "ctaDestination" });
+  const linkType = useWatch({ control, name: "linkType" });
+  const ctaPath = useWatch({ control, name: "ctaPath" });
+  const ctaTargetLabel = useWatch({ control, name: "ctaTargetLabel" });
 
   useEffect(() => {
     if (!open) return;
@@ -179,12 +187,12 @@ export function AddBannerDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Banner" : "Add Banner"}</DialogTitle>
           <DialogDescription>
             {isEdit
-              ? "Update campaign details, CTA redirect, and status."
+              ? "Update campaign details, Shop Now destination, and status."
               : "Create a new customer app banner with targeting and CTA."}
           </DialogDescription>
         </DialogHeader>
@@ -227,7 +235,9 @@ export function AddBannerDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="HOME_HERO">Hero Banner</SelectItem>
-                    <SelectItem value="HOME_PROMO">Home Promo</SelectItem>
+                    <SelectItem value="HOME_PROMO">
+                      Home Promo (Bulk Offers)
+                    </SelectItem>
                     <SelectItem value="EMERGENCY_DELIVERY">
                       Emergency Delivery
                     </SelectItem>
@@ -282,45 +292,43 @@ export function AddBannerDialog({
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="banner-cta-label">CTA Label</Label>
-              <Controller
-                name="ctaLabel"
-                control={control}
-                render={({ field }) => (
-                  <Input
-                    id="banner-cta-label"
-                    placeholder="Shop Now"
-                    {...field}
-                  />
-                )}
-              />
-              {errors.ctaLabel ? (
-                <p className="text-xs text-red-500">
-                  {errors.ctaLabel.message}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="banner-cta-path">Redirect Path</Label>
-              <Controller
-                name="ctaPath"
-                control={control}
-                render={({ field }) => (
-                  <Input
-                    id="banner-cta-path"
-                    placeholder="/category/cement"
-                    {...field}
-                  />
-                )}
-              />
-              {errors.ctaPath ? (
-                <p className="text-xs text-red-500">{errors.ctaPath.message}</p>
-              ) : null}
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="banner-cta-label">CTA Label</Label>
+            <Controller
+              name="ctaLabel"
+              control={control}
+              render={({ field }) => (
+                <Input
+                  id="banner-cta-label"
+                  placeholder="Shop Now"
+                  {...field}
+                />
+              )}
+            />
+            {errors.ctaLabel ? (
+              <p className="text-xs text-red-500">{errors.ctaLabel.message}</p>
+            ) : null}
           </div>
+
+          <BannerCtaDestinationPicker
+            value={{
+              ctaDestination: ctaDestination || "CATALOG",
+              linkType: linkType || "ROUTE",
+              ctaPath: ctaPath || "",
+              ctaTargetLabel: ctaTargetLabel || "",
+            }}
+            onChange={(next) => {
+              setValue("ctaDestination", next.ctaDestination, {
+                shouldValidate: true,
+              });
+              setValue("linkType", next.linkType, { shouldValidate: true });
+              setValue("ctaPath", next.ctaPath, { shouldValidate: true });
+              setValue("ctaTargetLabel", next.ctaTargetLabel || "", {
+                shouldValidate: true,
+              });
+            }}
+            error={errors.ctaPath?.message}
+          />
 
           <div className="space-y-1.5">
             <Label>Status</Label>

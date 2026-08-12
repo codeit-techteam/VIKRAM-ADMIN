@@ -134,6 +134,7 @@ export async function getOfferProductsCatalog(): Promise<OfferProduct[]> {
   const page = await catalogService.listProducts({ page: 1, limit: 100 });
   return page.data.map((p) => ({
     id: p.id,
+    slug: p.slug || undefined,
     name: p.name,
     sku: p.sku || "—",
     brand: p.brand || "—",

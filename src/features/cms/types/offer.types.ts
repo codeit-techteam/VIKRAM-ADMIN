@@ -7,6 +7,7 @@ export type OfferCtaLabel = "Shop Now" | "Buy Now" | "Explore" | "View Offer";
 
 export interface OfferProduct {
   id: string;
+  slug?: string;
   name: string;
   sku: string;
   brand: string;

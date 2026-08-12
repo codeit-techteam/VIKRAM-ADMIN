@@ -21,6 +21,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Banner } from "@/features/cms/types/banner.types";
+import { CATALOG_HOME_PATH } from "@/features/cms/schema/banner-form.schema";
+
+function formatCtaDestination(banner: Banner): string {
+  const type = (banner.linkType || "ROUTE").toUpperCase();
+  const target = banner.ctaPath?.trim() || "";
+
+  if (type === "PRODUCT") return "Product page";
+  if (type === "CATEGORY") return target ? `Category · ${target}` : "Category";
+  if (
+    !target ||
+    target === CATALOG_HOME_PATH ||
+    target === "/(tabs)/catalog/" ||
+    target === "/catalog"
+  ) {
+    return "Catalog home";
+  }
+  return target;
+}
 
 interface BannerPreviewTableProps {
   banners: Banner[];
@@ -91,7 +109,9 @@ export function BannerPreviewTable({
             <p className="text-primary text-sm font-medium">
               {row.original.ctaLabel}
             </p>
-            <p className="text-sm text-[#64748B]">{row.original.ctaPath}</p>
+            <p className="text-sm text-[#64748B]">
+              {formatCtaDestination(row.original)}
+            </p>
           </div>
         ),
       }),

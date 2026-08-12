@@ -250,6 +250,10 @@ export const API_ENDPOINTS = {
     BASE: "/admin/delivery-pricing",
     SUMMARY: "/admin/delivery-pricing/summary",
     BENEFIT_CONFIG: "/admin/delivery-pricing/benefit-config",
+    VEHICLES: "/admin/delivery-pricing/vehicles",
+    VEHICLE: (vehicleType: string) =>
+      `/admin/delivery-pricing/vehicles/${encodeURIComponent(vehicleType)}`,
+    ENGINE_CONFIG: "/admin/delivery-pricing/engine-config",
     BY_ID: (id: string) => `/admin/delivery-pricing/${id}`,
     HISTORY: (id: string) => `/admin/delivery-pricing/${id}/history`,
     STATUS: (id: string) => `/admin/delivery-pricing/${id}/status`,

@@ -82,6 +82,7 @@ export function toUiBanner(banner: AdminBanner) {
     location: banner.placement,
     ctaLabel: banner.ctaLabel || "Shop Now",
     ctaPath: banner.linkTarget || banner.linkUrl || "/",
+    linkType: banner.linkType || "ROUTE",
     status:
       mapStatus(banner) === "LIVE" ? ("LIVE" as const) : ("DRAFT" as const),
     raw: banner,

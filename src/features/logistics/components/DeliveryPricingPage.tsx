@@ -45,20 +45,26 @@ import { ConfirmDialog } from "@/features/logistics/components/ConfirmDialog";
 import {
   createDeliveryPricingRule,
   getDeliveryBenefitConfig,
+  getDeliveryEngineConfig,
   getDeliveryPricingHistory,
   getDeliveryPricingSummary,
   listDeliveryPricingRules,
+  listDeliveryVehicleConfigs,
   updateDeliveryBenefitConfig,
+  updateDeliveryEngineConfig,
   updateDeliveryPricingRule,
   updateDeliveryPricingStatus,
+  updateDeliveryVehicleConfig,
 } from "@/features/logistics/services/delivery-pricing.service";
 import {
   DELIVERY_VEHICLE_OPTIONS,
   type DeliveryBenefitConfig,
+  type DeliveryEngineConfig,
   type DeliveryPricingHistoryEntry,
   type DeliveryPricingRule,
   type DeliveryPricingStatus,
   type DeliveryPricingSummary,
+  type DeliveryVehicleConfig,
   type DeliveryVehicleType,
 } from "@/features/logistics/types/delivery-pricing.types";
 import { getApiErrorMessage } from "@/services/api";
@@ -111,6 +117,27 @@ export function DeliveryPricingPage() {
   const [summary, setSummary] = useState<DeliveryPricingSummary | null>(null);
   const [rules, setRules] = useState<DeliveryPricingRule[]>([]);
   const [benefit, setBenefit] = useState<DeliveryBenefitConfig | null>(null);
+  const [vehicles, setVehicles] = useState<DeliveryVehicleConfig[]>([]);
+  const [engine, setEngine] = useState<DeliveryEngineConfig | null>(null);
+  const [vehicleEditorOpen, setVehicleEditorOpen] = useState(false);
+  const [vehicleEditor, setVehicleEditor] = useState<{
+    vehicleType: DeliveryVehicleType;
+    displayName: string;
+    maxWeightKg: string;
+    maxVolumeCft: string;
+    maxQuantity: string;
+    capacityUtilizationLimit: string;
+    priority: string;
+    active: boolean;
+  } | null>(null);
+  const [savingVehicle, setSavingVehicle] = useState(false);
+  const [savingEngine, setSavingEngine] = useState(false);
+  const [engineDraft, setEngineDraft] = useState({
+    multiVehicleMode: "BULK_QUOTE" as DeliveryEngineConfig["multiVehicleMode"],
+    qtyTierFallbackEnabled: true,
+    bulkOrderThresholdKg: "",
+    bulkOrderThresholdQty: "",
+  });
   const [editorOpen, setEditorOpen] = useState(false);
   const [editor, setEditor] = useState<EditorState>(EMPTY_EDITOR);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -132,18 +159,35 @@ export function DeliveryPricingPage() {
     setIsLoading(true);
     setIsError(false);
     try {
-      const [summaryData, rulesData, benefitData] = await Promise.all([
-        getDeliveryPricingSummary(),
-        listDeliveryPricingRules(),
-        getDeliveryBenefitConfig(),
-      ]);
+      const [summaryData, rulesData, benefitData, vehicleData, engineData] =
+        await Promise.all([
+          getDeliveryPricingSummary(),
+          listDeliveryPricingRules(),
+          getDeliveryBenefitConfig(),
+          listDeliveryVehicleConfigs(),
+          getDeliveryEngineConfig(),
+        ]);
       setSummary(summaryData);
       setRules(rulesData);
       setBenefit(benefitData);
+      setVehicles(vehicleData);
+      setEngine(engineData);
       setBenefitDraft({
         firstBikeDeliveriesFree: String(benefitData.firstBikeDeliveriesFree),
         companyAbsorptionInr: String(benefitData.companyAbsorptionInr),
         status: benefitData.status,
+      });
+      setEngineDraft({
+        multiVehicleMode: engineData.multiVehicleMode,
+        qtyTierFallbackEnabled: engineData.qtyTierFallbackEnabled,
+        bulkOrderThresholdKg:
+          engineData.bulkOrderThresholdKg != null
+            ? String(engineData.bulkOrderThresholdKg)
+            : "",
+        bulkOrderThresholdQty:
+          engineData.bulkOrderThresholdQty != null
+            ? String(engineData.bulkOrderThresholdQty)
+            : "",
       });
     } catch (error) {
       setIsError(true);
@@ -283,6 +327,74 @@ export function DeliveryPricingPage() {
     }
   };
 
+  const openVehicleEditor = (vehicle: DeliveryVehicleConfig) => {
+    setVehicleEditor({
+      vehicleType: vehicle.vehicleType,
+      displayName: vehicle.displayName,
+      maxWeightKg: vehicle.maxWeightKg != null ? String(vehicle.maxWeightKg) : "",
+      maxVolumeCft:
+        vehicle.maxVolumeCft != null ? String(vehicle.maxVolumeCft) : "",
+      maxQuantity: vehicle.maxQuantity != null ? String(vehicle.maxQuantity) : "",
+      capacityUtilizationLimit: String(vehicle.capacityUtilizationLimit),
+      priority: String(vehicle.priority),
+      active: vehicle.active,
+    });
+    setVehicleEditorOpen(true);
+  };
+
+  const saveVehicle = async () => {
+    if (!vehicleEditor) return;
+    setSavingVehicle(true);
+    try {
+      const parseOptional = (value: string) => {
+        if (value.trim() === "") return null;
+        const n = Number(value);
+        return Number.isFinite(n) ? n : null;
+      };
+      await updateDeliveryVehicleConfig(vehicleEditor.vehicleType, {
+        displayName: vehicleEditor.displayName,
+        maxWeightKg: parseOptional(vehicleEditor.maxWeightKg),
+        maxVolumeCft: parseOptional(vehicleEditor.maxVolumeCft),
+        maxQuantity: parseOptional(vehicleEditor.maxQuantity),
+        capacityUtilizationLimit: Number(
+          vehicleEditor.capacityUtilizationLimit || 100,
+        ),
+        priority: Number(vehicleEditor.priority || 100),
+        active: vehicleEditor.active,
+      });
+      notify.success("Vehicle capacity updated");
+      setVehicleEditorOpen(false);
+      await loadData();
+    } catch (error) {
+      notify.error(getApiErrorMessage(error, "Unable to update vehicle."));
+    } finally {
+      setSavingVehicle(false);
+    }
+  };
+
+  const saveEngine = async () => {
+    setSavingEngine(true);
+    try {
+      const parseOptional = (value: string) => {
+        if (value.trim() === "") return null;
+        const n = Number(value);
+        return Number.isFinite(n) ? n : null;
+      };
+      await updateDeliveryEngineConfig({
+        multiVehicleMode: engineDraft.multiVehicleMode,
+        qtyTierFallbackEnabled: engineDraft.qtyTierFallbackEnabled,
+        bulkOrderThresholdKg: parseOptional(engineDraft.bulkOrderThresholdKg),
+        bulkOrderThresholdQty: parseOptional(engineDraft.bulkOrderThresholdQty),
+      });
+      notify.success("Delivery rules updated");
+      await loadData();
+    } catch (error) {
+      notify.error(getApiErrorMessage(error, "Unable to update engine rules."));
+    } finally {
+      setSavingEngine(false);
+    }
+  };
+
   if (isError && !isLoading) {
     return (
       <div className="flex flex-col items-center gap-4 py-10">
@@ -401,6 +513,190 @@ export function DeliveryPricingPage() {
           <p className="mt-3 text-xs text-gray-400">
             Last updated {formatHistoryAt(benefit.updatedAt)}
             {benefit.updatedByName ? ` · ${benefit.updatedByName}` : ""}
+          </p>
+        ) : null}
+      </section>
+
+      <section className="rounded-xl border border-gray-100 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4">
+          <div>
+            <h2 className="text-base font-semibold text-[#1A1A1A]">
+              Vehicle Capacity
+            </h2>
+            <p className="text-sm text-gray-500">
+              Configure max weight / volume per pricing vehicle. Leave blank until
+              ops confirms real capacities — do not invent kg/CFT values.
+            </p>
+          </div>
+        </div>
+        {isLoading ? (
+          <div className="space-y-3 p-5">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-10 w-full" />
+            ))}
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Vehicle</TableHead>
+                <TableHead>Max Weight</TableHead>
+                <TableHead>Max Volume</TableHead>
+                <TableHead>Safe Capacity</TableHead>
+                <TableHead>Priority</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {vehicles.map((vehicle) => (
+                <TableRow key={vehicle.id}>
+                  <TableCell className="font-medium">
+                    {vehicle.displayName}
+                  </TableCell>
+                  <TableCell>
+                    {vehicle.maxWeightKg != null
+                      ? `${vehicle.maxWeightKg} kg`
+                      : "Not set"}
+                  </TableCell>
+                  <TableCell>
+                    {vehicle.maxVolumeCft != null
+                      ? `${vehicle.maxVolumeCft} CFT`
+                      : "Not set"}
+                  </TableCell>
+                  <TableCell>
+                    {vehicle.usableWeightKg != null
+                      ? `${vehicle.usableWeightKg} kg (${vehicle.capacityUtilizationLimit}%)`
+                      : vehicle.usableVolumeCft != null
+                        ? `${vehicle.usableVolumeCft} CFT (${vehicle.capacityUtilizationLimit}%)`
+                        : "—"}
+                  </TableCell>
+                  <TableCell>{vehicle.priority}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="secondary"
+                      className={
+                        vehicle.active
+                          ? "bg-success/10 text-success"
+                          : "bg-gray-100 text-gray-500"
+                      }
+                    >
+                      {vehicle.active ? "Active" : "Inactive"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openVehicleEditor(vehicle)}
+                    >
+                      <Pencil className="mr-1 size-3.5" />
+                      Edit
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-[#1A1A1A]">
+              Delivery Rules
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Oversized orders, bulk thresholds, and qty-tier fallback until
+              capacities are configured.
+            </p>
+          </div>
+          <Button
+            onClick={() => void saveEngine()}
+            disabled={savingEngine || isLoading}
+          >
+            {savingEngine ? "Saving…" : "Save Rules"}
+          </Button>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-2">
+            <Label>Multi-vehicle mode</Label>
+            <Select
+              value={engineDraft.multiVehicleMode}
+              onValueChange={(v) =>
+                setEngineDraft((s) => ({
+                  ...s,
+                  multiVehicleMode:
+                    v as DeliveryEngineConfig["multiVehicleMode"],
+                }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="BULK_QUOTE">Bulk quote required</SelectItem>
+                <SelectItem value="AUTO_SPLIT">Auto multi-vehicle</SelectItem>
+                <SelectItem value="REJECT">Reject oversized</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Qty-tier fallback</Label>
+            <Select
+              value={engineDraft.qtyTierFallbackEnabled ? "yes" : "no"}
+              onValueChange={(v) =>
+                setEngineDraft((s) => ({
+                  ...s,
+                  qtyTierFallbackEnabled: v === "yes",
+                }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="yes">Enabled (migration)</SelectItem>
+                <SelectItem value="no">Disabled (capacity only)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Bulk threshold (kg)</Label>
+            <Input
+              type="number"
+              min={0}
+              placeholder="Optional"
+              value={engineDraft.bulkOrderThresholdKg}
+              onChange={(e) =>
+                setEngineDraft((s) => ({
+                  ...s,
+                  bulkOrderThresholdKg: e.target.value,
+                }))
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Bulk threshold (qty)</Label>
+            <Input
+              type="number"
+              min={0}
+              placeholder="Optional"
+              value={engineDraft.bulkOrderThresholdQty}
+              onChange={(e) =>
+                setEngineDraft((s) => ({
+                  ...s,
+                  bulkOrderThresholdQty: e.target.value,
+                }))
+              }
+            />
+          </div>
+        </div>
+        {engine ? (
+          <p className="mt-3 text-xs text-gray-400">
+            Last updated {formatHistoryAt(engine.updatedAt)}
+            {engine.updatedByName ? ` · ${engine.updatedByName}` : ""}
           </p>
         ) : null}
       </section>
@@ -687,6 +983,127 @@ export function DeliveryPricingPage() {
               ))}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={vehicleEditorOpen} onOpenChange={setVehicleEditorOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Vehicle Capacity</DialogTitle>
+            <DialogDescription>
+              Set operational capacity for {vehicleEditor?.displayName}. Leave
+              weight/volume empty if not yet confirmed by ops.
+            </DialogDescription>
+          </DialogHeader>
+          {vehicleEditor ? (
+            <div className="grid gap-3 py-2">
+              <div className="space-y-2">
+                <Label>Display Name</Label>
+                <Input
+                  value={vehicleEditor.displayName}
+                  onChange={(e) =>
+                    setVehicleEditor((s) =>
+                      s ? { ...s, displayName: e.target.value } : s,
+                    )
+                  }
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Max Weight (kg)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="Not set"
+                    value={vehicleEditor.maxWeightKg}
+                    onChange={(e) =>
+                      setVehicleEditor((s) =>
+                        s ? { ...s, maxWeightKg: e.target.value } : s,
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Max Volume (CFT)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="Not set"
+                    value={vehicleEditor.maxVolumeCft}
+                    onChange={(e) =>
+                      setVehicleEditor((s) =>
+                        s ? { ...s, maxVolumeCft: e.target.value } : s,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Safe Utilization %</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={vehicleEditor.capacityUtilizationLimit}
+                    onChange={(e) =>
+                      setVehicleEditor((s) =>
+                        s
+                          ? {
+                              ...s,
+                              capacityUtilizationLimit: e.target.value,
+                            }
+                          : s,
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Priority</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={vehicleEditor.priority}
+                    onChange={(e) =>
+                      setVehicleEditor((s) =>
+                        s ? { ...s, priority: e.target.value } : s,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={vehicleEditor.active ? "ACTIVE" : "INACTIVE"}
+                  onValueChange={(v) =>
+                    setVehicleEditor((s) =>
+                      s ? { ...s, active: v === "ACTIVE" } : s,
+                    )
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ACTIVE">Active</SelectItem>
+                    <SelectItem value="INACTIVE">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setVehicleEditorOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => void saveVehicle()} disabled={savingVehicle}>
+              {savingVehicle ? "Saving…" : "Save Changes"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

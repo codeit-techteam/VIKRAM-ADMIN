@@ -2,11 +2,14 @@ import api from "@/services/api";
 import { API_ENDPOINTS } from "@/constants/api-endpoints";
 import type {
   DeliveryBenefitConfig,
+  DeliveryEngineConfig,
   DeliveryPricingHistoryEntry,
   DeliveryPricingRule,
   DeliveryPricingStatus,
   DeliveryPricingSummary,
+  DeliveryVehicleConfig,
   DeliveryVehicleType,
+  UpdateDeliveryVehicleConfigPayload,
   UpsertDeliveryPricingPayload,
 } from "@/features/logistics/types/delivery-pricing.types";
 
@@ -48,6 +51,48 @@ export async function updateDeliveryBenefitConfig(payload: {
 }): Promise<DeliveryBenefitConfig> {
   const { data } = await api.put<ApiEnvelope<DeliveryBenefitConfig>>(
     API_ENDPOINTS.DELIVERY_PRICING.BENEFIT_CONFIG,
+    payload,
+  );
+  return data.data;
+}
+
+export async function listDeliveryVehicleConfigs(): Promise<
+  DeliveryVehicleConfig[]
+> {
+  const { data } = await api.get<ApiEnvelope<DeliveryVehicleConfig[]>>(
+    API_ENDPOINTS.DELIVERY_PRICING.VEHICLES,
+  );
+  return data.data;
+}
+
+export async function updateDeliveryVehicleConfig(
+  vehicleType: DeliveryVehicleType,
+  payload: UpdateDeliveryVehicleConfigPayload,
+): Promise<DeliveryVehicleConfig> {
+  const { data } = await api.put<ApiEnvelope<DeliveryVehicleConfig>>(
+    API_ENDPOINTS.DELIVERY_PRICING.VEHICLE(vehicleType),
+    payload,
+  );
+  return data.data;
+}
+
+export async function getDeliveryEngineConfig(): Promise<DeliveryEngineConfig> {
+  const { data } = await api.get<ApiEnvelope<DeliveryEngineConfig>>(
+    API_ENDPOINTS.DELIVERY_PRICING.ENGINE_CONFIG,
+  );
+  return data.data;
+}
+
+export async function updateDeliveryEngineConfig(payload: {
+  multiVehicleMode?: DeliveryEngineConfig["multiVehicleMode"];
+  enablePartialDelivery?: boolean;
+  qtyTierFallbackEnabled?: boolean;
+  bulkOrderThresholdKg?: number | null;
+  bulkOrderThresholdCft?: number | null;
+  bulkOrderThresholdQty?: number | null;
+}): Promise<DeliveryEngineConfig> {
+  const { data } = await api.put<ApiEnvelope<DeliveryEngineConfig>>(
+    API_ENDPOINTS.DELIVERY_PRICING.ENGINE_CONFIG,
     payload,
   );
   return data.data;

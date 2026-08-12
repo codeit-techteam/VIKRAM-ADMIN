@@ -364,6 +364,56 @@ export const customerExecutiveService = {
     return unwrap(data);
   },
 
+  getExpertCallbacks: async (params?: {
+    page?: number;
+    limit?: number;
+    q?: string;
+    status?: string;
+  }): Promise<
+    CePaginatedResult<Record<string, unknown>> & {
+      stats?: {
+        total: number;
+        new: number;
+        contacted: number;
+        closed: number;
+      };
+    }
+  > => {
+    const { data } = await api.get<
+      ApiResponse<
+        CePaginatedResult<Record<string, unknown>> & {
+          stats?: {
+            total: number;
+            new: number;
+            contacted: number;
+            closed: number;
+          };
+        }
+      >
+    >(API_ENDPOINTS.CUSTOMER_EXECUTIVE.EXPERT_CALLBACKS, { params });
+    return unwrap(data);
+  },
+
+  getExpertCallbackById: async (
+    id: string,
+  ): Promise<Record<string, unknown>> => {
+    const { data } = await api.get<ApiResponse<Record<string, unknown>>>(
+      API_ENDPOINTS.CUSTOMER_EXECUTIVE.EXPERT_CALLBACK_BY_ID(id),
+    );
+    return unwrap(data);
+  },
+
+  updateExpertCallback: async (
+    id: string,
+    payload: { status?: string; executiveNotes?: string },
+  ): Promise<Record<string, unknown>> => {
+    const { data } = await api.patch<ApiResponse<Record<string, unknown>>>(
+      API_ENDPOINTS.CUSTOMER_EXECUTIVE.EXPERT_CALLBACK_BY_ID(id),
+      payload,
+    );
+    return unwrap(data);
+  },
+
   getBulkEnquiries: async (params?: {
     page?: number;
     limit?: number;

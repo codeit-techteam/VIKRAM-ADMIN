@@ -1,6 +1,23 @@
 "use client";
 
 import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   createColumnHelper,
   flexRender,
   getCoreRowModel,
@@ -20,8 +37,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { Banner } from "@/features/cms/types/banner.types";
 import { CATALOG_HOME_PATH } from "@/features/cms/schema/banner-form.schema";
+import type { Banner } from "@/features/cms/types/banner.types";
+import { cn } from "@/lib/utils";
 
 function formatCtaDestination(banner: Banner): string {
   const type = (banner.linkType || "ROUTE").toUpperCase();
@@ -43,33 +61,82 @@ function formatCtaDestination(banner: Banner): string {
 interface BannerPreviewTableProps {
   banners: Banner[];
   isLoading?: boolean;
+  isReordering?: boolean;
   onEdit?: (banner: Banner) => void;
   onDelete?: (banner: Banner) => void;
+  /** Called with the new order of the currently displayed rows */
+  onReorder?: (next: Banner[]) => void;
 }
 
 const columnHelper = createColumnHelper<Banner>();
 
+function SortableBannerRow({
+  banner,
+  children,
+  disabled,
+}: {
+  banner: Banner;
+  children: React.ReactNode;
+  disabled?: boolean;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: banner.id, disabled });
+
+  return (
+    <TableRow
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+      className={cn(
+        "border-b border-gray-100",
+        isDragging && "relative z-10 bg-white shadow-md",
+      )}
+      data-dragging={isDragging ? "true" : undefined}
+    >
+      <TableCell className="w-10 py-4">
+        <button
+          type="button"
+          className="cursor-grab touch-none text-gray-300 hover:text-gray-500 active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label={`Drag to reorder ${banner.title}`}
+          disabled={disabled}
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="size-4" />
+        </button>
+      </TableCell>
+      {children}
+    </TableRow>
+  );
+}
+
 export function BannerPreviewTable({
   banners,
   isLoading = false,
+  isReordering = false,
   onEdit,
   onDelete,
+  onReorder,
 }: BannerPreviewTableProps) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const bannerIds = useMemo(() => banners.map((b) => b.id), [banners]);
+
   const columns = useMemo(
     () => [
-      columnHelper.display({
-        id: "drag",
-        header: "",
-        cell: () => (
-          <button
-            type="button"
-            className="cursor-grab text-gray-300 hover:text-gray-500"
-            aria-label="Drag to reorder"
-          >
-            <GripVertical className="size-4" />
-          </button>
-        ),
-      }),
       columnHelper.accessor("thumbnailUrl", {
         header: "Preview",
         cell: (info) => {
@@ -153,7 +220,19 @@ export function BannerPreviewTable({
     data: banners,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getRowId: (row) => row.id,
   });
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !onReorder) return;
+
+    const oldIndex = banners.findIndex((b) => b.id === active.id);
+    const newIndex = banners.findIndex((b) => b.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    onReorder(arrayMove(banners, oldIndex, newIndex));
+  };
 
   if (isLoading) {
     return (
@@ -173,41 +252,60 @@ export function BannerPreviewTable({
 
   return (
     <div className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow
-              key={headerGroup.id}
-              className="border-gray-100 bg-gray-50 hover:bg-gray-50"
-            >
-              {headerGroup.headers.map((header) => (
-                <TableHead
-                  key={header.id}
-                  className="text-xs font-medium tracking-wide text-gray-500 uppercase"
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow
+                key={headerGroup.id}
+                className="border-gray-100 bg-gray-50 hover:bg-gray-50"
+              >
+                <TableHead className="w-10 text-xs font-medium tracking-wide text-gray-500 uppercase" />
+                {headerGroup.headers.map((header) => (
+                  <TableHead
+                    key={header.id}
+                    className="text-xs font-medium tracking-wide text-gray-500 uppercase"
+                  >
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <SortableContext
+            items={bannerIds}
+            strategy={verticalListSortingStrategy}
+          >
+            <TableBody>
+              {table.getRowModel().rows.map((row) => (
+                <SortableBannerRow
+                  key={row.id}
+                  banner={row.original}
+                  disabled={isReordering || !onReorder}
                 >
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id} className="py-4">
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
                       )}
-                </TableHead>
+                    </TableCell>
+                  ))}
+                </SortableBannerRow>
               ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id} className="border-b border-gray-100">
-              {row.getVisibleCells().map((cell) => (
-                <TableCell key={cell.id} className="py-4">
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+            </TableBody>
+          </SortableContext>
+        </Table>
+      </DndContext>
     </div>
   );
 }

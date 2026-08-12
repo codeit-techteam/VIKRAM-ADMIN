@@ -83,13 +83,7 @@ function MediaUnavailable({ label }: { label?: string }) {
   );
 }
 
-function TestimonialVideoPlayer({
-  src,
-  poster,
-}: {
-  src: string;
-  poster?: string;
-}) {
+function TestimonialVideoPlayer({ src }: { src: string }) {
   const [error, setError] = useState<string | null>(null);
 
   if (error) {
@@ -113,7 +107,6 @@ function TestimonialVideoPlayer({
     <video
       key={src}
       src={src}
-      poster={poster}
       controls
       playsInline
       preload="metadata"
@@ -131,9 +124,6 @@ function TestimonialCardMedia({
   testimonial: CustomerTestimonial;
 }) {
   const [failed, setFailed] = useState(false);
-  const poster =
-    testimonial.thumbnailUrl ||
-    (testimonial.type === "IMAGE" ? testimonial.mediaUrl : "");
 
   if (testimonial.type === "TEXT") {
     return (
@@ -143,14 +133,30 @@ function TestimonialCardMedia({
     );
   }
 
-  if (!isPlayableMediaUrl(poster) || failed) {
+  if (testimonial.type === "VIDEO") {
+    if (!isPlayableMediaUrl(testimonial.mediaUrl) || failed) {
+      return <MediaUnavailable label="Video unavailable" />;
+    }
+    return (
+      <video
+        src={testimonial.mediaUrl}
+        muted
+        playsInline
+        preload="metadata"
+        className="size-full bg-black object-cover"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+
+  if (!isPlayableMediaUrl(testimonial.mediaUrl) || failed) {
     return <MediaUnavailable />;
   }
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={poster}
+      src={testimonial.mediaUrl}
       alt={testimonial.customerName}
       className="size-full object-cover"
       onError={() => setFailed(true)}
@@ -180,7 +186,6 @@ const EMPTY_FORM: CreateTestimonialPayload = {
   rating: 5,
   review: "",
   mediaUrl: "",
-  thumbnailUrl: "",
   status: "DRAFT",
 };
 
@@ -209,29 +214,16 @@ export function TestimonialsPageContent() {
   const [formLoading, setFormLoading] = useState(false);
   const [activeStat, setActiveStat] = useState<StatFilter | null>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
-  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [mediaUpload, setMediaUpload] = useState<MockUploadFile | null>(null);
-  const [thumbnailUpload, setThumbnailUpload] = useState<MockUploadFile | null>(
-    null,
-  );
   const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string | null>(null);
-  const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState<string | null>(
-    null,
-  );
 
   const resetUploadState = () => {
     if (mediaPreviewUrl?.startsWith("blob:")) {
       URL.revokeObjectURL(mediaPreviewUrl);
     }
-    if (thumbnailPreviewUrl?.startsWith("blob:")) {
-      URL.revokeObjectURL(thumbnailPreviewUrl);
-    }
     setMediaFile(null);
-    setThumbnailFile(null);
     setMediaUpload(null);
-    setThumbnailUpload(null);
     setMediaPreviewUrl(null);
-    setThumbnailPreviewUrl(null);
   };
 
   const loadData = useCallback(async () => {
@@ -285,19 +277,17 @@ export function TestimonialsPageContent() {
       rating: testimonial.rating,
       review: testimonial.review,
       mediaUrl: testimonial.mediaUrl,
-      thumbnailUrl: testimonial.thumbnailUrl ?? "",
       status: testimonial.status,
     });
     resetUploadState();
-    if (testimonial.type === "IMAGE") {
-      setMediaPreviewUrl(testimonial.mediaUrl);
-      setMediaUpload({ name: "Current image", progress: 100 });
-    } else {
-      setMediaPreviewUrl(testimonial.thumbnailUrl ?? null);
-      setThumbnailPreviewUrl(testimonial.thumbnailUrl ?? null);
-      setMediaUpload({ name: "Current video", progress: 100 });
-      if (testimonial.thumbnailUrl) {
-        setThumbnailUpload({ name: "Current thumbnail", progress: 100 });
+    if (testimonial.type === "IMAGE" || testimonial.type === "VIDEO") {
+      if (isPlayableMediaUrl(testimonial.mediaUrl)) {
+        setMediaPreviewUrl(testimonial.mediaUrl);
+        setMediaUpload({
+          name:
+            testimonial.type === "VIDEO" ? "Current video" : "Current image",
+          progress: 100,
+        });
       }
     }
     setFormOpen(true);
@@ -318,29 +308,8 @@ export function TestimonialsPageContent() {
 
     setMediaFile(file);
     setMediaUpload({ name: file.name, progress: 0 });
-    if (file.type.startsWith("video/")) {
-      setMediaPreviewUrl(null);
-    } else {
-      setMediaPreviewUrl(URL.createObjectURL(file));
-    }
-  };
-
-  const handleThumbnailFileSelect = (file: File | null) => {
-    if (thumbnailPreviewUrl?.startsWith("blob:")) {
-      URL.revokeObjectURL(thumbnailPreviewUrl);
-    }
-
-    if (!file) {
-      setThumbnailFile(null);
-      setThumbnailUpload(null);
-      setThumbnailPreviewUrl(null);
-      setForm((prev) => ({ ...prev, thumbnailUrl: "" }));
-      return;
-    }
-
-    setThumbnailFile(file);
-    setThumbnailUpload({ name: file.name, progress: 0 });
-    setThumbnailPreviewUrl(URL.createObjectURL(file));
+    // Blob URL works for both image <img> and video <video> previews.
+    setMediaPreviewUrl(URL.createObjectURL(file));
   };
 
   const handleStatClick = (stat: StatFilter) => {
@@ -392,15 +361,10 @@ export function TestimonialsPageContent() {
       );
       return;
     }
-    if (form.type === "VIDEO" && !thumbnailFile && !form.thumbnailUrl) {
-      notify.error("Validation error", "Please upload a video thumbnail.");
-      return;
-    }
 
     setFormLoading(true);
     try {
       let mediaUrl = form.mediaUrl;
-      let thumbnailUrl = form.thumbnailUrl;
 
       if (mediaFile) {
         const uploaded = await uploadMediaFile(mediaFile, "testimonials", {
@@ -411,29 +375,15 @@ export function TestimonialsPageContent() {
         mediaUrl = uploaded.publicUrl;
       }
 
-      if (form.type === "VIDEO" && thumbnailFile) {
-        const uploaded = await uploadMediaFile(thumbnailFile, "thumbnails", {
-          onProgress: (percent) => {
-            setThumbnailUpload({
-              name: thumbnailFile.name,
-              progress: percent,
-            });
-          },
-        });
-        thumbnailUrl = uploaded.publicUrl;
-      }
-
       if (form.type !== "TEXT") {
         assertRemoteMediaUrl(mediaUrl);
-      }
-      if (form.type === "VIDEO") {
-        assertRemoteMediaUrl(thumbnailUrl);
       }
 
       const payload: CreateTestimonialPayload = {
         ...form,
         mediaUrl,
-        thumbnailUrl,
+        // Video testimonials play the uploaded video directly — no separate thumbnail.
+        thumbnailUrl: form.type === "VIDEO" ? "" : form.thumbnailUrl,
       };
 
       if (editingTestimonial) {
@@ -870,7 +820,7 @@ export function TestimonialsPageContent() {
                   }
                   helperText={
                     form.type === "VIDEO"
-                      ? "MP4, MOV, WebM (Max 100MB)"
+                      ? "MP4, MOV, WebM (Max 100MB). The video itself is shown in Admin + App — no separate thumbnail."
                       : "JPG, PNG, WebP (Max 5MB)"
                   }
                   accept={form.type === "VIDEO" ? VIDEO_ACCEPT : IMAGE_ACCEPT}
@@ -886,25 +836,6 @@ export function TestimonialsPageContent() {
               </div>
               )}
             </div>
-            {form.type === "VIDEO" && (
-              <div>
-                <Label>Thumbnail *</Label>
-                <div className="mt-1">
-                  <FileDropzone
-                    variant="compact"
-                    label="Upload thumbnail from this device"
-                    helperText="JPG, PNG, WebP (Max 2MB)"
-                    accept={IMAGE_ACCEPT}
-                    maxSize={2 * 1024 * 1024}
-                    selectedFile={thumbnailUpload}
-                    previewUrl={thumbnailPreviewUrl}
-                    onFileSelect={setThumbnailUpload}
-                    onFileChange={handleThumbnailFileSelect}
-                    onClear={() => handleThumbnailFileSelect(null)}
-                  />
-                </div>
-              </div>
-            )}
             <div>
               <Label htmlFor="t-rating">Rating (1–5)</Label>
               <Select
@@ -984,26 +915,12 @@ export function TestimonialsPageContent() {
               <div className="aspect-video overflow-hidden rounded-lg bg-gray-100">
                 {previewTestimonial.type === "VIDEO" &&
                 isPlayableMediaUrl(previewTestimonial.mediaUrl) ? (
-                  <TestimonialVideoPlayer
-                    src={previewTestimonial.mediaUrl}
-                    poster={
-                      isPlayableMediaUrl(previewTestimonial.thumbnailUrl)
-                        ? previewTestimonial.thumbnailUrl
-                        : undefined
-                    }
-                  />
+                  <TestimonialVideoPlayer src={previewTestimonial.mediaUrl} />
                 ) : previewTestimonial.type === "IMAGE" &&
                   isPlayableMediaUrl(previewTestimonial.mediaUrl) ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={previewTestimonial.mediaUrl}
-                    alt={previewTestimonial.customerName}
-                    className="size-full object-cover"
-                  />
-                ) : isPlayableMediaUrl(previewTestimonial.thumbnailUrl) ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={previewTestimonial.thumbnailUrl}
                     alt={previewTestimonial.customerName}
                     className="size-full object-cover"
                   />

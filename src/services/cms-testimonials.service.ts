@@ -92,9 +92,7 @@ export function toUiTestimonial(t: AdminTestimonial): CustomerTestimonial {
         ? t.imageUrl || t.profileImage || ""
         : "";
 
-  const thumbnailUrl = t.thumbnail || undefined;
-  const hasMedia =
-    isPlayableMediaUrl(mediaUrl) || isPlayableMediaUrl(thumbnailUrl);
+  const hasMedia = isPlayableMediaUrl(mediaUrl);
 
   return {
     id: t.id,
@@ -106,7 +104,11 @@ export function toUiTestimonial(t: AdminTestimonial): CustomerTestimonial {
     rating: t.rating ?? 5,
     review: t.review ?? "",
     mediaUrl: isPlayableMediaUrl(mediaUrl) ? mediaUrl : "",
-    thumbnailUrl: isPlayableMediaUrl(thumbnailUrl) ? thumbnailUrl : undefined,
+    // Video cards preview the uploaded video — no separate thumbnail URL.
+    thumbnailUrl:
+      type === "IMAGE" && isPlayableMediaUrl(t.thumbnail || undefined)
+        ? t.thumbnail || undefined
+        : undefined,
     mediaUnavailable:
       typeof t.mediaUnavailable === "boolean"
         ? t.mediaUnavailable
@@ -136,7 +138,8 @@ function toCreateDto(
     return {
       ...base,
       videoUrl: payload.mediaUrl,
-      thumbnail: payload.thumbnailUrl || undefined,
+      // Explicitly clear separate poster thumbnails — video is the source of truth.
+      thumbnail: "",
     };
   }
 
@@ -169,12 +172,13 @@ function toUpdateDto(
   if (payload.mediaUrl !== undefined) {
     if (payload.type === "VIDEO") {
       dto.videoUrl = payload.mediaUrl || undefined;
+      dto.thumbnail = "";
     } else if (payload.type === "IMAGE") {
       dto.imageUrl = payload.mediaUrl || undefined;
     }
   }
 
-  if (payload.thumbnailUrl !== undefined) {
+  if (payload.thumbnailUrl !== undefined && payload.type !== "VIDEO") {
     dto.thumbnail = payload.thumbnailUrl || undefined;
   }
 

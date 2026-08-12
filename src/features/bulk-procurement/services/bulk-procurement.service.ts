@@ -13,6 +13,21 @@ import type {
 import { customerExecutiveService } from "@/services/customerExecutive";
 import { formatCurrency } from "@/utils/format-currency";
 
+/** Cum / Cubic Metres → Cubic Meter (IndiaMART traditional RMC unit). */
+function normalizeVolumeUnit(unit: string): string {
+  const key = unit.trim().toLowerCase();
+  if (
+    key === "cum" ||
+    key === "cubic metre" ||
+    key === "cubic metres" ||
+    key === "cubic meters" ||
+    key === "cubic meter"
+  ) {
+    return "Cubic Meter";
+  }
+  return unit.trim() || "Units";
+}
+
 export const BULK_PROCUREMENT_PAGE_SIZE = 10;
 
 export type BulkStatusFilter = "all" | BulkProcurementStatus;
@@ -156,7 +171,7 @@ function mapQuotations(raw: Record<string, unknown>): BulkQuotation[] {
       status: asString(row.status, "DRAFT") as BulkQuotationStatus,
       materialLabel: asString(row.materialLabel),
       quantity: asNumber(row.quantity) ?? 0,
-      unit: asString(row.unit, "Units"),
+      unit: normalizeVolumeUnit(asString(row.unit, "Units")),
       unitPrice: asNumber(row.unitPrice) ?? 0,
       deliveryCharge: asNumber(row.deliveryCharge) ?? 0,
       gstPercent: asNumber(row.gstPercent) ?? 18,
@@ -176,9 +191,26 @@ function mapQuotations(raw: Record<string, unknown>): BulkQuotation[] {
 }
 
 function materialLabel(raw: Record<string, unknown>): string {
+  const isMixed = raw.isMixedLoad === true;
+  const categories = asArray(raw.materialCategoriesJson).length
+    ? asArray(raw.materialCategoriesJson)
+    : asArray(raw.materialCategories);
+
+  if (isMixed || categories.length > 1) {
+    const names = categories
+      .map((item) => asString(asRecord(item).name))
+      .filter(Boolean);
+    if (names.length) {
+      return names.length === 1
+        ? names[0]
+        : `Mixed Load (${names.join(", ")})`;
+    }
+    if (isMixed) return "Mixed Load";
+  }
+
   return (
-    asString(raw.materialTypeLabel) ||
     asString(raw.materialCategoryName) ||
+    asString(raw.materialTypeLabel) ||
     asString(raw.productType) ||
     "Material"
   );
@@ -225,7 +257,7 @@ export function mapBulkEnquiry(
     projectLocation: asString(raw.location) || "—",
     material: materialLabel(raw),
     quantity,
-    unit: asString(raw.expectedUnit, "Units"),
+    unit: normalizeVolumeUnit(asString(raw.expectedUnit, "Units")),
     deliveryRequirement: raw.deliveryRequirement
       ? (asString(raw.deliveryRequirement) as BulkDeliveryRequirement)
       : null,

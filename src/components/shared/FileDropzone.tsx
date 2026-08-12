@@ -93,6 +93,13 @@ export function FileDropzone({
       : BANNER_DEFAULTS.dragActiveLabel
     : resolvedLabel;
   const hasCompactSelection = isCompact && (selectedFile || previewUrl);
+  const isVideoPreview = Boolean(
+    previewUrl &&
+      (previewUrl.startsWith("blob:") ||
+        /\.(mp4|mov|webm)(\?|$)/i.test(previewUrl) ||
+        previewUrl.includes("/testimonials/") ||
+        previewUrl.includes("/videos/")),
+  );
 
   const handleClear = (event: React.MouseEvent) => {
     event.stopPropagation();
@@ -122,14 +129,24 @@ export function FileDropzone({
             <div className="flex items-center gap-3 px-3 py-2.5">
               {previewUrl ? (
                 <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-white">
-                  <Image
-                    src={previewUrl}
-                    alt="Selected file preview"
-                    fill
-                    className="object-cover"
-                    sizes="80px"
-                    unoptimized={previewUrl.startsWith("blob:")}
-                  />
+                  {isVideoPreview ? (
+                    <video
+                      src={previewUrl}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      className="absolute inset-0 size-full object-cover"
+                    />
+                  ) : (
+                    <Image
+                      src={previewUrl}
+                      alt="Selected file preview"
+                      fill
+                      className="object-cover"
+                      sizes="80px"
+                      unoptimized={previewUrl.startsWith("blob:")}
+                    />
+                  )}
                 </div>
               ) : (
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white">
@@ -138,7 +155,7 @@ export function FileDropzone({
               )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-medium text-[#1A1A1A]">
-                  {selectedFile?.name ?? "Image selected"}
+                  {selectedFile?.name ?? "File selected"}
                 </p>
                 <p className="text-[10px] text-gray-400">
                   Click or drop to replace
@@ -180,6 +197,40 @@ export function FileDropzone({
               </span>
             </div>
           )
+        ) : previewUrl && isVideoPreview ? (
+          <div className="relative w-full max-w-md overflow-hidden rounded-lg bg-black">
+            <video
+              src={previewUrl}
+              controls
+              playsInline
+              preload="metadata"
+              className="aspect-video w-full object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <div className="flex items-center justify-between gap-3 bg-white/95 px-3 py-2">
+              <p className="truncate text-xs font-medium text-[#1A1A1A]">
+                {selectedFile?.name ?? "Video selected"}
+              </p>
+              <div className="flex shrink-0 gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={open}>
+                  Replace
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClear}
+                >
+                  Remove
+                </Button>
+              </div>
+            </div>
+            {selectedFile ? (
+              <div className="bg-white px-3 pb-2">
+                <ProgressBar value={selectedFile.progress} />
+              </div>
+            ) : null}
+          </div>
         ) : (
           <>
             <div className="mb-3 flex size-12 items-center justify-center rounded-full bg-white shadow-sm">
@@ -203,7 +254,7 @@ export function FileDropzone({
         )}
       </div>
 
-      {selectedFile && !isCompact ? (
+      {selectedFile && !isCompact && !(previewUrl && isVideoPreview) ? (
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-4">
             <p className="truncate text-sm font-medium text-[#1A1A1A]">

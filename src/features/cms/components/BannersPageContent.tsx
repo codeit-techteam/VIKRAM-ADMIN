@@ -34,6 +34,7 @@ import {
   getBanners,
   queryBannerModifications,
   queryBanners,
+  reorderBanners,
 } from "@/features/cms/services/banner.mock-api";
 import type {
   Banner,
@@ -96,6 +97,7 @@ export function BannersPageContent() {
   const [editBanner, setEditBanner] = useState<Banner | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Banner | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isReordering, setIsReordering] = useState(false);
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
@@ -162,11 +164,35 @@ export function BannersPageContent() {
     await refresh();
   };
 
+  const handleReorder = async (nextFiltered: Banner[]) => {
+    const queue = [...nextFiltered];
+    const filteredIds = new Set(nextFiltered.map((b) => b.id));
+    const next = banners.map((banner) => {
+      if (!filteredIds.has(banner.id)) return banner;
+      return queue.shift() ?? banner;
+    });
+
+    const previous = banners;
+    setBanners(next);
+    setIsReordering(true);
+    try {
+      await reorderBanners(next);
+      notify.success("Banner order updated", "Customer app will refresh.");
+    } catch (error) {
+      setBanners(previous);
+      notify.error(
+        error instanceof Error ? error.message : "Failed to reorder banners",
+      );
+    } finally {
+      setIsReordering(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Banner Management"
-        subtitle={`You have ${liveCount} active banner${liveCount === 1 ? "" : "s"} running across all states.`}
+        subtitle={`You have ${liveCount} active banner${liveCount === 1 ? "" : "s"} running across all states. Drag rows to change carousel order.`}
         breadcrumbs={getNavBreadcrumbsFromPath("/customer-app-cms/banners")}
         actions={
           <Button
@@ -196,6 +222,10 @@ export function BannersPageContent() {
         <BannerPreviewTable
           banners={filteredBanners}
           isLoading={isLoading}
+          isReordering={isReordering}
+          onReorder={(next) => {
+            void handleReorder(next);
+          }}
           onEdit={(banner) => {
             setEditBanner(banner);
             setAddDialogOpen(true);

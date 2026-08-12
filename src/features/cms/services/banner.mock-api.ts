@@ -157,6 +157,15 @@ export async function deleteBanner(id: string): Promise<boolean> {
   return true;
 }
 
+export async function reorderBanners(banners: Banner[]): Promise<void> {
+  await bannersService.reorder(
+    banners.map((banner, index) => ({
+      id: banner.id,
+      displayOrder: index + 1,
+    })),
+  );
+}
+
 export function queryBanners(
   banners: Banner[],
   filters: { search: string; status: string; pageSize: number },

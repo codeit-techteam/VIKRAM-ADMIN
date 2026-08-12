@@ -232,6 +232,9 @@ export const API_ENDPOINTS = {
     PAYMENT_REMINDER: "/admin/customer-executive/payment/reminder",
     TICKETS: "/admin/customer-executive/tickets",
     TICKET_BY_ID: (id: string) => `/admin/customer-executive/tickets/${id}`,
+    EXPERT_CALLBACKS: "/admin/customer-executive/expert-callbacks",
+    EXPERT_CALLBACK_BY_ID: (id: string) =>
+      `/admin/customer-executive/expert-callbacks/${id}`,
     BY_ID: (id: string) => `/admin/customer-executive/${id}`,
   },
   LOGISTICS: {

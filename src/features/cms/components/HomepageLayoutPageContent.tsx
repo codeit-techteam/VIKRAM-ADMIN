@@ -1,6 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { ArrowDown, ArrowUp, GripVertical } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -8,11 +25,157 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
+import { cn } from "@/lib/utils";
 import {
   cmsAdminService,
   type AdminHomeSection,
 } from "@/services/cms-admin.service";
 import { notify } from "@/utils/notify";
+
+function sectionHint(sectionType: string): string {
+  switch (sectionType) {
+    case "PROMO_BANNER":
+      return " · Banner Management → Home Promo";
+    case "FEATURED_PRODUCTS":
+      return " · product rail: featured";
+    case "RECENTLY_ADDED":
+      return " · product rail: recently added";
+    case "TOP_DEALS":
+      return " · product rail: top deals";
+    case "PRODUCT_DISCOVERY":
+      return " · legacy (use Featured / Recently Added / Top Deals)";
+    case "OFFER_FOR_YOU":
+      return " · CMS offers carousel";
+    default:
+      return "";
+  }
+}
+
+function SortableSectionRow({
+  section,
+  index,
+  total,
+  saving,
+  editingTitleId,
+  titleDraft,
+  setTitleDraft,
+  beginEditTitle,
+  saveTitle,
+  setEditingTitleId,
+  move,
+  toggle,
+}: {
+  section: AdminHomeSection;
+  index: number;
+  total: number;
+  saving: boolean;
+  editingTitleId: string | null;
+  titleDraft: string;
+  setTitleDraft: (value: string) => void;
+  beginEditTitle: (section: AdminHomeSection) => void;
+  saveTitle: (section: AdminHomeSection) => void;
+  setEditingTitleId: (id: string | null) => void;
+  move: (index: number, direction: -1 | 1) => void;
+  toggle: (id: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: section.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-3 bg-white px-4 py-3",
+        isDragging && "z-10 rounded-lg shadow-lg ring-1 ring-orange-200",
+      )}
+    >
+      <button
+        type="button"
+        className="text-muted-foreground hover:text-foreground cursor-grab touch-none active:cursor-grabbing"
+        aria-label={`Drag to reorder ${section.title || section.sectionType}`}
+        disabled={saving}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+
+      <div className="min-w-0 flex-1">
+        {editingTitleId === section.id ? (
+          <Input
+            value={titleDraft}
+            autoFocus
+            disabled={saving}
+            className="h-8 text-sm"
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onBlur={() => void saveTitle(section)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void saveTitle(section);
+              }
+              if (e.key === "Escape") {
+                setEditingTitleId(null);
+              }
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            className="truncate text-left text-sm font-medium hover:underline"
+            onClick={() => beginEditTitle(section)}
+          >
+            {section.title || section.sectionType}
+          </button>
+        )}
+        <p className="text-muted-foreground truncate text-xs">
+          {section.sectionType}
+          {section.layoutType ? ` · ${section.layoutType}` : ""}
+          {sectionHint(section.sectionType)}
+        </p>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          disabled={saving || index === 0}
+          onClick={() => void move(index, -1)}
+          aria-label="Move up"
+        >
+          <ArrowUp className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          disabled={saving || index === total - 1}
+          onClick={() => void move(index, 1)}
+          aria-label="Move down"
+        >
+          <ArrowDown className="h-4 w-4" />
+        </Button>
+        <Switch
+          checked={section.enabled}
+          onCheckedChange={() => void toggle(section.id)}
+        />
+      </div>
+    </li>
+  );
+}
 
 export function HomepageLayoutPageContent() {
   const [sections, setSections] = useState<AdminHomeSection[]>([]);
@@ -20,6 +183,15 @@ export function HomepageLayoutPageContent() {
   const [saving, setSaving] = useState(false);
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState("");
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const sectionIds = useMemo(() => sections.map((s) => s.id), [sections]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -65,6 +237,17 @@ export function HomepageLayoutPageContent() {
     const next = [...sections];
     const [item] = next.splice(index, 1);
     next.splice(target, 0, item);
+    await persistOrder(next);
+  };
+
+  const onDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = sections.findIndex((s) => s.id === active.id);
+    const newIndex = sections.findIndex((s) => s.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const next = arrayMove(sections, oldIndex, newIndex);
+    setSections(next.map((s, i) => ({ ...s, displayOrder: i + 1 })));
     await persistOrder(next);
   };
 
@@ -116,7 +299,7 @@ export function HomepageLayoutPageContent() {
     <div className="space-y-6">
       <PageHeader
         title="Homepage Layout Manager"
-        subtitle="Reorder and toggle sections on the Customer App Home Screen. Home Promo Banner shows banners with placement Home Promo from Banner Management — edit those banners to set Shop Now → Product or Catalog."
+        subtitle="Drag sections to reorder, or use arrows. Toggle Featured Products, Recently Added, and Top Deals individually. Offers For You is off by default."
         breadcrumbs={getNavBreadcrumbsFromPath(
           "/customer-app-cms/homepage-layout",
         )}
@@ -130,76 +313,36 @@ export function HomepageLayoutPageContent() {
             No home sections found. Run CMS seed on the backend.
           </p>
         ) : (
-          <ul className="divide-y">
-            {sections.map((section, index) => (
-              <li
-                key={section.id}
-                className="flex items-center gap-3 px-4 py-3"
-              >
-                <GripVertical className="text-muted-foreground h-4 w-4" />
-                <div className="min-w-0 flex-1">
-                  {editingTitleId === section.id ? (
-                    <Input
-                      value={titleDraft}
-                      autoFocus
-                      disabled={saving}
-                      className="h-8 text-sm"
-                      onChange={(e) => setTitleDraft(e.target.value)}
-                      onBlur={() => void saveTitle(section)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          void saveTitle(section);
-                        }
-                        if (e.key === "Escape") {
-                          setEditingTitleId(null);
-                        }
-                      }}
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      className="truncate text-left text-sm font-medium hover:underline"
-                      onClick={() => beginEditTitle(section)}
-                    >
-                      {section.title || section.sectionType}
-                    </button>
-                  )}
-                  <p className="text-muted-foreground truncate text-xs">
-                    {section.sectionType}
-                    {section.layoutType ? ` · ${section.layoutType}` : ""}
-                    {section.sectionType === "PROMO_BANNER"
-                      ? " · content from Banner Management → Home Promo"
-                      : ""}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    disabled={saving || index === 0}
-                    onClick={() => void move(index, -1)}
-                  >
-                    <ArrowUp className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    disabled={saving || index === sections.length - 1}
-                    onClick={() => void move(index, 1)}
-                  >
-                    <ArrowDown className="h-4 w-4" />
-                  </Button>
-                  <Switch
-                    checked={section.enabled}
-                    onCheckedChange={() => void toggle(section.id)}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={(event) => void onDragEnd(event)}
+          >
+            <SortableContext
+              items={sectionIds}
+              strategy={verticalListSortingStrategy}
+            >
+              <ul className="divide-y">
+                {sections.map((section, index) => (
+                  <SortableSectionRow
+                    key={section.id}
+                    section={section}
+                    index={index}
+                    total={sections.length}
+                    saving={saving}
+                    editingTitleId={editingTitleId}
+                    titleDraft={titleDraft}
+                    setTitleDraft={setTitleDraft}
+                    beginEditTitle={beginEditTitle}
+                    saveTitle={saveTitle}
+                    setEditingTitleId={setEditingTitleId}
+                    move={move}
+                    toggle={toggle}
                   />
-                </div>
-              </li>
-            ))}
-          </ul>
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
     </div>

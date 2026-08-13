@@ -3,7 +3,8 @@ export type DeliveryVehicleType =
   | "E_LOADER"
   | "THREE_WHEELER_LOADER"
   | "PICK_UP_VAN"
-  | "FULL_TRUCK";
+  | "FULL_TRUCK"
+  | "RMC_TRANSIT_MIXER";
 
 export type DeliveryPricingStatus = "ACTIVE" | "INACTIVE";
 
@@ -16,6 +17,7 @@ export const DELIVERY_VEHICLE_OPTIONS: Array<{
   { value: "THREE_WHEELER_LOADER", label: "3 Wheeler Loader" },
   { value: "PICK_UP_VAN", label: "Pick Up Van" },
   { value: "FULL_TRUCK", label: "Full Truck" },
+  { value: "RMC_TRANSIT_MIXER", label: "RMC Transit Mixer" },
 ];
 
 export interface DeliveryPricingRule {
@@ -97,6 +99,14 @@ export interface DeliveryVehicleConfig {
   active: boolean;
   hasConfiguredCapacity: boolean;
   allowedProductCategories: string[] | null;
+  supportsRmc?: boolean;
+  avgLoadingTimeMinutes?: number | null;
+  avgUnloadingTimeMinutes?: number | null;
+  driverPreparationTimeMinutes?: number | null;
+  operationalBufferMinutes?: number | null;
+  avgSpeedKmh?: number | null;
+  supportsBulkMaterial?: boolean;
+  allowedLogisticsTypes?: string[] | null;
 }
 
 export interface DeliveryEngineConfig {
@@ -113,6 +123,24 @@ export interface DeliveryEngineConfig {
   updatedAt: string;
 }
 
+export interface DeliveryEtaConfig {
+  defaultPickingMinutes: number;
+  defaultPackingMinutes: number;
+  defaultQueueMinutes: number;
+  defaultSiteAccessMinutes: number;
+  trafficMultiplier: number;
+  trafficDataAvailable: boolean;
+  fallbackSpeedKmh: number;
+  rmcPlantPreparationMinutes: number;
+  rmcMixerLoadingMinutes: number;
+  rmcPouringMinutesPerCum: number;
+  rmcSiteAccessMinutes: number;
+  rmcQueueMinutes: number;
+  confidenceHighSpreadMinutes: number;
+  confidenceMediumSpreadMinutes: number;
+  confidenceLowSpreadMinutes: number;
+}
+
 export interface UpdateDeliveryVehicleConfigPayload {
   displayName?: string;
   maxWeightKg?: number | null;
@@ -121,4 +149,12 @@ export interface UpdateDeliveryVehicleConfigPayload {
   capacityUtilizationLimit?: number;
   priority?: number;
   active?: boolean;
+  avgLoadingTimeMinutes?: number | null;
+  avgUnloadingTimeMinutes?: number | null;
+  driverPreparationTimeMinutes?: number | null;
+  operationalBufferMinutes?: number | null;
+  avgSpeedKmh?: number | null;
+  supportsRmc?: boolean;
+  supportsBulkMaterial?: boolean;
+  allowedLogisticsTypes?: string[] | null;
 }

@@ -20,28 +20,108 @@ function slugify(value: string): string {
     .slice(0, 100);
 }
 
+function asRemoteUrl(value?: string | null): string | undefined {
+  const url = value?.trim() || "";
+  if (
+    !url ||
+    url.startsWith("blob:") ||
+    url.startsWith("data:") ||
+    url.startsWith("/")
+  ) {
+    return undefined;
+  }
+  return url;
+}
+
+function toIsoDate(value?: string): string | undefined {
+  if (!value?.trim()) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toISOString();
+}
+
 function statusToModificationStatus(status: BannerStatus): ModificationStatus {
-  return status === "LIVE" ? "ACTIVE" : "SCHEDULED";
+  return status === "ACTIVE" || status === "SCHEDULED" ? "ACTIVE" : "SCHEDULED";
+}
+
+function toBanner(item: Parameters<typeof toUiBanner>[0]): Banner {
+  const ui = toUiBanner(item);
+  return {
+    id: ui.id,
+    thumbnailUrl: ui.thumbnailUrl,
+    name: ui.name,
+    description: ui.description,
+    title: ui.title,
+    subtitle: ui.subtitle,
+    location: ui.location,
+    ctaLabel: ui.ctaLabel,
+    ctaPath: ui.ctaPath,
+    linkType: ui.linkType,
+    status: ui.status,
+    startsAt: ui.startsAt,
+    endsAt: ui.endsAt,
+    priority: ui.priority,
+    targetAudience: ui.targetAudience,
+    backgroundColor: ui.backgroundColor,
+    ctaColor: ui.ctaColor,
+    badge: ui.badge,
+    mobileUrl: ui.mobileUrl,
+    desktopUrl: ui.desktopUrl,
+    imageUrl: ui.imageUrl,
+    updatedAt: ui.updatedAt,
+  };
+}
+
+function toCreatePayload(
+  data: BannerFormSchema,
+  thumbnailUrl?: string,
+  options?: { includeSlug?: boolean },
+): CreateAdminBannerInput {
+  const imageUrl =
+    asRemoteUrl(thumbnailUrl) ||
+    asRemoteUrl(data.mobileUrl) ||
+    asRemoteUrl(data.imageUrl) ||
+    asRemoteUrl(data.desktopUrl) ||
+    "";
+  return {
+    title: data.title.trim(),
+    name: data.name?.trim() || data.title.trim(),
+    description: data.description?.trim() || undefined,
+    ...(options?.includeSlug
+      ? {
+          slug: `${slugify(data.name || data.title) || "banner"}-${Date.now().toString(36)}`.slice(
+            0,
+            120,
+          ),
+        }
+      : {}),
+    imageUrl,
+    mobileUrl: asRemoteUrl(data.mobileUrl) || asRemoteUrl(thumbnailUrl) || undefined,
+    tabletUrl: asRemoteUrl(data.tabletUrl),
+    desktopUrl: asRemoteUrl(data.desktopUrl),
+    subtitle: data.subtitle,
+    badge: data.badge?.trim() || undefined,
+    ctaLabel: (data.ctaLabel ?? "").trim() || "Shop Now",
+    ctaColor: data.ctaColor?.trim() || undefined,
+    backgroundColor: data.backgroundColor?.trim() || undefined,
+    buttonAction: data.linkType || "ROUTE",
+    linkUrl: data.ctaPath.trim(),
+    linkType: data.linkType || "ROUTE",
+    linkTarget: data.ctaPath.trim().slice(0, 200),
+    placement: data.placement || data.location || "HOME_PROMO",
+    targetAudience: data.targetAudience,
+    bannerType: data.bannerType || "IMAGE",
+    displayOrder: data.displayOrder ?? 0,
+    priority: data.priority ?? 1,
+    startsAt: toIsoDate(data.startsAt),
+    endsAt: toIsoDate(data.endsAt),
+    publish: data.status === "ACTIVE",
+  };
 }
 
 export async function getBanners(): Promise<Banner[]> {
   const items = await bannersService.list();
-  return items.map((item) => {
-    const ui = toUiBanner(item);
-    return {
-      id: ui.id,
-      thumbnailUrl: ui.thumbnailUrl,
-      title: ui.title,
-      subtitle: item.subtitle ?? null,
-      location: ui.location,
-      ctaLabel: ui.ctaLabel,
-      ctaPath: ui.ctaPath,
-      linkType: ui.linkType,
-      status: ui.status,
-      startsAt: item.startsAt ?? null,
-      endsAt: item.endsAt ?? null,
-    };
-  });
+  return items.map(toBanner);
 }
 
 export async function getBannerModifications(): Promise<BannerModification[]> {
@@ -65,45 +145,13 @@ export async function createBanner(
   data: BannerFormSchema,
   thumbnailUrl?: string,
 ): Promise<Banner> {
-  const payload: CreateAdminBannerInput = {
-    title: data.title.trim(),
-    slug: slugify(data.title) || `banner-${Date.now()}`,
-    imageUrl: thumbnailUrl || data.imageUrl || "",
-    mobileUrl: data.mobileUrl || thumbnailUrl,
-    tabletUrl: data.tabletUrl,
-    desktopUrl: data.desktopUrl,
-    subtitle: data.subtitle,
-    badge: data.badge,
-    ctaLabel: data.ctaLabel.trim(),
-    ctaColor: data.ctaColor,
-    backgroundColor: data.backgroundColor,
-    linkUrl: data.ctaPath.trim(),
-    linkType: data.linkType || "ROUTE",
-    linkTarget: data.ctaPath.trim(),
-    placement: data.placement || data.location || "HOME_HERO",
-    bannerType: data.bannerType || "IMAGE",
-    displayOrder: data.displayOrder ?? 0,
-    priority: data.priority ?? 0,
-    startsAt: data.startsAt ? new Date(data.startsAt).toISOString() : undefined,
-    endsAt: data.endsAt ? new Date(data.endsAt).toISOString() : undefined,
-    publish: data.status === "LIVE",
-  };
-
-  const created = await bannersService.create(payload);
-  if (data.status === "LIVE") {
+  const created = await bannersService.create(
+    toCreatePayload(data, thumbnailUrl, { includeSlug: true }),
+  );
+  if (data.status === "ACTIVE") {
     await bannersService.publish(created.id);
   }
-  const ui = toUiBanner(created);
-  return {
-    id: ui.id,
-    thumbnailUrl: ui.thumbnailUrl,
-    title: ui.title,
-    location: ui.location,
-    ctaLabel: ui.ctaLabel,
-    ctaPath: ui.ctaPath,
-    linkType: ui.linkType,
-    status: data.status,
-  };
+  return toBanner(created);
 }
 
 export async function updateBanner(
@@ -111,45 +159,18 @@ export async function updateBanner(
   data: BannerFormSchema,
   thumbnailUrl?: string,
 ): Promise<Banner | null> {
-  const updated = await bannersService.update(id, {
-    title: data.title.trim(),
-    imageUrl: thumbnailUrl || data.imageUrl,
-    mobileUrl: data.mobileUrl || thumbnailUrl,
-    tabletUrl: data.tabletUrl,
-    desktopUrl: data.desktopUrl,
-    subtitle: data.subtitle,
-    badge: data.badge,
-    ctaLabel: data.ctaLabel.trim(),
-    ctaColor: data.ctaColor,
-    backgroundColor: data.backgroundColor,
-    linkUrl: data.ctaPath.trim(),
-    linkType: data.linkType || "ROUTE",
-    linkTarget: data.ctaPath.trim(),
-    placement: data.placement || data.location || "HOME_HERO",
-    bannerType: data.bannerType || "IMAGE",
-    displayOrder: data.displayOrder,
-    priority: data.priority,
-    startsAt: data.startsAt ? new Date(data.startsAt).toISOString() : undefined,
-    endsAt: data.endsAt ? new Date(data.endsAt).toISOString() : undefined,
-  });
+  const updated = await bannersService.update(
+    id,
+    toCreatePayload(data, thumbnailUrl),
+  );
 
-  if (data.status === "LIVE") {
+  if (data.status === "ACTIVE") {
     await bannersService.publish(id);
   } else {
     await bannersService.unpublish(id);
   }
 
-  const ui = toUiBanner(updated);
-  return {
-    id: ui.id,
-    thumbnailUrl: thumbnailUrl || ui.thumbnailUrl,
-    title: ui.title,
-    location: ui.location,
-    ctaLabel: ui.ctaLabel,
-    ctaPath: ui.ctaPath,
-    linkType: ui.linkType,
-    status: data.status,
-  };
+  return toBanner(updated);
 }
 
 export async function deleteBanner(id: string): Promise<boolean> {
@@ -157,11 +178,27 @@ export async function deleteBanner(id: string): Promise<boolean> {
   return true;
 }
 
+export async function duplicateBanner(id: string): Promise<Banner> {
+  const copied = await bannersService.duplicate(id);
+  return toBanner(copied);
+}
+
+export async function activateBanner(id: string): Promise<Banner> {
+  const published = await bannersService.publish(id);
+  return toBanner(published);
+}
+
+export async function deactivateBanner(id: string): Promise<Banner> {
+  const unpublished = await bannersService.unpublish(id);
+  return toBanner(unpublished);
+}
+
 export async function reorderBanners(banners: Banner[]): Promise<void> {
   await bannersService.reorder(
     banners.map((banner, index) => ({
       id: banner.id,
       displayOrder: index + 1,
+      priority: index + 1,
     })),
   );
 }
@@ -177,6 +214,7 @@ export function queryBanners(
       const matchesSearch =
         !search ||
         banner.title.toLowerCase().includes(search) ||
+        (banner.name ?? "").toLowerCase().includes(search) ||
         banner.location.toLowerCase().includes(search) ||
         banner.ctaLabel.toLowerCase().includes(search) ||
         banner.ctaPath.toLowerCase().includes(search);

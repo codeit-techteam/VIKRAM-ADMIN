@@ -101,7 +101,7 @@ export function QuickActionsPageContent() {
     <div className="space-y-6">
       <PageHeader
         title="Quick Action Buttons"
-        description="Control homepage shortcuts like Bulk Inquiry, WhatsApp, Call, Membership."
+        description="Control homepage shortcuts like Bulk Inquiry, WhatsApp, and Call."
         breadcrumbs={getNavBreadcrumbsFromPath(
           "/customer-app-cms/quick-actions",
         )}

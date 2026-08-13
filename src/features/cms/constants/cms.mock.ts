@@ -41,13 +41,20 @@ export const CMS_QUICK_ACTIONS: QuickActionData[] = [
     circleColor: "orange",
     href: `${ROUTES.CUSTOMER_APP_CMS}/catalog/new`,
   },
-  {
-    id: "upload-banner",
-    label: "Upload Banner",
-    iconName: "upload",
-    circleColor: "blue",
-    href: `${ROUTES.CUSTOMER_APP_CMS}/banners`,
-  },
+    {
+      id: "upload-banner",
+      label: "Upload Banner",
+      iconName: "upload",
+      circleColor: "blue",
+      href: `${ROUTES.CUSTOMER_APP_CMS}/banners`,
+    },
+    {
+      id: "delivery-promotion",
+      label: "Delivery Promotion",
+      iconName: "upload",
+      circleColor: "green",
+      href: ROUTES.CUSTOMER_APP_CMS_DELIVERY_PROMOTION,
+    },
   {
     id: "send-notification",
     label: "Send Notification",

@@ -7,21 +7,35 @@ import { useEffect, useState } from "react";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { Button } from "@/components/ui/button";
-import { OFFER_TYPE_LABELS } from "@/features/cms/constants/offer.mock";
 import { getPublishedCarouselOffers } from "@/features/cms/services/offer.mock-api";
 import type { Offer } from "@/features/cms/types/offer.types";
-
-const HOME_BANNER = "https://picsum.photos/seed/bajriwala-home-banner/1200/480";
 
 export function CustomerAppHomePreview() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void getPublishedCarouselOffers().then((rows) => {
-      setOffers(rows);
-      setIsLoading(false);
-    });
+    let cancelled = false;
+    void getPublishedCarouselOffers()
+      .then((rows) => {
+        if (cancelled) return;
+        setOffers(rows);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setOffers([]);
+        setError(
+          err instanceof Error ? err.message : "Could not load published offers",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -40,8 +54,8 @@ export function CustomerAppHomePreview() {
             Customer App Home Preview
           </h1>
           <p className="mt-1 text-sm text-[#64748B]">
-            Published offers appear in the Offer Carousel below the home banner
-            and above the loyalty card.
+            Published Offer Management items appear in Offers For You. Promotional
+            Banners stay in the home banner area above.
           </p>
         </div>
         <Button
@@ -56,7 +70,7 @@ export function CustomerAppHomePreview() {
 
       <div className="mx-auto max-w-md">
         <div className="overflow-hidden rounded-[2rem] border-8 border-gray-900 bg-black p-2 shadow-2xl">
-          <div className="max-h-[720px] overflow-y-auto rounded-[1.5rem] bg-[#F5F6F8]">
+          <div className="max-h-[720px] overflow-y-auto rounded-[1.5rem] bg-white">
             <div className="sticky top-0 z-10 flex items-center justify-between bg-white px-4 py-3 shadow-sm">
               <div>
                 <p className="text-[10px] text-gray-400">Good morning</p>
@@ -64,41 +78,31 @@ export function CustomerAppHomePreview() {
                   BuildQuick Contractor
                 </p>
               </div>
-              <div className="bg-primary/10 text-primary flex size-8 items-center justify-center rounded-full text-xs font-bold">
+              <div className="flex size-8 items-center justify-center rounded-full bg-[#FFF4D1] text-xs font-bold text-[#1A1A1A]">
                 BC
               </div>
             </div>
 
-            {/* Home Banner */}
             <section className="p-3 pb-0">
-              <div className="relative aspect-[2.4/1] overflow-hidden rounded-2xl">
-                <Image
-                  src={HOME_BANNER}
-                  alt="Home banner"
-                  fill
-                  className="object-cover"
-                  sizes="400px"
-                  priority
-                />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/50 to-transparent p-4">
-                  <p className="text-[10px] font-semibold tracking-wide text-white/80 uppercase">
-                    Featured
+              <div className="relative aspect-[2.4/1] overflow-hidden rounded-2xl bg-[#FFCB05]">
+                <div className="absolute inset-0 p-4">
+                  <p className="text-[10px] font-semibold tracking-wide text-[#1A1A1A]/70 uppercase">
+                    Promotional Banner
                   </p>
-                  <p className="mt-1 max-w-[70%] text-sm font-bold text-white">
-                    Bulk procurement made simple
+                  <p className="mt-1 max-w-[80%] text-sm font-bold text-[#1A1A1A]">
+                    Home promo banners stay separate from Offers For You
                   </p>
                 </div>
               </div>
             </section>
 
-            {/* Offer Carousel — below banner, above loyalty */}
-            <section className="mt-4 px-3">
+            <section className="mt-4 px-3 pb-6">
               <div className="mb-2.5 flex items-center justify-between">
                 <h2 className="text-sm font-bold text-[#1A1A1A]">
                   Offers For You
                 </h2>
-                <span className="text-primary text-xs font-medium">
-                  See all
+                <span className="text-xs font-semibold text-[#E5A01F]">
+                  See all →
                 </span>
               </div>
 
@@ -107,75 +111,80 @@ export function CustomerAppHomePreview() {
                   {[1, 2].map((item) => (
                     <div
                       key={item}
-                      className="h-36 w-44 shrink-0 animate-pulse rounded-2xl bg-gray-200"
+                      className="h-52 w-56 shrink-0 animate-pulse rounded-2xl bg-gray-100"
                     />
                   ))}
                 </div>
+              ) : error ? (
+                <div className="rounded-2xl border border-dashed border-red-100 bg-red-50 px-4 py-8 text-center">
+                  <p className="text-xs text-red-600">{error}</p>
+                </div>
               ) : offers.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-8 text-center">
+                <div className="rounded-2xl border border-dashed border-gray-200 bg-[#F5F5F5] px-4 py-8 text-center">
                   <Gift className="mx-auto size-6 text-gray-300" />
                   <p className="mt-2 text-xs text-[#64748B]">
-                    No published carousel offers yet.
+                    No active published offers yet.
                   </p>
                 </div>
               ) : (
                 <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
-                  {offers.map((offer) => (
-                    <Link
-                      key={offer.id}
-                      href={`/customer-app-cms/offers/${offer.id}/details`}
-                      className="group relative h-40 w-44 shrink-0 overflow-hidden rounded-2xl shadow-md transition-transform hover:-translate-y-0.5"
-                    >
-                      <Image
-                        src={offer.mobileBanner}
-                        alt={offer.name}
-                        fill
-                        className="object-cover transition-transform duration-300 group-hover:scale-105"
-                        sizes="176px"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
-                      <div className="absolute top-2 left-2 rounded bg-[#ff3f6c] px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white uppercase">
-                        {OFFER_TYPE_LABELS[offer.offerType]}
-                      </div>
-                      <div className="absolute inset-x-0 bottom-0 p-2.5">
-                        <p className="line-clamp-2 text-xs font-bold text-white">
-                          {offer.name}
-                        </p>
-                        <p className="mt-1 flex items-center gap-0.5 text-[10px] font-semibold text-[#ffda79]">
-                          {offer.ctaLabel}
-                          <ChevronRight className="size-3" />
-                        </p>
-                      </div>
-                    </Link>
-                  ))}
+                  {offers.map((offer) => {
+                    const banner =
+                      offer.mobileBanner || offer.desktopBanner || "";
+                    const fromPrice = offer.products.length
+                      ? Math.min(...offer.products.map((p) => p.price))
+                      : null;
+                    return (
+                      <Link
+                        key={offer.id}
+                        href={`/customer-app-cms/offers/${offer.id}/details`}
+                        className="w-56 shrink-0 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-transform hover:-translate-y-0.5"
+                      >
+                        <div className="relative aspect-[16/10] bg-[#F5F5F5]">
+                          {banner ? (
+                            <Image
+                              src={banner}
+                              alt={offer.name}
+                              fill
+                              className="object-cover"
+                              sizes="224px"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-[10px] text-gray-400">
+                              Bajriwala
+                            </div>
+                          )}
+                          {offer.badge ? (
+                            <span className="absolute top-2 left-2 rounded-md bg-[#FEB623] px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-[#1A1A1A] uppercase">
+                              {offer.badge}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="space-y-1 p-2.5">
+                          <p className="line-clamp-2 text-xs font-bold text-[#1A1A1A]">
+                            {offer.name}
+                          </p>
+                          <p className="line-clamp-2 text-[10px] text-[#666666]">
+                            {offer.description}
+                          </p>
+                          {fromPrice ? (
+                            <p className="text-[11px] font-semibold text-[#1A1A1A]">
+                              From ₹{fromPrice.toLocaleString("en-IN")}
+                            </p>
+                          ) : null}
+                          <p className="text-[10px] text-[#64748B]">
+                            {offer.products.length} products included
+                          </p>
+                          <p className="flex items-center gap-0.5 text-[11px] font-bold text-[#E5A01F]">
+                            {offer.ctaLabel}
+                            <ChevronRight className="size-3" />
+                          </p>
+                        </div>
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
-            </section>
-
-            {/* Loyalty Card */}
-            <section className="mt-4 px-3 pb-6">
-              <div className="rounded-2xl bg-gradient-to-br from-[#1A1A1A] to-[#3a3a3a] p-4 text-white shadow-sm">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-[10px] font-medium tracking-wide text-white/60 uppercase">
-                      Bajriwala Loyalty
-                    </p>
-                    <p className="mt-1 text-lg font-bold">Gold Partner</p>
-                    <p className="mt-1 text-xs text-white/70">
-                      2,450 points available
-                    </p>
-                  </div>
-                  <div className="flex size-10 items-center justify-center rounded-xl bg-white/10">
-                    <Gift className="size-5 text-[#ffda79]" />
-                  </div>
-                </div>
-                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/15">
-                  <div className="bg-primary h-full w-2/3 rounded-full" />
-                </div>
-                <p className="mt-2 text-[10px] text-white/50">
-                  550 points to Platinum
-                </p>
-              </div>
             </section>
           </div>
         </div>

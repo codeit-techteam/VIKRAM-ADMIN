@@ -27,6 +27,7 @@ interface FilterToolbarProps {
   onSearchChange?: (value: string) => void;
   status?: string;
   onStatusChange?: (value: string) => void;
+  statusOptions?: ReadonlyArray<{ value: string; label: string }>;
   rowCount?: string;
   onRowCountChange?: (value: string) => void;
 }
@@ -38,6 +39,7 @@ export function FilterToolbar({
   onSearchChange,
   status = "all",
   onStatusChange,
+  statusOptions = STATUS_OPTIONS,
   rowCount = "10",
   onRowCountChange,
 }: FilterToolbarProps) {
@@ -71,7 +73,7 @@ export function FilterToolbar({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {STATUS_OPTIONS.map((option) => (
+            {statusOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
               </SelectItem>

@@ -38,8 +38,6 @@ export const API_ENDPOINTS = {
     ACTIVATE: (id: string) => `/admin/customers/${id}/activate`,
     DISABLE: (id: string) => `/admin/customers/${id}/disable`,
     ASSIGNMENT: (id: string) => `/admin/customers/${id}/assignment`,
-    UPGRADE_MEMBERSHIP: (id: string) =>
-      `/admin/customers/${id}/membership/upgrade`,
     SITES: (id: string) => `/admin/customers/${id}/sites`,
     SITE_BY_ID: (id: string, siteId: string) =>
       `/admin/customers/${id}/sites/${siteId}`,
@@ -53,16 +51,6 @@ export const API_ENDPOINTS = {
     ROLE: (id: string) => `/admin/users/${id}/role`,
     PASSWORD: (id: string) => `/admin/users/${id}/password`,
   },
-  MEMBERSHIPS: {
-    BASE: "/admin/memberships",
-    STATS: "/admin/memberships/stats",
-    BY_ID: (id: string) => `/admin/memberships/${id}`,
-    APPROVE: (id: string) => `/admin/memberships/${id}/approve`,
-    CANCEL: (id: string) => `/admin/memberships/${id}/cancel`,
-    RENEW: (id: string) => `/admin/memberships/${id}/renew`,
-    PLANS: "/admin/memberships/plans",
-    PLAN_BY_ID: (id: string) => `/admin/memberships/plans/${id}`,
-  },
   CMS: {
     BASE: "/cms",
     BY_ID: (id: string) => `/cms/${id}`,
@@ -72,9 +60,21 @@ export const API_ENDPOINTS = {
     BANNER_BY_ID: (id: string) => `/admin/banners/${id}`,
     BANNER_PUBLISH: (id: string) => `/admin/banners/${id}/publish`,
     BANNER_UNPUBLISH: (id: string) => `/admin/banners/${id}/unpublish`,
+    BANNER_DUPLICATE: (id: string) => `/admin/banners/${id}/duplicate`,
     BANNERS_REORDER: "/admin/banners/reorder",
+    DELIVERY_PROMOTIONS: "/admin/delivery-promotions",
+    DELIVERY_PROMOTION_BY_ID: (id: string) =>
+      `/admin/delivery-promotions/${id}`,
+    DELIVERY_PROMOTION_PUBLISH: (id: string) =>
+      `/admin/delivery-promotions/${id}/publish`,
+    DELIVERY_PROMOTION_UNPUBLISH: (id: string) =>
+      `/admin/delivery-promotions/${id}/unpublish`,
     OFFERS: "/admin/offers",
     OFFER_BY_ID: (id: string) => `/admin/offers/${id}`,
+    OFFER_PRODUCTS: (id: string) => `/admin/offers/${id}/products`,
+    OFFER_PUBLISH: (id: string) => `/admin/offers/${id}/publish`,
+    OFFER_ACTIVATE: (id: string) => `/admin/offers/${id}/activate`,
+    OFFER_DEACTIVATE: (id: string) => `/admin/offers/${id}/deactivate`,
     VIDEOS: "/admin/videos",
     VIDEO_UPLOAD: "/admin/videos/upload",
     VIDEO_BY_ID: (id: string) => `/admin/videos/${id}`,
@@ -182,10 +182,6 @@ export const API_ENDPOINTS = {
     CUSTOMER_SEARCH: "/admin/customer-executive/customers/search",
     CUSTOMER_NOTE: (id: string) =>
       `/admin/customer-executive/customers/${id}/note`,
-    CUSTOMER_MEMBERSHIP: (id: string) =>
-      `/admin/customer-executive/customers/${id}/membership`,
-    CUSTOMER_MEMBERSHIP_RENEW: (id: string) =>
-      `/admin/customer-executive/customers/${id}/membership/renew`,
     CUSTOMER_LOYALTY: (id: string) =>
       `/admin/customer-executive/customers/${id}/loyalty`,
     CUSTOMER_LOYALTY_HISTORY: (id: string) =>
@@ -257,6 +253,8 @@ export const API_ENDPOINTS = {
     VEHICLE: (vehicleType: string) =>
       `/admin/delivery-pricing/vehicles/${encodeURIComponent(vehicleType)}`,
     ENGINE_CONFIG: "/admin/delivery-pricing/engine-config",
+    ETA_CONFIG: "/admin/delivery-pricing/eta-config",
+    LOADING_RULES: "/admin/delivery-pricing/loading-rules",
     BY_ID: (id: string) => `/admin/delivery-pricing/${id}`,
     HISTORY: (id: string) => `/admin/delivery-pricing/${id}/history`,
     STATUS: (id: string) => `/admin/delivery-pricing/${id}/status`,

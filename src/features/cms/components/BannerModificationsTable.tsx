@@ -7,9 +7,9 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { MoreVertical } from "lucide-react";
-import Image from "next/image";
 import { useMemo } from "react";
 
+import { SafeRemoteImage } from "@/components/shared/SafeRemoteImage";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -59,7 +59,7 @@ export function BannerModificationsTable({
           return (
             <div className="flex items-center gap-3">
               <div className="relative size-10 shrink-0 overflow-hidden rounded-lg bg-gray-100">
-                <Image
+                <SafeRemoteImage
                   src={row.thumbnailUrl}
                   alt={row.name}
                   fill
@@ -98,7 +98,9 @@ export function BannerModificationsTable({
           return (
             <div className="flex items-center gap-2">
               <Avatar size="sm">
-                <AvatarImage src={row.updatedByAvatar} alt={row.updatedBy} />
+                {row.updatedByAvatar ? (
+                  <AvatarImage src={row.updatedByAvatar} alt={row.updatedBy} />
+                ) : null}
                 <AvatarFallback>{getInitials(row.updatedBy)}</AvatarFallback>
               </Avatar>
               <span className="text-[#64748B]">{row.updatedBy}</span>

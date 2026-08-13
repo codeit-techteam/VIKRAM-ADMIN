@@ -180,17 +180,6 @@ export async function disableAdminCustomer(id: string) {
   return data.data;
 }
 
-export async function upgradeAdminCustomerMembership(
-  id: string,
-  payload: { planId?: string; planName?: string },
-) {
-  const { data } = await api.post<ApiEnvelope<AdminCustomerDetail>>(
-    API_ENDPOINTS.CUSTOMERS.UPGRADE_MEMBERSHIP(id),
-    payload,
-  );
-  return data.data;
-}
-
 export async function fetchCustomerSites(
   customerId: string,
 ): Promise<DeliverySite[]> {

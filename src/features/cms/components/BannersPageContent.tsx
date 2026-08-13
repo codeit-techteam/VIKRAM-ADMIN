@@ -15,6 +15,12 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -26,10 +32,14 @@ import {
 } from "@/components/ui/select";
 import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { AddBannerDialog } from "@/features/cms/components/AddBannerDialog";
+import { BannerMobilePreview } from "@/features/cms/components/BannerMobilePreview";
 import { BannerModificationsTable } from "@/features/cms/components/BannerModificationsTable";
 import { BannerPreviewTable } from "@/features/cms/components/BannerPreviewTable";
 import {
+  activateBanner,
+  deactivateBanner,
   deleteBanner,
+  duplicateBanner,
   getBannerModifications,
   getBanners,
   queryBannerModifications,
@@ -95,6 +105,7 @@ export function BannersPageContent() {
 
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editBanner, setEditBanner] = useState<Banner | null>(null);
+  const [previewBanner, setPreviewBanner] = useState<Banner | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Banner | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
@@ -130,7 +141,11 @@ export function BannersPageContent() {
   );
 
   const liveCount = useMemo(
-    () => banners.filter((banner) => banner.status === "LIVE").length,
+    () =>
+      banners.filter(
+        (banner) =>
+          banner.status === "ACTIVE" || banner.status === "SCHEDULED",
+      ).length,
     [banners],
   );
 
@@ -164,6 +179,37 @@ export function BannersPageContent() {
     await refresh();
   };
 
+  const handleDuplicate = async (banner: Banner) => {
+    try {
+      await duplicateBanner(banner.id);
+      notify.success("Banner duplicated", `${banner.title} copied as draft.`);
+      await refresh();
+    } catch (error) {
+      notify.error(
+        error instanceof Error ? error.message : "Failed to duplicate banner",
+      );
+    }
+  };
+
+  const handleToggleActive = async (banner: Banner) => {
+    const isActive =
+      banner.status === "ACTIVE" || banner.status === "SCHEDULED";
+    try {
+      if (isActive) {
+        await deactivateBanner(banner.id);
+        notify.success("Banner deactivated", `${banner.title} is hidden.`);
+      } else {
+        await activateBanner(banner.id);
+        notify.success("Banner activated", `${banner.title} will appear in the app.`);
+      }
+      await refresh();
+    } catch (error) {
+      notify.error(
+        error instanceof Error ? error.message : "Failed to update banner",
+      );
+    }
+  };
+
   const handleReorder = async (nextFiltered: Banner[]) => {
     const queue = [...nextFiltered];
     const filteredIds = new Set(nextFiltered.map((b) => b.id));
@@ -191,8 +237,8 @@ export function BannersPageContent() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Banner Management"
-        subtitle={`You have ${liveCount} active banner${liveCount === 1 ? "" : "s"} running across all states. Drag rows to change carousel order.`}
+        title="Promotional Banners"
+        subtitle={`${liveCount} banner${liveCount === 1 ? "" : "s"} currently eligible to show on the Customer App Home Screen. Drag rows to change carousel order.`}
         breadcrumbs={getNavBreadcrumbsFromPath("/customer-app-cms/banners")}
         actions={
           <Button
@@ -212,10 +258,19 @@ export function BannersPageContent() {
       <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
         <FilterToolbar
           className="mb-6"
+          searchPlaceholder="Search title, placement, or CTA..."
           search={search}
           onSearchChange={setSearch}
           status={status}
           onStatusChange={setStatus}
+          statusOptions={[
+            { value: "all", label: "All" },
+            { value: "ACTIVE", label: "Active" },
+            { value: "SCHEDULED", label: "Scheduled" },
+            { value: "DRAFT", label: "Draft" },
+            { value: "EXPIRED", label: "Expired" },
+            { value: "INACTIVE", label: "Inactive" },
+          ]}
           rowCount={rowCount}
           onRowCountChange={setRowCount}
         />
@@ -229,6 +284,13 @@ export function BannersPageContent() {
           onEdit={(banner) => {
             setEditBanner(banner);
             setAddDialogOpen(true);
+          }}
+          onPreview={setPreviewBanner}
+          onDuplicate={(banner) => {
+            void handleDuplicate(banner);
+          }}
+          onToggleActive={(banner) => {
+            void handleToggleActive(banner);
           }}
           onDelete={setDeleteTarget}
         />
@@ -280,7 +342,7 @@ export function BannersPageContent() {
                     <Label>Status</Label>
                     <Select
                       value={draftModFilters.status}
-                      onValueChange={(value) => {
+                      onValueChange={(value: string) => {
                         if (value) {
                           setDraftModFilters((prev) => ({
                             ...prev,
@@ -346,6 +408,35 @@ export function BannersPageContent() {
           void refresh();
         }}
       />
+
+      <Dialog
+        open={Boolean(previewBanner)}
+        onOpenChange={(open) => {
+          if (!open) setPreviewBanner(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Customer App preview</DialogTitle>
+          </DialogHeader>
+          {previewBanner ? (
+            <BannerMobilePreview
+              title={previewBanner.title}
+              subtitle={previewBanner.subtitle}
+              badge={previewBanner.badge}
+              ctaLabel={previewBanner.ctaLabel}
+              backgroundColor={previewBanner.backgroundColor}
+              ctaColor={previewBanner.ctaColor}
+              imageUrl={
+                previewBanner.mobileUrl ||
+                previewBanner.imageUrl ||
+                previewBanner.desktopUrl ||
+                previewBanner.thumbnailUrl
+              }
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <ConfirmationDialog
         open={Boolean(deleteTarget)}

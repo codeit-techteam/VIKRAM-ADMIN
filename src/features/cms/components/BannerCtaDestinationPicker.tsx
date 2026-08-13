@@ -1,9 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import { Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { SafeRemoteImage } from "@/components/shared/SafeRemoteImage";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -14,7 +14,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  APP_HOME_PATH,
+  BULK_PATH,
   CATALOG_HOME_PATH,
+  LOYALTY_PATH,
   type BannerCtaDestination,
 } from "@/features/cms/schema/banner-form.schema";
 import { getOfferProductsCatalog } from "@/features/cms/services/offer.mock-api";
@@ -31,6 +34,7 @@ export interface BannerCtaValue {
   linkType: string;
   ctaPath: string;
   ctaTargetLabel?: string;
+  previewImageUrl?: string;
 }
 
 interface BannerCtaDestinationPickerProps {
@@ -44,20 +48,25 @@ const DESTINATION_OPTIONS: Array<{
   label: string;
   hint: string;
 }> = [
-  {
-    value: "CATALOG",
-    label: "Catalog home",
-    hint: "Opens the main Catalog tab",
-  },
+  { value: "HOME", label: "Home", hint: "Opens the customer Home tab" },
+  { value: "CATALOG", label: "Catalog", hint: "Opens the Catalog tab" },
   {
     value: "CATEGORY",
     label: "Category",
     hint: "Opens a product category listing",
   },
+  { value: "PRODUCT", label: "Product", hint: "Opens a specific product page" },
+  { value: "OFFERS", label: "Offers", hint: "Opens Home where offers appear" },
   {
-    value: "PRODUCT",
-    label: "Product",
-    hint: "Opens a specific product page",
+    value: "BULK",
+    label: "Bulk enquiry",
+    hint: "Opens bulk procurement",
+  },
+  { value: "LOYALTY", label: "Loyalty", hint: "Opens the loyalty wallet" },
+  {
+    value: "EXTERNAL",
+    label: "External URL",
+    hint: "Opens an https link",
   },
   {
     value: "CUSTOM",
@@ -157,16 +166,65 @@ export function BannerCtaDestinationPicker({
     [products, value.ctaPath],
   );
 
+  useEffect(() => {
+    if (value.ctaDestination !== "PRODUCT") return;
+    const image = selectedProduct?.thumbnailUrl?.trim();
+    if (!image) return;
+    if (value.previewImageUrl === image) return;
+    onChange({
+      ...value,
+      previewImageUrl: image,
+    });
+    // Fill the banner image once the selected product catalog row is available.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProduct?.id, selectedProduct?.thumbnailUrl, value.ctaPath]);
+
   const productTarget = (product: OfferProduct) =>
     (product.slug || product.id).trim();
 
   const applyDestination = (destination: BannerCtaDestination) => {
+    if (destination === "HOME" || destination === "OFFERS") {
+      onChange({
+        ctaDestination: destination,
+        linkType: "ROUTE",
+        ctaPath: APP_HOME_PATH,
+        ctaTargetLabel: destination === "HOME" ? "Home" : "Offers",
+      });
+      return;
+    }
     if (destination === "CATALOG") {
       onChange({
         ctaDestination: "CATALOG",
         linkType: "ROUTE",
         ctaPath: CATALOG_HOME_PATH,
         ctaTargetLabel: "Catalog",
+      });
+      return;
+    }
+    if (destination === "LOYALTY") {
+      onChange({
+        ctaDestination: "LOYALTY",
+        linkType: "ROUTE",
+        ctaPath: LOYALTY_PATH,
+        ctaTargetLabel: "Loyalty",
+      });
+      return;
+    }
+    if (destination === "BULK") {
+      onChange({
+        ctaDestination: "BULK",
+        linkType: "BULK_INQUIRY",
+        ctaPath: BULK_PATH,
+        ctaTargetLabel: "Bulk enquiry",
+      });
+      return;
+    }
+    if (destination === "EXTERNAL") {
+      onChange({
+        ctaDestination: "EXTERNAL",
+        linkType: "EXTERNAL",
+        ctaPath: value.ctaPath.startsWith("http") ? value.ctaPath : "",
+        ctaTargetLabel: "External URL",
       });
       return;
     }
@@ -199,10 +257,10 @@ export function BannerCtaDestinationPicker({
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
-        <Label>Shop Now goes to</Label>
+        <Label>On tap, open</Label>
         <Select
           value={value.ctaDestination}
-          onValueChange={(next) => {
+          onValueChange={(next: string) => {
             if (!next) return;
             applyDestination(next as BannerCtaDestination);
           }}
@@ -228,7 +286,26 @@ export function BannerCtaDestinationPicker({
 
       {value.ctaDestination === "CATALOG" ? (
         <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-sm text-emerald-900">
-          Customers will open the Catalog tab when they tap Shop Now.
+          Customers will open the Catalog tab when they tap the banner.
+        </div>
+      ) : null}
+
+      {value.ctaDestination === "EXTERNAL" ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="banner-external-url">External URL</Label>
+          <Input
+            id="banner-external-url"
+            value={value.ctaPath}
+            onChange={(event) =>
+              onChange({
+                ctaDestination: "EXTERNAL",
+                linkType: "EXTERNAL",
+                ctaPath: event.target.value,
+                ctaTargetLabel: "External URL",
+              })
+            }
+            placeholder="https://bajriwala.com"
+          />
         </div>
       ) : null}
 
@@ -237,7 +314,7 @@ export function BannerCtaDestinationPicker({
           <Label>Category</Label>
           <Select
             value={value.ctaPath || undefined}
-            onValueChange={(next) => {
+            onValueChange={(next: string) => {
               if (!next) return;
               const category = categories.find(
                 (c) => categoryTarget(c) === next || c.id === next,
@@ -278,7 +355,7 @@ export function BannerCtaDestinationPicker({
           {selectedProduct ? (
             <div className="flex items-center gap-3 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2">
               <span className="relative size-10 shrink-0 overflow-hidden rounded-lg bg-white">
-                <Image
+                <SafeRemoteImage
                   src={selectedProduct.thumbnailUrl}
                   alt={selectedProduct.name}
                   fill
@@ -342,6 +419,7 @@ export function BannerCtaDestinationPicker({
                               linkType: "PRODUCT",
                               ctaPath: productTarget(product),
                               ctaTargetLabel: product.name,
+                              previewImageUrl: product.thumbnailUrl || undefined,
                             })
                           }
                           className={cn(
@@ -349,7 +427,7 @@ export function BannerCtaDestinationPicker({
                           )}
                         >
                           <span className="relative size-9 shrink-0 overflow-hidden rounded-lg bg-gray-100">
-                            <Image
+                            <SafeRemoteImage
                               src={product.thumbnailUrl}
                               alt={product.name}
                               fill
@@ -393,7 +471,7 @@ export function BannerCtaDestinationPicker({
             placeholder="/(tabs)/catalog"
           />
           <p className="text-xs text-muted-foreground">
-            Examples: /(tabs)/catalog, /membership, /bulk-procurement
+            Examples: /(tabs)/catalog, /account/loyalty, /bulk-procurement
           </p>
         </div>
       ) : null}

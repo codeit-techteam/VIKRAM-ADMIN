@@ -95,11 +95,15 @@ export function FileDropzone({
   const hasCompactSelection = isCompact && (selectedFile || previewUrl);
   const isVideoPreview = Boolean(
     previewUrl &&
-      (previewUrl.startsWith("blob:") ||
-        /\.(mp4|mov|webm)(\?|$)/i.test(previewUrl) ||
+      (/\.(mp4|mov|webm)(\?|$)/i.test(previewUrl) ||
+        /\.(mp4|mov|webm)$/i.test(selectedFile?.name ?? "") ||
         previewUrl.includes("/testimonials/") ||
         previewUrl.includes("/videos/")),
   );
+  const showProgress =
+    typeof selectedFile?.progress === "number" &&
+    selectedFile.progress > 0 &&
+    selectedFile.progress < 100;
 
   const handleClear = (event: React.MouseEvent) => {
     event.stopPropagation();
@@ -128,23 +132,26 @@ export function FileDropzone({
           hasCompactSelection ? (
             <div className="flex items-center gap-3 px-3 py-2.5">
               {previewUrl ? (
-                <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-white">
+                <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-white">
                   {isVideoPreview ? (
                     <video
                       src={previewUrl}
                       muted
                       playsInline
                       preload="metadata"
-                      className="absolute inset-0 size-full object-cover"
+                      className="absolute inset-0 size-full object-contain"
                     />
                   ) : (
                     <Image
                       src={previewUrl}
                       alt="Selected file preview"
                       fill
-                      className="object-cover"
-                      sizes="80px"
-                      unoptimized={previewUrl.startsWith("blob:")}
+                      className="object-contain"
+                      sizes="96px"
+                      unoptimized={
+                        previewUrl.startsWith("blob:") ||
+                        previewUrl.startsWith("data:")
+                      }
                     />
                   )}
                 </div>
@@ -160,9 +167,9 @@ export function FileDropzone({
                 <p className="text-[10px] text-gray-400">
                   Click or drop to replace
                 </p>
-                {selectedFile ? (
+                {showProgress ? (
                   <div className="mt-1.5">
-                    <ProgressBar value={selectedFile.progress} />
+                    <ProgressBar value={selectedFile?.progress ?? 0} />
                   </div>
                 ) : null}
               </div>
@@ -261,7 +268,9 @@ export function FileDropzone({
               {selectedFile.name}
             </p>
           </div>
-          <ProgressBar value={selectedFile.progress} />
+          {showProgress ? (
+            <ProgressBar value={selectedFile.progress} />
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -140,23 +140,6 @@ export function CustomerTable({
           );
         },
       }),
-      columnHelper.accessor("membership", {
-        header: "MEMBERSHIP",
-        cell: ({ getValue }) => {
-          const value = getValue();
-
-          return value ? (
-            <Badge
-              variant="outline"
-              className="border-primary/20 bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize"
-            >
-              {value.toLowerCase()}
-            </Badge>
-          ) : (
-            <span className="text-sm text-[#64748B] italic">—</span>
-          );
-        },
-      }),
       columnHelper.accessor("gst", {
         header: "GST",
         cell: ({ getValue }) => {

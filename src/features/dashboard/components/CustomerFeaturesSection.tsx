@@ -31,45 +31,6 @@ export function CustomerFeaturesSection({
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <DashboardCard
-          title="Recent Membership Purchases"
-          action={
-            <Link
-              href="/user-management/membership-plans"
-              className="text-primary text-sm font-medium hover:underline"
-            >
-              View all
-            </Link>
-          }
-        >
-          {isLoading ? (
-            <SectionSkeleton />
-          ) : (
-            <div className="divide-y divide-gray-100">
-              {data.recentMembershipPurchases.map((purchase) => (
-                <Link
-                  key={purchase.id}
-                  href={purchase.href}
-                  className="flex items-center justify-between py-3 transition-colors hover:bg-gray-50"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-[#1A1A1A]">
-                      {purchase.customer}
-                    </p>
-                    <p className="text-xs text-[#64748B]">
-                      {purchase.plan} ·{" "}
-                      {format(new Date(purchase.date), "dd MMM yyyy")}
-                    </p>
-                  </div>
-                  <span className="text-sm font-semibold text-[#1A1A1A]">
-                    {purchase.amount}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </DashboardCard>
-
-        <DashboardCard
           title="Latest Refunds"
           action={
             <Link

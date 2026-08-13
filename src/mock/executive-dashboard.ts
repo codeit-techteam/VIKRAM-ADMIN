@@ -1,7 +1,6 @@
 import {
   Award,
   ClipboardList,
-  Crown,
   IndianRupee,
   MessageSquareQuote,
   Package,
@@ -39,10 +38,6 @@ import {
   computePendingDispatchCount,
   DISPATCH_LOG_LIST,
 } from "@/mock/dispatch-logs";
-import {
-  computeMembershipStats,
-} from "@/mock/mockMemberships";
-import type { CustomerMembership } from "@/features/membership/types";
 import {
   computeTestimonialStats,
   MOCK_TESTIMONIALS,
@@ -179,11 +174,9 @@ export function fetchExecutiveDashboardData(
   const quarterRevenue = computeQuarterRevenue(kpiOrders, filter);
   const activeCustomers = computeActiveCustomers(kpiOrders, filter);
 
-  const membershipStats = computeMembershipStats();
   const bulkStats = EMPTY_BULK_STATS;
   const testimonialStats = computeTestimonialStats(MOCK_TESTIMONIALS);
   const loyaltyMembersCount = 0;
-  const recentMembershipPurchases: CustomerMembership[] = [];
 
   return {
     statCards: [
@@ -226,15 +219,6 @@ export function fetchExecutiveDashboardData(
     ],
     customerFeatureCards: [
       {
-        label: "Membership Revenue",
-        value: formatCompactRupee(membershipStats.membershipRevenue),
-        subtext: `${membershipStats.activeMemberships} active memberships`,
-        href: ROUTES.USER_MANAGEMENT_MEMBERSHIP_PLANS,
-        icon: Crown,
-        iconContainerClassName: "bg-orange-50",
-        iconClassName: "text-primary",
-      },
-      {
         label: "Loyalty Members",
         value: String(loyaltyMembersCount),
         subtext: "Enrolled in loyalty program",
@@ -263,19 +247,11 @@ export function fetchExecutiveDashboardData(
       },
     ],
     customerFeatures: {
-      membershipRevenue: formatCurrency(membershipStats.membershipRevenue),
+      membershipRevenue: formatCurrency(0),
       loyaltyMembers: loyaltyMembersCount,
       bulkProcurementLeads: bulkStats.openRequests + bulkStats.assigned,
       testimonialCount: testimonialStats.published,
-      recentMembershipPurchases: recentMembershipPurchases
-        .map((m) => ({
-          id: m.id,
-          customer: m.customerName,
-          plan: m.membership,
-          amount: formatCurrency(m.amount),
-          date: m.purchaseDate,
-          href: ROUTES.USER_MANAGEMENT_MEMBERSHIP_PLANS,
-        })),
+      recentMembershipPurchases: [],
       latestRefunds: [...MOCK_REFUNDS]
         .sort(
           (a, b) =>

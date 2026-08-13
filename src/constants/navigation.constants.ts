@@ -95,7 +95,8 @@ export const NAV_SECTIONS: NavSection[] = [
           {
             label: "Content Management",
             items: [
-              { label: "Banner Management", href: "/customer-app-cms/banners" },
+              { label: "Promotional Banners", href: "/customer-app-cms/banners" },
+              { label: "Delivery Promotion", href: "/customer-app-cms/delivery-promotion" },
               { label: "Offer Management", href: "/customer-app-cms/offers" },
               { label: "Video Management", href: "/customer-app-cms/videos" },
               {

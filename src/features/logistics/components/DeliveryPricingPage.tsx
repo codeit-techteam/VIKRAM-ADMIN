@@ -46,12 +46,14 @@ import {
   createDeliveryPricingRule,
   getDeliveryBenefitConfig,
   getDeliveryEngineConfig,
+  getDeliveryEtaConfig,
   getDeliveryPricingHistory,
   getDeliveryPricingSummary,
   listDeliveryPricingRules,
   listDeliveryVehicleConfigs,
   updateDeliveryBenefitConfig,
   updateDeliveryEngineConfig,
+  updateDeliveryEtaConfig,
   updateDeliveryPricingRule,
   updateDeliveryPricingStatus,
   updateDeliveryVehicleConfig,
@@ -60,6 +62,7 @@ import {
   DELIVERY_VEHICLE_OPTIONS,
   type DeliveryBenefitConfig,
   type DeliveryEngineConfig,
+  type DeliveryEtaConfig,
   type DeliveryPricingHistoryEntry,
   type DeliveryPricingRule,
   type DeliveryPricingStatus,
@@ -129,6 +132,11 @@ export function DeliveryPricingPage() {
     capacityUtilizationLimit: string;
     priority: string;
     active: boolean;
+    avgSpeedKmh: string;
+    avgLoadingTimeMinutes: string;
+    avgUnloadingTimeMinutes: string;
+    driverPreparationTimeMinutes: string;
+    operationalBufferMinutes: string;
   } | null>(null);
   const [savingVehicle, setSavingVehicle] = useState(false);
   const [savingEngine, setSavingEngine] = useState(false);
@@ -137,6 +145,18 @@ export function DeliveryPricingPage() {
     qtyTierFallbackEnabled: true,
     bulkOrderThresholdKg: "",
     bulkOrderThresholdQty: "",
+  });
+  const [etaConfig, setEtaConfig] = useState<DeliveryEtaConfig | null>(null);
+  const [savingEta, setSavingEta] = useState(false);
+  const [etaDraft, setEtaDraft] = useState({
+    fallbackSpeedKmh: "25",
+    trafficMultiplier: "1.25",
+    defaultSiteAccessMinutes: "5",
+    rmcPlantPreparationMinutes: "25",
+    rmcMixerLoadingMinutes: "15",
+    confidenceHighSpreadMinutes: "5",
+    confidenceMediumSpreadMinutes: "15",
+    confidenceLowSpreadMinutes: "30",
   });
   const [editorOpen, setEditorOpen] = useState(false);
   const [editor, setEditor] = useState<EditorState>(EMPTY_EDITOR);
@@ -159,13 +179,20 @@ export function DeliveryPricingPage() {
     setIsLoading(true);
     setIsError(false);
     try {
-      const [summaryData, rulesData, benefitData, vehicleData, engineData] =
-        await Promise.all([
+      const [
+        summaryData,
+        rulesData,
+        benefitData,
+        vehicleData,
+        engineData,
+        etaData,
+      ] = await Promise.all([
           getDeliveryPricingSummary(),
           listDeliveryPricingRules(),
           getDeliveryBenefitConfig(),
           listDeliveryVehicleConfigs(),
           getDeliveryEngineConfig(),
+          getDeliveryEtaConfig().catch(() => null),
         ]);
       setSummary(summaryData);
       setRules(rulesData);
@@ -189,6 +216,21 @@ export function DeliveryPricingPage() {
             ? String(engineData.bulkOrderThresholdQty)
             : "",
       });
+      setEtaConfig(etaData);
+      if (etaData) {
+        setEtaDraft({
+          fallbackSpeedKmh: String(etaData.fallbackSpeedKmh),
+          trafficMultiplier: String(etaData.trafficMultiplier),
+          defaultSiteAccessMinutes: String(etaData.defaultSiteAccessMinutes),
+          rmcPlantPreparationMinutes: String(etaData.rmcPlantPreparationMinutes),
+          rmcMixerLoadingMinutes: String(etaData.rmcMixerLoadingMinutes),
+          confidenceHighSpreadMinutes: String(etaData.confidenceHighSpreadMinutes),
+          confidenceMediumSpreadMinutes: String(
+            etaData.confidenceMediumSpreadMinutes,
+          ),
+          confidenceLowSpreadMinutes: String(etaData.confidenceLowSpreadMinutes),
+        });
+      }
     } catch (error) {
       setIsError(true);
       notify.error(getApiErrorMessage(error, "Unable to load delivery pricing."));
@@ -338,6 +380,24 @@ export function DeliveryPricingPage() {
       capacityUtilizationLimit: String(vehicle.capacityUtilizationLimit),
       priority: String(vehicle.priority),
       active: vehicle.active,
+      avgSpeedKmh:
+        vehicle.avgSpeedKmh != null ? String(vehicle.avgSpeedKmh) : "",
+      avgLoadingTimeMinutes:
+        vehicle.avgLoadingTimeMinutes != null
+          ? String(vehicle.avgLoadingTimeMinutes)
+          : "",
+      avgUnloadingTimeMinutes:
+        vehicle.avgUnloadingTimeMinutes != null
+          ? String(vehicle.avgUnloadingTimeMinutes)
+          : "",
+      driverPreparationTimeMinutes:
+        vehicle.driverPreparationTimeMinutes != null
+          ? String(vehicle.driverPreparationTimeMinutes)
+          : "",
+      operationalBufferMinutes:
+        vehicle.operationalBufferMinutes != null
+          ? String(vehicle.operationalBufferMinutes)
+          : "",
     });
     setVehicleEditorOpen(true);
   };
@@ -361,6 +421,19 @@ export function DeliveryPricingPage() {
         ),
         priority: Number(vehicleEditor.priority || 100),
         active: vehicleEditor.active,
+        avgSpeedKmh: parseOptional(vehicleEditor.avgSpeedKmh),
+        avgLoadingTimeMinutes: parseOptional(
+          vehicleEditor.avgLoadingTimeMinutes,
+        ),
+        avgUnloadingTimeMinutes: parseOptional(
+          vehicleEditor.avgUnloadingTimeMinutes,
+        ),
+        driverPreparationTimeMinutes: parseOptional(
+          vehicleEditor.driverPreparationTimeMinutes,
+        ),
+        operationalBufferMinutes: parseOptional(
+          vehicleEditor.operationalBufferMinutes,
+        ),
       });
       notify.success("Vehicle capacity updated");
       setVehicleEditorOpen(false);
@@ -392,6 +465,32 @@ export function DeliveryPricingPage() {
       notify.error(getApiErrorMessage(error, "Unable to update engine rules."));
     } finally {
       setSavingEngine(false);
+    }
+  };
+
+  const saveEta = async () => {
+    setSavingEta(true);
+    try {
+      const updated = await updateDeliveryEtaConfig({
+        fallbackSpeedKmh: Number(etaDraft.fallbackSpeedKmh),
+        trafficMultiplier: Number(etaDraft.trafficMultiplier),
+        defaultSiteAccessMinutes: Number(etaDraft.defaultSiteAccessMinutes),
+        rmcPlantPreparationMinutes: Number(etaDraft.rmcPlantPreparationMinutes),
+        rmcMixerLoadingMinutes: Number(etaDraft.rmcMixerLoadingMinutes),
+        confidenceHighSpreadMinutes: Number(
+          etaDraft.confidenceHighSpreadMinutes,
+        ),
+        confidenceMediumSpreadMinutes: Number(
+          etaDraft.confidenceMediumSpreadMinutes,
+        ),
+        confidenceLowSpreadMinutes: Number(etaDraft.confidenceLowSpreadMinutes),
+      });
+      setEtaConfig(updated);
+      notify.success("ETA defaults updated");
+    } catch (error) {
+      notify.error(getApiErrorMessage(error, "Unable to update ETA config."));
+    } finally {
+      setSavingEta(false);
     }
   };
 
@@ -697,6 +796,58 @@ export function DeliveryPricingPage() {
           <p className="mt-3 text-xs text-gray-400">
             Last updated {formatHistoryAt(engine.updatedAt)}
             {engine.updatedByName ? ` · ${engine.updatedByName}` : ""}
+          </p>
+        ) : null}
+      </section>
+
+      <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-[#1A1A1A]">
+              ETA Engine Defaults
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Travel speed, operational buffers, and RMC plant times used by the
+              customer app. Material loading rates stay on logistics profiles.
+            </p>
+          </div>
+          <Button
+            onClick={() => void saveEta()}
+            disabled={savingEta || isLoading}
+          >
+            {savingEta ? "Saving…" : "Save ETA Defaults"}
+          </Button>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {(
+            [
+              ["fallbackSpeedKmh", "Fallback speed (km/h)"],
+              ["trafficMultiplier", "Traffic multiplier"],
+              ["defaultSiteAccessMinutes", "Site access (min)"],
+              ["rmcPlantPreparationMinutes", "RMC plant prep (min)"],
+              ["rmcMixerLoadingMinutes", "RMC mixer loading (min)"],
+              ["confidenceHighSpreadMinutes", "High-confidence spread"],
+              ["confidenceMediumSpreadMinutes", "Medium-confidence spread"],
+              ["confidenceLowSpreadMinutes", "Low-confidence spread"],
+            ] as Array<[keyof typeof etaDraft, string]>
+          ).map(([key, label]) => (
+            <div key={key} className="space-y-2">
+              <Label>{label}</Label>
+              <Input
+                type="number"
+                min={0}
+                step="any"
+                value={etaDraft[key]}
+                onChange={(e) =>
+                  setEtaDraft((s) => ({ ...s, [key]: e.target.value }))
+                }
+              />
+            </div>
+          ))}
+        </div>
+        {etaConfig ? (
+          <p className="mt-3 text-xs text-gray-400">
+            Customer app reads these values live — no app rebuild required.
           </p>
         ) : null}
       </section>
@@ -1067,6 +1218,94 @@ export function DeliveryPricingPage() {
                     onChange={(e) =>
                       setVehicleEditor((s) =>
                         s ? { ...s, priority: e.target.value } : s,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Avg Speed (km/h)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    placeholder="Not set"
+                    value={vehicleEditor.avgSpeedKmh}
+                    onChange={(e) =>
+                      setVehicleEditor((s) =>
+                        s ? { ...s, avgSpeedKmh: e.target.value } : s,
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Loading Time (min)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="Not set"
+                    value={vehicleEditor.avgLoadingTimeMinutes}
+                    onChange={(e) =>
+                      setVehicleEditor((s) =>
+                        s
+                          ? { ...s, avgLoadingTimeMinutes: e.target.value }
+                          : s,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Unloading Time (min)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Not set"
+                  value={vehicleEditor.avgUnloadingTimeMinutes}
+                  onChange={(e) =>
+                    setVehicleEditor((s) =>
+                      s
+                        ? { ...s, avgUnloadingTimeMinutes: e.target.value }
+                        : s,
+                    )
+                  }
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Driver prep (min)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="Not set"
+                    value={vehicleEditor.driverPreparationTimeMinutes}
+                    onChange={(e) =>
+                      setVehicleEditor((s) =>
+                        s
+                          ? {
+                              ...s,
+                              driverPreparationTimeMinutes: e.target.value,
+                            }
+                          : s,
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Operational buffer (min)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="Not set"
+                    value={vehicleEditor.operationalBufferMinutes}
+                    onChange={(e) =>
+                      setVehicleEditor((s) =>
+                        s
+                          ? {
+                              ...s,
+                              operationalBufferMinutes: e.target.value,
+                            }
+                          : s,
                       )
                     }
                   />

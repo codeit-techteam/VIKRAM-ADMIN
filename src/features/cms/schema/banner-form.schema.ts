@@ -1,30 +1,43 @@
 import { z } from "zod";
 
 export const BANNER_CTA_DESTINATIONS = [
+  "HOME",
   "CATALOG",
   "CATEGORY",
   "PRODUCT",
+  "OFFERS",
+  "BULK",
+  "LOYALTY",
+  "EXTERNAL",
   "CUSTOM",
 ] as const;
 
 export type BannerCtaDestination = (typeof BANNER_CTA_DESTINATIONS)[number];
 
+export const BANNER_TARGET_AUDIENCES = [
+  "ALL",
+  "NEW_CUSTOMERS",
+  "FREE_BIKE_REMAINING",
+  "FREE_BIKE_EXHAUSTED",
+] as const;
+
 export const CATALOG_HOME_PATH = "/(tabs)/catalog";
+export const APP_HOME_PATH = "/(tabs)";
+export const LOYALTY_PATH = "/account/loyalty";
+export const BULK_PATH = "/bulk-procurement";
 
 export const bannerFormSchema = z
   .object({
-    title: z.string().min(2, "Campaign title must be at least 2 characters"),
+    name: z.string().optional(),
+    description: z.string().optional(),
+    title: z.string().min(2, "Banner title must be at least 2 characters"),
     subtitle: z.string().optional(),
     location: z.string().min(2, "Location / placement is required"),
     placement: z.string().optional(),
-    ctaLabel: z.string().min(1, "CTA label is required"),
-    /** Destination kind shown in the admin picker */
+    ctaLabel: z.string().optional(),
     ctaDestination: z.enum(BANNER_CTA_DESTINATIONS),
-    /** Persisted app link type: ROUTE | CATEGORY | PRODUCT | … */
     linkType: z.string().min(1),
-    /** Persisted target: path, category slug/id, or product id */
-    ctaPath: z.string().min(1, "Please choose where Shop Now should go"),
-    /** Optional display label for selected category/product */
+    ctaPath: z.string().min(1, "Choose a CTA destination"),
     ctaTargetLabel: z.string().optional(),
     badge: z.string().optional(),
     ctaColor: z.string().optional(),
@@ -35,10 +48,11 @@ export const bannerFormSchema = z
     tabletUrl: z.string().optional(),
     desktopUrl: z.string().optional(),
     displayOrder: z.coerce.number().optional(),
-    priority: z.coerce.number().optional(),
+    priority: z.coerce.number().min(1, "Priority 1 is highest"),
     startsAt: z.string().optional(),
     endsAt: z.string().optional(),
-    status: z.enum(["LIVE", "DRAFT"]),
+    status: z.enum(["ACTIVE", "DRAFT", "INACTIVE"]),
+    targetAudience: z.enum(BANNER_TARGET_AUDIENCES),
   })
   .superRefine((data, ctx) => {
     if (data.ctaDestination === "CATEGORY" && !data.ctaPath.trim()) {
@@ -62,36 +76,71 @@ export const bannerFormSchema = z
         message: "Enter a path starting with /",
       });
     }
+    if (data.ctaDestination === "EXTERNAL") {
+      const target = data.ctaPath.trim();
+      if (!/^https?:\/\//i.test(target)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["ctaPath"],
+          message: "Enter a full URL starting with https://",
+        });
+      }
+    }
+    if (data.startsAt && data.endsAt) {
+      const start = new Date(data.startsAt).getTime();
+      const end = new Date(data.endsAt).getTime();
+      if (Number.isFinite(start) && Number.isFinite(end) && end < start) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["endsAt"],
+          message: "End date must be after start date",
+        });
+      }
+    }
+    const publishing = data.status === "ACTIVE";
+    const hasImage = Boolean(
+      data.imageUrl?.trim() || data.mobileUrl?.trim() || data.desktopUrl?.trim(),
+    );
+    if (publishing && !hasImage) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["mobileUrl"],
+        message:
+          "Upload a product or illustration before publishing. It appears on the right of the banner.",
+      });
+    }
   });
 
 export type BannerFormSchema = z.infer<typeof bannerFormSchema>;
 
 export const BANNER_FORM_DEFAULT_VALUES: BannerFormSchema = {
+  name: "",
+  description: "",
   title: "",
   subtitle: "",
-  location: "HOME_HERO",
-  placement: "HOME_HERO",
+  location: "HOME_PROMO",
+  placement: "HOME_PROMO",
   ctaLabel: "Shop Now",
   ctaDestination: "CATALOG",
   linkType: "ROUTE",
   ctaPath: CATALOG_HOME_PATH,
   ctaTargetLabel: "Catalog",
   badge: "",
-  ctaColor: "#FEB623",
-  backgroundColor: "",
+  ctaColor: "#111111",
+  backgroundColor: "#FFF6E8",
   bannerType: "IMAGE",
   imageUrl: "",
   mobileUrl: "",
   tabletUrl: "",
   desktopUrl: "",
   displayOrder: 0,
-  priority: 0,
+  priority: 1,
   startsAt: "",
   endsAt: "",
   status: "DRAFT",
+  targetAudience: "ALL",
 };
 
-/** Infer picker state from stored linkType + linkTarget */
 export function inferBannerCtaDestination(
   linkType?: string | null,
   linkTarget?: string | null,
@@ -120,6 +169,51 @@ export function inferBannerCtaDestination(
     };
   }
 
+  if (type === "MEMBERSHIP" || target === "/membership") {
+    return {
+      ctaDestination: "LOYALTY",
+      linkType: "ROUTE",
+      ctaPath: LOYALTY_PATH,
+      ctaTargetLabel: "Loyalty",
+    };
+  }
+
+  if (type === "BULK_INQUIRY" || target === BULK_PATH) {
+    return {
+      ctaDestination: "BULK",
+      linkType: "BULK_INQUIRY",
+      ctaPath: BULK_PATH,
+      ctaTargetLabel: "Bulk enquiry",
+    };
+  }
+
+  if (type === "EXTERNAL" || /^https?:\/\//i.test(target)) {
+    return {
+      ctaDestination: "EXTERNAL",
+      linkType: "EXTERNAL",
+      ctaPath: target,
+      ctaTargetLabel: "External URL",
+    };
+  }
+
+  if (target === APP_HOME_PATH || target === "/" || target === "/(tabs)/index") {
+    return {
+      ctaDestination: "HOME",
+      linkType: "ROUTE",
+      ctaPath: APP_HOME_PATH,
+      ctaTargetLabel: "Home",
+    };
+  }
+
+  if (target === LOYALTY_PATH) {
+    return {
+      ctaDestination: "LOYALTY",
+      linkType: "ROUTE",
+      ctaPath: LOYALTY_PATH,
+      ctaTargetLabel: "Loyalty",
+    };
+  }
+
   if (
     !target ||
     target === CATALOG_HOME_PATH ||
@@ -134,7 +228,6 @@ export function inferBannerCtaDestination(
     };
   }
 
-  // Legacy mistaken paths like /(tabs)/catalog/adhesives → treat as category slug
   const nestedCatalog = target.match(/^\/\(tabs\)\/catalog\/([^/?#]+)/);
   if (nestedCatalog?.[1]) {
     return {

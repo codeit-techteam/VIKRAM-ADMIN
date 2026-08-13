@@ -32,10 +32,13 @@ import {
 } from "@/services/cms-admin.service";
 import { notify } from "@/utils/notify";
 
+/** Loyalty Progress and BajriPro/Membership are retired from Home. */
+const HIDDEN_HOME_SECTIONS = new Set(["LOYALTY", "MEMBERSHIP"]);
+
 function sectionHint(sectionType: string): string {
   switch (sectionType) {
     case "PROMO_BANNER":
-      return " · Banner Management → Home Promo";
+      return " · Promotional Banners → Home Promo";
     case "FEATURED_PRODUCTS":
       return " · product rail: featured";
     case "RECENTLY_ADDED":
@@ -45,7 +48,7 @@ function sectionHint(sectionType: string): string {
     case "PRODUCT_DISCOVERY":
       return " · legacy (use Featured / Recently Added / Top Deals)";
     case "OFFER_FOR_YOU":
-      return " · CMS offers carousel";
+      return " · Offer Management carousel";
     default:
       return "";
   }
@@ -197,7 +200,11 @@ export function HomepageLayoutPageContent() {
     setLoading(true);
     try {
       const data = await cmsAdminService.listHomeSections();
-      setSections(data.sort((a, b) => a.displayOrder - b.displayOrder));
+      setSections(
+        data
+          .filter((s) => !HIDDEN_HOME_SECTIONS.has(s.sectionType))
+          .sort((a, b) => a.displayOrder - b.displayOrder),
+      );
     } catch (error) {
       notify.error(
         error instanceof Error ? error.message : "Failed to load layout",
@@ -299,7 +306,7 @@ export function HomepageLayoutPageContent() {
     <div className="space-y-6">
       <PageHeader
         title="Homepage Layout Manager"
-        subtitle="Drag sections to reorder, or use arrows. Toggle Featured Products, Recently Added, and Top Deals individually. Offers For You is off by default."
+        subtitle="Drag sections to reorder, or use arrows. Home Promo is managed under Promotional Banners. The top Delivery Promotion strip is managed separately under Delivery Promotion. Toggle Featured Products, Recently Added, and Top Deals individually."
         breadcrumbs={getNavBreadcrumbsFromPath(
           "/customer-app-cms/homepage-layout",
         )}

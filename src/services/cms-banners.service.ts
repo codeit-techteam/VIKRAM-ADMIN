@@ -1,12 +1,17 @@
 import { API_ENDPOINTS } from "@/constants/api-endpoints";
 import api from "@/services/api";
 import type { ApiResponse } from "@/types/api";
-
-export type AdminBannerStatus = "LIVE" | "DRAFT" | "INACTIVE";
+import {
+  computeBannerLifecycleStatus,
+  type BannerStatus,
+  type BannerTargetAudience,
+} from "@/features/cms/types/banner.types";
 
 export interface AdminBanner {
   id: string;
   slug: string;
+  name?: string | null;
+  description?: string | null;
   title: string;
   subtitle?: string | null;
   imageUrl: string;
@@ -29,18 +34,23 @@ export interface AdminBanner {
   secondaryLinkType?: string | null;
   secondaryLinkTarget?: string | null;
   placement: string;
+  targetAudience?: BannerTargetAudience | string | null;
   displayOrder: number;
   priority: number;
   startsAt?: string | null;
   endsAt?: string | null;
   isVisible: boolean;
   status: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
 }
 
 export interface CreateAdminBannerInput {
   title: string;
-  slug: string;
-  imageUrl: string;
+  slug?: string;
+  name?: string;
+  description?: string;
+  imageUrl?: string;
   subtitle?: string;
   mobileUrl?: string;
   tabletUrl?: string;
@@ -61,6 +71,7 @@ export interface CreateAdminBannerInput {
   secondaryLinkType?: string;
   secondaryLinkTarget?: string;
   placement?: string;
+  targetAudience?: string;
   displayOrder?: number;
   priority?: number;
   startsAt?: string;
@@ -68,23 +79,36 @@ export interface CreateAdminBannerInput {
   publish?: boolean;
 }
 
-function mapStatus(banner: AdminBanner): AdminBannerStatus {
-  if (banner.status === "ACTIVE" && banner.isVisible) return "LIVE";
-  if (banner.status === "DRAFT") return "DRAFT";
-  return "INACTIVE";
-}
-
 export function toUiBanner(banner: AdminBanner) {
+  const status: BannerStatus = computeBannerLifecycleStatus(banner);
   return {
     id: banner.id,
-    thumbnailUrl: banner.thumbnailUrl || banner.mobileUrl || banner.imageUrl,
+    thumbnailUrl:
+      banner.thumbnailUrl ||
+      banner.mobileUrl ||
+      banner.imageUrl ||
+      banner.desktopUrl ||
+      "",
+    name: banner.name ?? null,
+    description: banner.description ?? null,
     title: banner.title,
+    subtitle: banner.subtitle ?? null,
     location: banner.placement,
     ctaLabel: banner.ctaLabel || "Shop Now",
     ctaPath: banner.linkTarget || banner.linkUrl || "/",
     linkType: banner.linkType || "ROUTE",
-    status:
-      mapStatus(banner) === "LIVE" ? ("LIVE" as const) : ("DRAFT" as const),
+    status,
+    startsAt: banner.startsAt ?? null,
+    endsAt: banner.endsAt ?? null,
+    priority: banner.priority ?? 0,
+    targetAudience: (banner.targetAudience as BannerTargetAudience) || "ALL",
+    backgroundColor: banner.backgroundColor ?? null,
+    ctaColor: banner.ctaColor ?? null,
+    badge: banner.badge ?? null,
+    mobileUrl: banner.mobileUrl ?? null,
+    desktopUrl: banner.desktopUrl ?? null,
+    imageUrl: banner.imageUrl ?? null,
+    updatedAt: banner.updatedAt ?? null,
     raw: banner,
   };
 }
@@ -138,6 +162,13 @@ export const bannersService = {
   unpublish: async (id: string): Promise<AdminBanner> => {
     const { data } = await api.patch<ApiResponse<AdminBanner>>(
       API_ENDPOINTS.ADMIN_CMS.BANNER_UNPUBLISH(id),
+    );
+    return data.data;
+  },
+
+  duplicate: async (id: string): Promise<AdminBanner> => {
+    const { data } = await api.post<ApiResponse<AdminBanner>>(
+      API_ENDPOINTS.ADMIN_CMS.BANNER_DUPLICATE(id),
     );
     return data.data;
   },

@@ -150,6 +150,14 @@ export function OfferTable({
           </span>
         ),
       }),
+      columnHelper.accessor("updatedAt", {
+        header: "Last Updated",
+        cell: (info) => (
+          <span className="text-sm text-[#64748B]">
+            {info.getValue() ? formatOfferDate(info.getValue() as string) : "—"}
+          </span>
+        ),
+      }),
       columnHelper.display({
         id: "actions",
         header: "Actions",
@@ -202,12 +210,12 @@ export function OfferTable({
                   {isPublished ? (
                     <DropdownMenuItem onClick={() => onUnpublish(offer)}>
                       <Undo2 className="size-4" />
-                      Unpublish
+                      Deactivate
                     </DropdownMenuItem>
                   ) : (
                     <DropdownMenuItem onClick={() => onPublish(offer)}>
                       <Send className="size-4" />
-                      Publish
+                      Activate
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />

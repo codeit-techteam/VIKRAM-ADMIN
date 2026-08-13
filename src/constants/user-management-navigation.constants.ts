@@ -12,10 +12,6 @@ export const USER_MANAGEMENT_NAV_GROUPS: NavChildGroup[] = [
         href: `${ROUTES.USER_MANAGEMENT}/customers`,
       },
       {
-        label: "Membership Plans",
-        href: ROUTES.USER_MANAGEMENT_MEMBERSHIP_PLANS,
-      },
-      {
         label: "Customer Loyalty",
         href: ROUTES.USER_MANAGEMENT_CUSTOMER_LOYALTY,
       },
@@ -48,11 +44,6 @@ export const USER_MANAGEMENT_TABS = [
     id: "customers",
     label: "Customers",
     href: `${ROUTES.USER_MANAGEMENT}/customers`,
-  },
-  {
-    id: "membership-plans",
-    label: "Membership Plans",
-    href: ROUTES.USER_MANAGEMENT_MEMBERSHIP_PLANS,
   },
   {
     id: "customer-loyalty",

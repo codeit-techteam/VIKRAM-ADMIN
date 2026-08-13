@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import {
   ClipboardList,
-  Crown,
   IndianRupee,
   Package,
   Truck,
@@ -147,15 +146,6 @@ function buildLiveDashboard(
       icon: Users,
       iconContainerClassName: "bg-blue-50",
       iconClassName: "text-blue-600",
-    },
-    {
-      label: "Memberships",
-      value: String(payload.memberships.active),
-      subtext: "Active memberships",
-      href: ROUTES.USER_MANAGEMENT_MEMBERSHIP_PLANS,
-      icon: Crown,
-      iconContainerClassName: "bg-orange-50",
-      iconClassName: "text-primary",
     },
   ];
 

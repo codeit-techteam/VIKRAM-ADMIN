@@ -20,6 +20,7 @@ export type MediaFolder =
   | "videos/tutorials"
   | "videos/promotions"
   | "banners"
+  | "delivery-promotions"
   | "offers"
   | "products"
   | "products/gallery"

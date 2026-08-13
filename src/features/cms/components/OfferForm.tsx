@@ -37,6 +37,8 @@ import { OfferMobilePreview } from "@/features/cms/components/OfferMobilePreview
 import { OfferProductSelector } from "@/features/cms/components/OfferProductSelector";
 import { PrioritySlider } from "@/features/cms/components/PrioritySlider";
 import {
+  OFFER_AUDIENCE_OPTIONS,
+  OFFER_BADGE_OPTIONS,
   OFFER_CTA_OPTIONS,
   OFFER_TYPE_OPTIONS,
   slugifyOfferName,
@@ -47,7 +49,9 @@ import {
 } from "@/features/cms/schema/offer-form.schema";
 import {
   createOffer,
+  findDuplicateOffers,
   getOfferProductsCatalog,
+  getOffers,
   updateOffer,
 } from "@/features/cms/services/offer.mock-api";
 import type { Offer, OfferProduct } from "@/features/cms/types/offer.types";
@@ -75,6 +79,8 @@ function offerToFormValues(offer: Offer): OfferFormSchema {
     offerType: offer.offerType,
     productIds: offer.products.map((product) => product.id),
     ctaLabel: offer.ctaLabel,
+    badge: offer.badge || "",
+    targetAudience: offer.targetAudience || "ALL",
     startDate: offer.startDate,
     endDate: offer.endDate,
     desktopBanner: offer.desktopBanner,
@@ -91,6 +97,8 @@ const CREATE_DEFAULTS: OfferFormSchema = {
   offerType: "home-carousel",
   productIds: [],
   ctaLabel: "Shop Now",
+  badge: "",
+  targetAudience: "ALL",
   startDate: "",
   endDate: "",
   desktopBanner: "",
@@ -127,6 +135,8 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
   const watchedName = watch("name");
   const watchedSlug = watch("slug");
   const watchedCta = watch("ctaLabel");
+  const watchedBadge = watch("badge");
+  const watchedDescription = watch("description");
   const watchedOfferType = watch("offerType");
   const watchedProductIds = watch("productIds");
   const watchedDesktopBanner = watch("desktopBanner");
@@ -231,17 +241,50 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
         setMobileFile(null);
       }
 
+      if (publish && !desktopBanner && !mobileBanner) {
+        notify.error(
+          "Banner required",
+          "Upload a desktop or mobile banner before publishing.",
+        );
+        return;
+      }
+
+      if (publish) {
+        const existing = await getOffers();
+        const duplicates = findDuplicateOffers(
+          existing,
+          {
+            name: data.name,
+            offerType: data.offerType,
+            startDate: data.startDate,
+            endDate: data.endDate,
+          },
+          initialOffer?.id,
+        );
+        if (duplicates.length > 0) {
+          const proceed = window.confirm(
+            `An offer with the same name, placement, and overlapping schedule already exists (${duplicates[0].name}). Publish anyway?`,
+          );
+          if (!proceed) return;
+        }
+      }
+
       const payload: OfferFormSchema = {
         ...data,
         status: publish
-          ? "ACTIVE"
-          : data.status === "ACTIVE"
-            ? "ACTIVE"
-            : "DRAFT",
-        desktopBanner: assertRemoteMediaUrl(desktopBanner),
+          ? data.startDate &&
+            new Date(`${data.startDate}T00:00:00+05:30`).getTime() > Date.now()
+            ? "SCHEDULED"
+            : "ACTIVE"
+          : "DRAFT",
+        desktopBanner: desktopBanner
+          ? assertRemoteMediaUrl(desktopBanner)
+          : undefined,
         mobileBanner: mobileBanner
           ? assertRemoteMediaUrl(mobileBanner)
-          : assertRemoteMediaUrl(desktopBanner),
+          : desktopBanner
+            ? assertRemoteMediaUrl(desktopBanner)
+            : undefined,
       };
 
       if (mode === "edit" && initialOffer) {
@@ -250,8 +293,10 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
         await createOffer(payload);
       }
       notify.success(
-        publish ? "Offer published" : "Offer saved",
-        "Customer App will pick up the R2 image automatically.",
+        publish ? "Offer published successfully" : "Draft saved",
+        publish
+          ? "Eligible customers will see this offer without an app update."
+          : "You can come back and publish this offer later.",
       );
       router.push("/customer-app-cms/offers");
       router.refresh();
@@ -423,6 +468,7 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
                           <SelectItem value="DRAFT">Draft</SelectItem>
                           <SelectItem value="ACTIVE">Active</SelectItem>
                           <SelectItem value="SCHEDULED">Scheduled</SelectItem>
+                          <SelectItem value="INACTIVE">Inactive</SelectItem>
                           <SelectItem value="EXPIRED">Expired</SelectItem>
                         </SelectContent>
                       </Select>
@@ -577,14 +623,71 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
           </FormSectionCard>
 
           <FormSectionCard icon={MousePointerClick} title="CTA Button">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <Controller
+                control={control}
+                name="ctaLabel"
+                render={({ field }) => (
+                  <div className="space-y-2">
+                    <Label className={fieldLabelClassName}>CTA Label</Label>
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) => {
+                        if (value) field.onChange(value);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 border-gray-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {OFFER_CTA_OPTIONS.map((label) => (
+                          <SelectItem key={label} value={label}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              />
+              <Controller
+                control={control}
+                name="badge"
+                render={({ field }) => (
+                  <div className="space-y-2">
+                    <Label className={fieldLabelClassName}>Offer Badge</Label>
+                    <Select
+                      value={field.value || "none"}
+                      onValueChange={(value) =>
+                        field.onChange(value === "none" ? "" : value)
+                      }
+                    >
+                      <SelectTrigger className="h-9 border-gray-200">
+                        <SelectValue placeholder="None" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {OFFER_BADGE_OPTIONS.map((option) => (
+                          <SelectItem
+                            key={option.value || "none"}
+                            value={option.value || "none"}
+                          >
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              />
+            </div>
             <Controller
               control={control}
-              name="ctaLabel"
+              name="targetAudience"
               render={({ field }) => (
-                <div className="space-y-2">
-                  <Label className={fieldLabelClassName}>CTA Label</Label>
+                <div className="mt-5 space-y-2">
+                  <Label className={fieldLabelClassName}>Target Audience</Label>
                   <Select
-                    value={field.value}
+                    value={field.value || "ALL"}
                     onValueChange={(value) => {
                       if (value) field.onChange(value);
                     }}
@@ -593,13 +696,17 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {OFFER_CTA_OPTIONS.map((label) => (
-                        <SelectItem key={label} value={label}>
-                          {label}
+                      {OFFER_AUDIENCE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-[#64748B]">
+                    Stored for future segmentation. Customer App currently shows
+                    All Customers offers.
+                  </p>
                 </div>
               )}
             />
@@ -659,8 +766,10 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
           <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
             <OfferMobilePreview
               name={watchedName}
+              description={watchedDescription}
               bannerUrl={previewBanner}
               ctaLabel={watchedCta}
+              badge={watchedBadge}
               products={selectedProducts}
               offerType={watchedOfferType}
             />

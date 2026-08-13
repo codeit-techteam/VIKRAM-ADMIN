@@ -3,6 +3,7 @@ import { API_ENDPOINTS } from "@/constants/api-endpoints";
 import type {
   DeliveryBenefitConfig,
   DeliveryEngineConfig,
+  DeliveryEtaConfig,
   DeliveryPricingHistoryEntry,
   DeliveryPricingRule,
   DeliveryPricingStatus,
@@ -95,6 +96,56 @@ export async function updateDeliveryEngineConfig(payload: {
     API_ENDPOINTS.DELIVERY_PRICING.ENGINE_CONFIG,
     payload,
   );
+  return data.data;
+}
+
+export async function getDeliveryEtaConfig(): Promise<DeliveryEtaConfig> {
+  const { data } = await api.get<ApiEnvelope<DeliveryEtaConfig>>(
+    API_ENDPOINTS.DELIVERY_PRICING.ETA_CONFIG,
+  );
+  return data.data;
+}
+
+export async function updateDeliveryEtaConfig(
+  payload: Partial<DeliveryEtaConfig>,
+): Promise<DeliveryEtaConfig> {
+  const { data } = await api.put<ApiEnvelope<DeliveryEtaConfig>>(
+    API_ENDPOINTS.DELIVERY_PRICING.ETA_CONFIG,
+    payload,
+  );
+  return data.data;
+}
+
+export async function listDeliveryLoadingRules(): Promise<
+  Array<{
+    logisticsType: string;
+    model: string;
+    minQuantity: number;
+    maxQuantity: number | null;
+    loadingMinutes: number;
+    unloadingMinutes: number | null;
+    preparationMinutes: number | null;
+    loadingRateKgPerMinute: number | null;
+    unloadingRateKgPerMinute: number | null;
+    priority: number;
+  }>
+> {
+  const { data } = await api.get<
+    ApiEnvelope<
+      Array<{
+        logisticsType: string;
+        model: string;
+        minQuantity: number;
+        maxQuantity: number | null;
+        loadingMinutes: number;
+        unloadingMinutes: number | null;
+        preparationMinutes: number | null;
+        loadingRateKgPerMinute: number | null;
+        unloadingRateKgPerMinute: number | null;
+        priority: number;
+      }>
+    >
+  >(API_ENDPOINTS.DELIVERY_PRICING.LOADING_RULES);
   return data.data;
 }
 

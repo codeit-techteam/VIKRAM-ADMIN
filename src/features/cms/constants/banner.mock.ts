@@ -11,7 +11,7 @@ export const BANNERS: Banner[] = [
     location: "Regional - Maharashtra",
     ctaLabel: "Shop Now",
     ctaPath: "/category/cement",
-    status: "LIVE",
+    status: "ACTIVE",
   },
   {
     id: "2",
@@ -29,7 +29,7 @@ export const BANNERS: Banner[] = [
     location: "Pan-Gujarat",
     ctaLabel: "Inquire",
     ctaPath: "/machinery-new",
-    status: "LIVE",
+    status: "ACTIVE",
   },
   {
     id: "4",
@@ -38,7 +38,7 @@ export const BANNERS: Banner[] = [
     location: "Pan-Gujarat",
     ctaLabel: "Inquire",
     ctaPath: "/machinery-new",
-    status: "LIVE",
+    status: "ACTIVE",
   },
 ];
 

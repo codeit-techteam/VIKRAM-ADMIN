@@ -1,7 +1,7 @@
-export { AddBannerDialog } from "@/features/cms/components/AddBannerDialog";
+export { BannerMobilePreview } from "@/features/cms/components/BannerMobilePreview";
 export { BannerModificationsTable } from "@/features/cms/components/BannerModificationsTable";
 export { BannerPreviewTable } from "@/features/cms/components/BannerPreviewTable";
-export { BannersPageContent } from "@/features/cms/components/BannersPageContent";
+export { DeliveryPromotionPageContent } from "@/features/cms/components/DeliveryPromotionPageContent";
 export { BrandAdsPageContent } from "@/features/cms/components/BrandAdsPageContent";
 export { CampaignsPageContent } from "@/features/cms/components/CampaignsPageContent";
 export { CategoriesPageContent } from "@/features/cms/components/CategoriesPageContent";
@@ -26,8 +26,11 @@ export { VideoManagementPageContent } from "@/features/cms/components/VideoManag
 export type { BannerFormSchema } from "@/features/cms/schema/banner-form.schema";
 export { bannerFormSchema } from "@/features/cms/schema/banner-form.schema";
 export {
+  activateBanner,
   createBanner,
+  deactivateBanner,
   deleteBanner,
+  duplicateBanner,
   getBannerModifications,
   getBanners,
   queryBannerModifications,

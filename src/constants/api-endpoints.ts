@@ -78,6 +78,7 @@ export const API_ENDPOINTS = {
     VIDEOS: "/admin/videos",
     VIDEO_UPLOAD: "/admin/videos/upload",
     VIDEO_BY_ID: (id: string) => `/admin/videos/${id}`,
+    VIDEO_REPLACE: (id: string) => `/admin/videos/${id}/replace`,
     VIDEO_PUBLISH: (id: string) => `/admin/videos/${id}/publish`,
     VIDEO_UNPUBLISH: (id: string) => `/admin/videos/${id}/unpublish`,
     VIDEO_ARCHIVE: (id: string) => `/admin/videos/${id}/archive`,

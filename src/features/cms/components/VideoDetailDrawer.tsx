@@ -269,7 +269,7 @@ export function VideoDetailDrawer({
             <Pencil className="size-4" />
             Edit Video
           </Link>
-          {video.cta.enabled ? (
+          {video.cta.enabled && /^https?:\/\//i.test(video.cta.path) ? (
             <Button
               variant="ghost"
               size="icon"

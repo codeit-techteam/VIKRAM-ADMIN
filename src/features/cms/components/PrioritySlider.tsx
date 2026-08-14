@@ -28,14 +28,18 @@ export function PrioritySlider({
       </div>
 
       <Slider
-        value={[value]}
+        value={[Math.min(max, Math.max(min, Number.isFinite(value) ? value : min))]}
         min={min}
         max={max}
         step={1}
         onValueChange={(values) => {
           const next = Array.isArray(values) ? values[0] : values;
           if (next !== undefined) {
-            onChange(next);
+            const numeric = typeof next === "number" ? next : Number(next);
+            const clamped = Number.isFinite(numeric)
+              ? Math.min(max, Math.max(min, Math.round(numeric)))
+              : min;
+            onChange(clamped);
           }
         }}
       />

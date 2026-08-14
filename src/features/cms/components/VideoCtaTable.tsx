@@ -102,7 +102,13 @@ export function VideoCtaTable({ videos }: VideoCtaTableProps) {
                 <MousePointerClick className="size-3.5 shrink-0" />
                 {cta.label}
               </p>
-              <p className="mt-0.5 text-sm text-[#64748B]">{cta.path}</p>
+              <p className="mt-0.5 truncate text-sm text-[#64748B]">
+                {cta.destinationType === "product"
+                  ? cta.path
+                    ? `Product · ${cta.path}`
+                    : "Select a product"
+                  : cta.path}
+              </p>
             </div>
           );
         },

@@ -248,6 +248,44 @@ export const videosService = {
     });
   },
 
+  replaceFile: async (
+    id: string,
+    file: File,
+    onProgress?: VideoUploadProgress,
+  ): Promise<AdminVideo> => {
+    const form = new FormData();
+    form.append("file", file);
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(
+        "POST",
+        `${env.apiBaseUrl}${API_ENDPOINTS.ADMIN_CMS.VIDEO_REPLACE(id)}`,
+      );
+      const token = getStoredAccessToken();
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable) return;
+        onProgress?.(Math.round((event.loaded / event.total) * 100));
+      };
+      xhr.onload = () => {
+        try {
+          const json = JSON.parse(xhr.responseText) as ApiResponse<AdminVideo>;
+          if (xhr.status >= 200 && xhr.status < 300 && json.data) {
+            onProgress?.(100);
+            resolve(json.data);
+            return;
+          }
+          reject(new Error(json.message || `Replace failed (${xhr.status})`));
+        } catch {
+          reject(new Error(`Replace failed (${xhr.status})`));
+        }
+      };
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+      xhr.send(form);
+    });
+  },
+
   create: async (payload: {
     title: string;
     videoUrl: string;
@@ -285,9 +323,11 @@ export const videosService = {
       thumbnailUrl: string;
       placement: string;
       linkUrl: string;
+      linkType: string;
+      linkTarget: string;
       ctaLabel: string;
       priority: number;
-      publish: boolean;
+      published: boolean;
     }>,
   ) => {
     const { data } = await api.patch<ApiResponse<AdminVideo>>(

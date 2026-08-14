@@ -41,6 +41,8 @@ interface BannerCtaDestinationPickerProps {
   value: BannerCtaValue;
   onChange: (next: BannerCtaValue) => void;
   error?: string;
+  /** Put Product first — used by Video Management Shop Now. */
+  preferProduct?: boolean;
 }
 
 const DESTINATION_OPTIONS: Array<{
@@ -83,6 +85,7 @@ export function BannerCtaDestinationPicker({
   value,
   onChange,
   error,
+  preferProduct = false,
 }: BannerCtaDestinationPickerProps) {
   const [categories, setCategories] = useState<CatalogCategory[]>([]);
   const [products, setProducts] = useState<OfferProduct[]>([]);
@@ -143,6 +146,16 @@ export function BannerCtaDestinationPicker({
       cancelled = true;
     };
   }, [value.ctaDestination]);
+
+  const destinationOptions = useMemo(() => {
+    if (!preferProduct) return DESTINATION_OPTIONS;
+    const product = DESTINATION_OPTIONS.find((o) => o.value === "PRODUCT");
+    if (!product) return DESTINATION_OPTIONS;
+    return [
+      product,
+      ...DESTINATION_OPTIONS.filter((o) => o.value !== "PRODUCT"),
+    ];
+  }, [preferProduct]);
 
   const filteredProducts = useMemo(() => {
     const query = productSearch.trim().toLowerCase();
@@ -269,7 +282,7 @@ export function BannerCtaDestinationPicker({
             <SelectValue placeholder="Choose destination" />
           </SelectTrigger>
           <SelectContent>
-            {DESTINATION_OPTIONS.map((option) => (
+            {destinationOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
               </SelectItem>
@@ -278,7 +291,7 @@ export function BannerCtaDestinationPicker({
         </Select>
         <p className="text-xs text-muted-foreground">
           {
-            DESTINATION_OPTIONS.find((o) => o.value === value.ctaDestination)
+            destinationOptions.find((o) => o.value === value.ctaDestination)
               ?.hint
           }
         </p>

@@ -233,7 +233,7 @@ export function FileDropzone({
                 </Button>
               </div>
             </div>
-            {selectedFile ? (
+            {selectedFile && selectedFile.progress > 0 && selectedFile.progress < 100 ? (
               <div className="bg-white px-3 pb-2">
                 <ProgressBar value={selectedFile.progress} />
               </div>

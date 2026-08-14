@@ -9,7 +9,7 @@ import {
   LayoutGrid,
   MousePointerClick,
 } from "lucide-react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, type FieldErrors } from "react-hook-form";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { CheckboxGroup } from "@/components/shared/CheckboxGroup";
@@ -38,14 +38,16 @@ import {
   VIDEO_CATEGORY_OPTIONS,
 } from "@/features/cms/constants/video-upload.mock";
 import {
+  clampVideoPriority,
   videoUploadSchema,
   type VideoUploadSchema,
 } from "@/features/cms/schema/video-upload.schema";
 import { videosService } from "@/services/videos.service";
 import { useInvalidateCmsVideos } from "@/hooks/useCmsVideos";
 import { notify } from "@/utils/notify";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { inferBannerCtaDestination } from "@/features/cms/schema/banner-form.schema";
 
 const fieldLabelClassName =
   "text-[11px] font-semibold tracking-wider text-gray-400 uppercase";
@@ -58,34 +60,100 @@ function mapPlacementsToApi(placements: string[]): string {
   return "HOME_HERO_VIDEO";
 }
 
+function mapApiPlacementToForm(placement?: string | null): string[] {
+  switch ((placement || "").toUpperCase()) {
+    case "PRODUCT":
+      return ["product-detail-pages"];
+    case "CATEGORY":
+      return ["category-landing-pages"];
+    case "HOME":
+    case "HOME_SECONDARY":
+      return ["featured-videos"];
+    default:
+      return ["home-screen-hero"];
+  }
+}
+
+function toDatetimeLocal(value?: string | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function firstFormError(errors: FieldErrors<VideoUploadSchema>): string {
+  const walk = (value: unknown): string | null => {
+    if (!value || typeof value !== "object") return null;
+    if (
+      "message" in value &&
+      typeof (value as { message?: unknown }).message === "string"
+    ) {
+      return (value as { message: string }).message;
+    }
+    for (const child of Object.values(value as Record<string, unknown>)) {
+      const found = walk(child);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(errors) ?? "Fix the highlighted fields before saving";
+}
+
+function buildCtaFields(data: VideoUploadSchema) {
+  if (!data.ctaEnabled) {
+    return {
+      linkUrl: "",
+      linkType: "",
+      linkTarget: "",
+      ctaLabel: "",
+    };
+  }
+  const path = (data.ctaPath || "").trim();
+  return {
+    linkUrl: path,
+    linkType: data.linkType || data.ctaDestination || "PRODUCT",
+    linkTarget: path,
+    ctaLabel: data.ctaLabel?.trim() || "Shop Now",
+  };
+}
+
+const DEFAULT_FORM: VideoUploadSchema = {
+  title: "",
+  description: "",
+  category: "brand-story",
+  targetAudience: "all-users",
+  placements: ["home-screen-hero"],
+  priorityLevel: 8,
+  publishImmediately: true,
+  scheduledAt: "",
+  ctaEnabled: true,
+  ctaLabel: "Shop Now",
+  ctaDestination: "PRODUCT",
+  linkType: "PRODUCT",
+  ctaPath: "",
+  ctaTargetLabel: "",
+};
+
 export function VideoUploadForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("edit");
+  const isEdit = Boolean(editId);
   const invalidateVideos = useInvalidateCmsVideos();
   const [uploadFile, setUploadFile] = useState<MockUploadFile | null>(null);
   const [rawFile, setRawFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [existingVideoUrl, setExistingVideoUrl] = useState<string | null>(null);
+  const [loadingVideo, setLoadingVideo] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  const { control, handleSubmit, watch, setValue } = useForm<VideoUploadSchema>({
-    resolver: zodResolver(videoUploadSchema),
-    defaultValues: {
-      title: "",
-      description: "",
-      category: "brand-story",
-      targetAudience: "all-users",
-      placements: ["home-screen-hero"],
-      priorityLevel: 8,
-      publishImmediately: true,
-      scheduledAt: "",
-      ctaEnabled: true,
-      ctaLabel: "View Product",
-      ctaDestination: "PRODUCT",
-      linkType: "PRODUCT",
-      ctaPath: "",
-      ctaTargetLabel: "",
-    },
-  });
+  const { control, handleSubmit, watch, setValue, reset } =
+    useForm<VideoUploadSchema>({
+      resolver: zodResolver(videoUploadSchema),
+      defaultValues: DEFAULT_FORM,
+    });
 
   const ctaEnabled = watch("ctaEnabled");
   const ctaDestination = watch("ctaDestination");
@@ -94,34 +162,138 @@ export function VideoUploadForm() {
   const ctaTargetLabel = watch("ctaTargetLabel") ?? "";
 
   useEffect(() => {
+    if (!editId) {
+      setLoadingVideo(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingVideo(true);
+
+    void videosService
+      .getById(editId)
+      .then((video) => {
+        if (cancelled) return;
+        const cta = inferBannerCtaDestination(
+          video.linkType,
+          video.linkTarget || video.linkUrl,
+        );
+        reset({
+          title: video.title ?? "",
+          description: video.description ?? "",
+          category: "brand-story",
+          targetAudience: "all-users",
+          placements: mapApiPlacementToForm(video.placement),
+          priorityLevel: clampVideoPriority(video.priority),
+          publishImmediately: Boolean(video.published ?? video.isVisible),
+          scheduledAt: toDatetimeLocal(video.scheduledAt),
+          ctaEnabled: Boolean(
+            video.ctaLabel || video.linkTarget || video.linkUrl,
+          ),
+          ctaLabel: video.ctaLabel || "Shop Now",
+          ctaDestination: cta.ctaDestination,
+          linkType: cta.linkType,
+          ctaPath: cta.ctaPath,
+          ctaTargetLabel: cta.ctaTargetLabel ?? "",
+        });
+        const url = (video.publicUrl || video.videoUrl || "").trim();
+        if (url) {
+          setExistingVideoUrl(url);
+          setPreviewUrl(url);
+          setUploadFile({ name: "current-video.mp4", progress: 100 });
+        }
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        notify.error(
+          error instanceof Error ? error.message : "Failed to load video",
+        );
+        router.push("/customer-app-cms/videos");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingVideo(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editId, reset, router]);
+
+  useEffect(() => {
     if (!rawFile) {
-      setPreviewUrl(null);
+      setPreviewUrl(existingVideoUrl);
+      if (existingVideoUrl) {
+        setUploadFile({ name: "current-video.mp4", progress: 100 });
+      }
       return;
     }
     const objectUrl = URL.createObjectURL(rawFile);
     setPreviewUrl(objectUrl);
     return () => URL.revokeObjectURL(objectUrl);
-  }, [rawFile]);
+  }, [rawFile, existingVideoUrl]);
+
+  const restoreExistingPreview = () => {
+    setRawFile(null);
+    if (existingVideoUrl) {
+      setPreviewUrl(existingVideoUrl);
+      setUploadFile({ name: "current-video.mp4", progress: 100 });
+    } else {
+      setPreviewUrl(null);
+      setUploadFile(null);
+    }
+  };
+
+  const onInvalid = (errors: FieldErrors<VideoUploadSchema>) => {
+    notify.error(firstFormError(errors));
+  };
 
   const onSubmit = async (data: VideoUploadSchema) => {
-    if (!rawFile) {
+    if (!isEdit && !rawFile) {
       notify.error("Select an MP4 / MOV / WEBM file to upload");
       return;
     }
+
     setSaving(true);
     setUploadProgress(0);
+    const cta = buildCtaFields(data);
+
     try {
+      if (isEdit && editId) {
+        if (rawFile) {
+          await videosService.replaceFile(editId, rawFile, (percent) => {
+            setUploadProgress(percent);
+            setUploadFile((prev) =>
+              prev ? { ...prev, progress: percent } : prev,
+            );
+          });
+        }
+        await videosService.update(editId, {
+          title: data.title,
+          description: data.description ?? "",
+          placement: mapPlacementsToApi(data.placements),
+          ...cta,
+          priority: clampVideoPriority(data.priorityLevel),
+          published: data.publishImmediately,
+        });
+        await invalidateVideos();
+        notify.success("Changes saved — the Customer App will refresh this video");
+        router.push("/customer-app-cms/videos");
+        return;
+      }
+
+      if (!rawFile) {
+        notify.error("Select an MP4 / MOV / WEBM file to upload");
+        return;
+      }
+
       await videosService.upload(
         {
           file: rawFile,
           title: data.title,
           description: data.description,
           placement: mapPlacementsToApi(data.placements),
-          linkUrl: data.ctaEnabled ? data.ctaPath : undefined,
-          linkType: data.ctaEnabled ? data.linkType : undefined,
-          linkTarget: data.ctaEnabled ? data.ctaPath : undefined,
-          ctaLabel: data.ctaEnabled ? data.ctaLabel : undefined,
-          priority: data.priorityLevel,
+          ...cta,
+          priority: clampVideoPriority(data.priorityLevel),
           publish: data.publishImmediately,
         },
         (percent) => {
@@ -137,31 +309,42 @@ export function VideoUploadForm() {
       router.push("/customer-app-cms/videos");
     } catch (error) {
       notify.error(
-        error instanceof Error ? error.message : "Failed to upload video",
+        error instanceof Error ? error.message : "Failed to save video",
       );
     } finally {
       setSaving(false);
     }
   };
 
+  if (loadingVideo) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <p className="text-sm text-[#64748B]">Loading video…</p>
+      </div>
+    );
+  }
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form
+      onSubmit={handleSubmit(onSubmit, onInvalid)}
+      className="space-y-6"
+    >
       <Breadcrumbs
         items={[
           { label: "Customer App CMS", href: "/customer-app-cms" },
           { label: "Video Management", href: "/customer-app-cms/videos" },
-          { label: "Upload New Video" },
+          { label: isEdit ? "Edit Video" : "Upload New Video" },
         ]}
       />
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[#1A1A1A]">
-            Upload New Video
+            {isEdit ? "Edit Video" : "Upload New Video"}
           </h1>
           <p className="mt-1 text-sm text-[#64748B]">
-            The file plays directly in the Customer App. Pick a product for the
-            button so shoppers land on the right page.
+            Set Shop Now to open a product in the Customer App. Search and pick
+            the catalog item shoppers should land on.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -173,12 +356,20 @@ export function VideoUploadForm() {
           >
             Discard
           </Button>
-          <Button type="submit" className="h-10 px-5" disabled={saving}>
+          <Button
+            type="button"
+            nativeButton
+            className="h-10 px-5"
+            disabled={saving}
+            onClick={() => void handleSubmit(onSubmit, onInvalid)()}
+          >
             {saving
               ? uploadProgress > 0 && uploadProgress < 100
                 ? `Uploading ${uploadProgress}%…`
-                : "Publishing…"
-              : "Publish Video"}
+                : "Saving…"
+              : isEdit
+                ? "Save changes"
+                : "Publish Video"}
           </Button>
         </div>
       </div>
@@ -194,12 +385,17 @@ export function VideoUploadForm() {
               setUploadFile({ name: file.name, progress: 0 });
             }
           }}
+          onClear={restoreExistingPreview}
           accept={{
             "video/mp4": [".mp4"],
             "video/quicktime": [".mov"],
             "video/webm": [".webm"],
           }}
-          helperText="MP4, MOV, or WEBM up to 500MB. Stored on Cloudflare R2 and streamed in the app."
+          helperText={
+            isEdit
+              ? "Optional. Leave the current file to only change Shop Now or other details."
+              : "MP4, MOV, or WEBM up to 500MB. Stored on Cloudflare R2 and streamed in the app."
+          }
         />
       </FormSectionCard>
 
@@ -327,7 +523,7 @@ export function VideoUploadForm() {
                     Show button on Customer App
                   </Label>
                   <p className="mt-0.5 text-sm text-[#64748B]">
-                    Opens a product, category, or other screen when tapped.
+                    Shop Now opens a product page when you pick Product below.
                   </p>
                 </div>
                 <Switch
@@ -352,7 +548,7 @@ export function VideoUploadForm() {
                     <Input
                       {...field}
                       id="cta-label"
-                      placeholder="e.g. View Product, Shop Now"
+                      placeholder="Shop Now"
                       aria-invalid={!!fieldState.error}
                     />
                     {fieldState.error && (
@@ -369,7 +565,9 @@ export function VideoUploadForm() {
                   control={control}
                   name="ctaPath"
                   render={({ fieldState }) => (
-                    <BannerCtaDestinationPicker
+                    <div>
+                      <BannerCtaDestinationPicker
+                      preferProduct
                       value={{
                         ctaDestination,
                         linkType,
@@ -392,6 +590,18 @@ export function VideoUploadForm() {
                       }}
                       error={fieldState.error?.message}
                     />
+                    {ctaDestination !== "PRODUCT" ? (
+                      <p className="mt-2 text-sm text-amber-800">
+                        Shop Now currently opens{" "}
+                        {ctaDestination === "CATALOG"
+                          ? "Catalog"
+                          : ctaDestination.toLowerCase()}
+                        . Choose <span className="font-semibold">Product</span>{" "}
+                        and pick an item so the Customer App opens that product
+                        page.
+                      </p>
+                    ) : null}
+                    </div>
                   )}
                 />
               </div>

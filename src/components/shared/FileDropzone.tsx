@@ -95,7 +95,8 @@ export function FileDropzone({
   const hasCompactSelection = isCompact && (selectedFile || previewUrl);
   const isVideoPreview = Boolean(
     previewUrl &&
-      (/\.(mp4|mov|webm)(\?|$)/i.test(previewUrl) ||
+      (previewUrl.startsWith("blob:") ||
+        /\.(mp4|mov|webm)(\?|$)/i.test(previewUrl) ||
         /\.(mp4|mov|webm)$/i.test(selectedFile?.name ?? "") ||
         previewUrl.includes("/testimonials/") ||
         previewUrl.includes("/videos/")),

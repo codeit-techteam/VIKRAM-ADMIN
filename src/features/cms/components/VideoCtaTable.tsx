@@ -10,8 +10,8 @@ import { ExternalLink, MousePointerClick, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
 
-import { SafeRemoteImage } from "@/components/shared/SafeRemoteImage";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { VideoMediaPreview } from "@/features/cms/components/VideoMediaPreview";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -38,6 +38,10 @@ const DESTINATION_LABELS: Record<Video["cta"]["destinationType"], string> = {
   product: "Product",
   offer: "Offer",
   external: "External",
+  route: "App screen",
+  catalog: "Catalog",
+  loyalty: "Loyalty",
+  bulk: "Bulk enquiry",
 };
 
 export function VideoCtaTable({ videos }: VideoCtaTableProps) {
@@ -51,13 +55,7 @@ export function VideoCtaTable({ videos }: VideoCtaTableProps) {
           return (
             <div className="flex min-w-0 items-center gap-3">
               <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-md bg-gray-100">
-                <SafeRemoteImage
-                  src={row.thumbnailUrl}
-                  alt={row.title}
-                  fill
-                  className="object-cover"
-                  sizes="80px"
-                />
+                <VideoMediaPreview src={row.videoUrl} title={row.title} />
               </div>
               <div className="min-w-0">
                 <p className="truncate font-medium text-[#1A1A1A]">

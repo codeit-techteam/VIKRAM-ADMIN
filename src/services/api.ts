@@ -145,10 +145,18 @@ api.interceptors.response.use(
 export default api;
 
 export const getApiErrorMessage = (error: unknown): string => {
-  if (axios.isAxiosError<ApiErrorResponse>(error)) {
-    return (
-      error.response?.data?.message ?? error.message ?? "An error occurred"
-    );
+  if (axios.isAxiosError(error)) {
+    const payload = error.response?.data as
+      | { message?: string | string[]; errors?: Record<string, string[]> }
+      | undefined;
+    const message = payload?.message;
+    if (Array.isArray(message)) return message.filter(Boolean).join(". ");
+    if (typeof message === "string" && message.trim()) return message;
+    const fieldErrors = payload?.errors
+      ? Object.values(payload.errors).flat().filter(Boolean)
+      : [];
+    if (fieldErrors.length > 0) return fieldErrors.join(". ");
+    return error.message ?? "An error occurred";
   }
   if (error instanceof Error) return error.message;
   return "An unexpected error occurred";

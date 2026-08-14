@@ -1,15 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Calendar,
   Clapperboard,
   FileText,
-  Image as ImageIcon,
   LayoutGrid,
   MousePointerClick,
-  Upload,
 } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
 
@@ -32,13 +30,10 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { BannerCtaDestinationPicker } from "@/features/cms/components/BannerCtaDestinationPicker";
 import { PrioritySlider } from "@/features/cms/components/PrioritySlider";
-import { ThumbnailPicker } from "@/features/cms/components/ThumbnailPicker";
 import {
-  CTA_DESTINATION_OPTIONS,
-  CTA_REDIRECT_OPTIONS,
   PLACEMENT_OPTIONS,
-  THUMBNAIL_FRAMES,
   VIDEO_AUDIENCE_OPTIONS,
   VIDEO_CATEGORY_OPTIONS,
 } from "@/features/cms/constants/video-upload.mock";
@@ -68,36 +63,45 @@ export function VideoUploadForm() {
   const invalidateVideos = useInvalidateCmsVideos();
   const [uploadFile, setUploadFile] = useState<MockUploadFile | null>(null);
   const [rawFile, setRawFile] = useState<File | null>(null);
-  const [posterFile, setPosterFile] = useState<File | null>(null);
-  const [posterMeta, setPosterMeta] = useState<MockUploadFile | null>(null);
-  const [selectedThumbnailId, setSelectedThumbnailId] = useState(
-    THUMBNAIL_FRAMES[0]?.id ?? "",
-  );
-  const [thumbnailUrl, setThumbnailUrl] = useState("");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  const { control, handleSubmit, watch } = useForm<VideoUploadSchema>({
+  const { control, handleSubmit, watch, setValue } = useForm<VideoUploadSchema>({
     resolver: zodResolver(videoUploadSchema),
     defaultValues: {
       title: "",
       description: "",
       category: "brand-story",
       targetAudience: "all-users",
-      placements: ["home-screen-hero", "product-detail-pages"],
+      placements: ["home-screen-hero"],
       priorityLevel: 8,
       publishImmediately: true,
       scheduledAt: "",
       ctaEnabled: true,
-      ctaLabel: "Shop Now",
-      ctaPath: "/(tabs)/catalog",
-      ctaDestinationType: "category",
+      ctaLabel: "View Product",
+      ctaDestination: "PRODUCT",
+      linkType: "PRODUCT",
+      ctaPath: "",
+      ctaTargetLabel: "",
     },
   });
 
   const ctaEnabled = watch("ctaEnabled");
-  const ctaPath = watch("ctaPath");
-  const showCustomPath = ctaPath === "custom";
+  const ctaDestination = watch("ctaDestination");
+  const ctaPath = watch("ctaPath") ?? "";
+  const linkType = watch("linkType") ?? "PRODUCT";
+  const ctaTargetLabel = watch("ctaTargetLabel") ?? "";
+
+  useEffect(() => {
+    if (!rawFile) {
+      setPreviewUrl(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(rawFile);
+    setPreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [rawFile]);
 
   const onSubmit = async (data: VideoUploadSchema) => {
     if (!rawFile) {
@@ -107,25 +111,18 @@ export function VideoUploadForm() {
     setSaving(true);
     setUploadProgress(0);
     try {
-      const frameThumb = THUMBNAIL_FRAMES.find(
-        (f) => f.id === selectedThumbnailId,
-      )?.imageUrl;
       await videosService.upload(
         {
           file: rawFile,
-          thumbnailFile: posterFile,
           title: data.title,
           description: data.description,
           placement: mapPlacementsToApi(data.placements),
-          linkUrl: data.ctaEnabled
-            ? data.ctaPath === "custom"
-              ? undefined
-              : data.ctaPath
-            : undefined,
+          linkUrl: data.ctaEnabled ? data.ctaPath : undefined,
+          linkType: data.ctaEnabled ? data.linkType : undefined,
+          linkTarget: data.ctaEnabled ? data.ctaPath : undefined,
           ctaLabel: data.ctaEnabled ? data.ctaLabel : undefined,
           priority: data.priorityLevel,
           publish: data.publishImmediately,
-          thumbnailUrl: thumbnailUrl.trim() || frameThumb,
         },
         (percent) => {
           setUploadProgress(percent);
@@ -136,9 +133,7 @@ export function VideoUploadForm() {
       );
 
       await invalidateVideos();
-      notify.success(
-        "Video uploaded to Cloudflare R2 — Customer App will refresh from CMS",
-      );
+      notify.success("Video published — the Customer App will refresh it now");
       router.push("/customer-app-cms/videos");
     } catch (error) {
       notify.error(
@@ -160,11 +155,22 @@ export function VideoUploadForm() {
       />
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold text-[#1A1A1A]">
-          Upload New Video Asset
-        </h1>
+        <div>
+          <h1 className="text-2xl font-bold text-[#1A1A1A]">
+            Upload New Video
+          </h1>
+          <p className="mt-1 text-sm text-[#64748B]">
+            The file plays directly in the Customer App. Pick a product for the
+            button so shoppers land on the right page.
+          </p>
+        </div>
         <div className="flex items-center gap-3">
-          <Button type="button" variant="outline" className="h-10 px-5">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 px-5"
+            onClick={() => router.push("/customer-app-cms/videos")}
+          >
             Discard
           </Button>
           <Button type="submit" className="h-10 px-5" disabled={saving}>
@@ -177,52 +183,24 @@ export function VideoUploadForm() {
         </div>
       </div>
 
-      <FormSectionCard icon={Clapperboard} title="Video Asset Ingestion">
-        <div className="space-y-4">
-          <FileDropzone
-            selectedFile={uploadFile}
-            onFileSelect={setUploadFile}
-            onFileChange={(file) => {
-              setRawFile(file);
-              if (file) {
-                setUploadFile({ name: file.name, progress: 0 });
-              }
-            }}
-            accept={{
-              "video/mp4": [".mp4"],
-              "video/quicktime": [".mov"],
-              "video/webm": [".webm"],
-            }}
-            helperText="Supported formats: MP4, MOV, WEBM (Max 500MB). Uploads to Cloudflare R2."
-          />
-          <div className="space-y-2">
-            <Label className={fieldLabelClassName}>
-              Poster image (optional)
-            </Label>
-            <FileDropzone
-              variant="compact"
-              selectedFile={posterMeta}
-              onFileSelect={setPosterMeta}
-              onFileChange={setPosterFile}
-              accept={{
-                "image/jpeg": [".jpg", ".jpeg"],
-                "image/png": [".png"],
-                "image/webp": [".webp"],
-              }}
-              helperText="JPEG / PNG / WEBP poster stored in thumbnails/"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className={fieldLabelClassName}>
-              Poster / Thumbnail URL (optional fallback)
-            </Label>
-            <Input
-              value={thumbnailUrl}
-              onChange={(e) => setThumbnailUrl(e.target.value)}
-              placeholder="https://cdn.example.com/poster.jpg"
-            />
-          </div>
-        </div>
+      <FormSectionCard icon={Clapperboard} title="Video file">
+        <FileDropzone
+          selectedFile={uploadFile}
+          previewUrl={previewUrl}
+          onFileSelect={setUploadFile}
+          onFileChange={(file) => {
+            setRawFile(file);
+            if (file) {
+              setUploadFile({ name: file.name, progress: 0 });
+            }
+          }}
+          accept={{
+            "video/mp4": [".mp4"],
+            "video/quicktime": [".mov"],
+            "video/webm": [".webm"],
+          }}
+          helperText="MP4, MOV, or WEBM up to 500MB. Stored on Cloudflare R2 and streamed in the app."
+        />
       </FormSectionCard>
 
       <FormSectionCard icon={FileText} title="Content Details">
@@ -238,7 +216,7 @@ export function VideoUploadForm() {
                 <Input
                   {...field}
                   id="title"
-                  placeholder="e.g. Revolutionizing Warehouse Procurement"
+                  placeholder="e.g. Materials Delivered Right to Your Site"
                   aria-invalid={!!fieldState.error}
                 />
                 {fieldState.error && (
@@ -262,7 +240,7 @@ export function VideoUploadForm() {
                   {...field}
                   id="description"
                   rows={4}
-                  placeholder="Describe the content for SEO and accessibility..."
+                  placeholder="Shown under the title in the Customer App"
                   aria-invalid={!!fieldState.error}
                 />
                 {fieldState.error && (
@@ -334,27 +312,7 @@ export function VideoUploadForm() {
         </div>
       </FormSectionCard>
 
-      <FormSectionCard
-        icon={ImageIcon}
-        title="Thumbnail Selection"
-        headerAction={
-          <button
-            type="button"
-            className="text-primary hover:text-primary/80 inline-flex items-center gap-1.5 text-sm font-medium"
-          >
-            <Upload className="size-3.5" />
-            Upload Custom
-          </button>
-        }
-      >
-        <ThumbnailPicker
-          frames={THUMBNAIL_FRAMES}
-          selectedId={selectedThumbnailId}
-          onSelect={setSelectedThumbnailId}
-        />
-      </FormSectionCard>
-
-      <FormSectionCard icon={MousePointerClick} title="Customer App CTA Button">
+      <FormSectionCard icon={MousePointerClick} title="Customer App button">
         <div className="space-y-5">
           <Controller
             control={control}
@@ -366,10 +324,10 @@ export function VideoUploadForm() {
                     htmlFor="cta-enabled"
                     className="text-sm font-medium text-[#1A1A1A]"
                   >
-                    Show CTA on Customer App
+                    Show button on Customer App
                   </Label>
                   <p className="mt-0.5 text-sm text-[#64748B]">
-                    Display a call-to-action button below this video in the app.
+                    Opens a product, category, or other screen when tapped.
                   </p>
                 </div>
                 <Switch
@@ -394,7 +352,7 @@ export function VideoUploadForm() {
                     <Input
                       {...field}
                       id="cta-label"
-                      placeholder="e.g. Shop Now, Get Quote"
+                      placeholder="e.g. View Product, Shop Now"
                       aria-invalid={!!fieldState.error}
                     />
                     {fieldState.error && (
@@ -406,73 +364,37 @@ export function VideoUploadForm() {
                 )}
               />
 
-              <Controller
-                control={control}
-                name="ctaDestinationType"
-                render={({ field, fieldState }) => (
-                  <div className="space-y-2">
-                    <Label className={fieldLabelClassName}>
-                      Destination Type
-                    </Label>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger aria-invalid={!!fieldState.error}>
-                        <SelectValue placeholder="Select destination type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CTA_DESTINATION_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              />
-
-              <Controller
-                control={control}
-                name="ctaPath"
-                render={({ field, fieldState }) => (
-                  <div className="space-y-2 lg:col-span-2">
-                    <Label className={fieldLabelClassName}>
-                      Redirect Destination
-                    </Label>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger aria-invalid={!!fieldState.error}>
-                        <SelectValue placeholder="Select where the button redirects" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CTA_REDIRECT_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {fieldState.error && (
-                      <p className="text-destructive text-sm">
-                        {fieldState.error.message}
-                      </p>
-                    )}
-                  </div>
-                )}
-              />
-
-              {showCustomPath && (
-                <div className="space-y-2 lg:col-span-2">
-                  <Label
-                    htmlFor="custom-cta-path"
-                    className={fieldLabelClassName}
-                  >
-                    Custom Path
-                  </Label>
-                  <Input
-                    id="custom-cta-path"
-                    placeholder="/category/your-path"
-                  />
-                </div>
-              )}
+              <div className="lg:col-span-2">
+                <Controller
+                  control={control}
+                  name="ctaPath"
+                  render={({ fieldState }) => (
+                    <BannerCtaDestinationPicker
+                      value={{
+                        ctaDestination,
+                        linkType,
+                        ctaPath,
+                        ctaTargetLabel,
+                      }}
+                      onChange={(next) => {
+                        setValue("ctaDestination", next.ctaDestination, {
+                          shouldValidate: true,
+                        });
+                        setValue("linkType", next.linkType, {
+                          shouldValidate: true,
+                        });
+                        setValue("ctaPath", next.ctaPath, {
+                          shouldValidate: true,
+                        });
+                        setValue("ctaTargetLabel", next.ctaTargetLabel ?? "", {
+                          shouldDirty: true,
+                        });
+                      }}
+                      error={fieldState.error?.message}
+                    />
+                  )}
+                />
+              </div>
             </div>
           )}
         </div>

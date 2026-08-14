@@ -3,16 +3,21 @@ import { z } from "zod";
 export const offerFormSchema = z
   .object({
     name: z.string().min(2, "Offer name must be at least 2 characters"),
-    slug: z
-      .string()
-      .min(2, "Slug is required")
-      .regex(
-        /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-        "Slug must be lowercase with hyphens only",
-      ),
     description: z
       .string()
       .min(10, "Description must be at least 10 characters"),
+    startingFrom: z.preprocess(
+      (value) => {
+        if (value === "" || value === null || value === undefined) return null;
+        const n = Number(value);
+        return Number.isFinite(n) ? n : value;
+      },
+      z
+        .number()
+        .positive("Enter a valid starting price")
+        .nullable()
+        .optional(),
+    ),
     status: z.enum(["ACTIVE", "SCHEDULED", "EXPIRED", "DRAFT", "INACTIVE"]),
     priority: z
       .number()

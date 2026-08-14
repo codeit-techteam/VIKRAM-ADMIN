@@ -11,9 +11,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import { SafeRemoteImage } from "@/components/shared/SafeRemoteImage";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
+import { VideoMediaPreview } from "@/features/cms/components/VideoMediaPreview";
 import type { Video, VideoStatus } from "@/features/cms/types/video.types";
 import { cn } from "@/lib/utils";
 
@@ -81,17 +81,11 @@ export function VideoCard({
     >
       <div
         className={cn(
-          "relative overflow-hidden bg-gray-100",
+          "relative overflow-hidden bg-slate-900 pointer-events-none",
           isList ? "h-24 w-40 shrink-0 rounded-lg" : "aspect-video w-full",
         )}
       >
-        <SafeRemoteImage
-          src={video.thumbnailUrl}
-          alt={video.title}
-          fill
-          className="object-cover"
-          sizes={isList ? "160px" : "(max-width: 768px) 100vw, 33vw"}
-        />
+        <VideoMediaPreview src={video.videoUrl} title={video.title} />
         <StatusBadge
           status={video.status}
           className={cn(

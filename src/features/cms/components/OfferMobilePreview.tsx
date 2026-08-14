@@ -17,6 +17,7 @@ interface OfferMobilePreviewProps {
   badge?: string;
   products: OfferProduct[];
   offerType?: OfferType;
+  startingFrom?: number | null;
   className?: string;
 }
 
@@ -24,17 +25,22 @@ export function OfferMobilePreview({
   name,
   description,
   bannerUrl,
-  ctaLabel,
   badge,
   products,
+  startingFrom,
   className,
 }: OfferMobilePreviewProps) {
   const displayName = name.trim() || "Offer title";
   const displayDescription =
     description?.trim() || "Short description appears here";
-  const startingFrom = products.length
-    ? Math.min(...products.map((product) => product.price))
-    : null;
+  const priced = products.map((product) => product.price).filter((price) => price > 0);
+  const autoFrom = priced.length ? Math.min(...priced) : null;
+  const fromPrice =
+    typeof startingFrom === "number" && startingFrom > 0
+      ? startingFrom
+      : Number.isFinite(autoFrom)
+        ? autoFrom
+        : null;
 
   return (
     <div className={cn("flex flex-col items-center", className)}>
@@ -84,21 +90,15 @@ export function OfferMobilePreview({
                 <p className="line-clamp-2 text-[11px] text-[#666666]">
                   {displayDescription}
                 </p>
-                {startingFrom ? (
+                {fromPrice ? (
                   <p className="text-xs font-semibold text-[#1A1A1A]">
-                    From ₹{startingFrom.toLocaleString("en-IN")}
+                    From ₹{fromPrice.toLocaleString("en-IN")}
                   </p>
                 ) : null}
                 <p className="text-[10px] text-[#64748B]">
                   {products.length} product{products.length === 1 ? "" : "s"}{" "}
                   included
                 </p>
-                <button
-                  type="button"
-                  className="w-full rounded-lg bg-[#FEB623] py-2 text-xs font-bold text-[#1A1A1A]"
-                >
-                  {ctaLabel || "Shop Now"} →
-                </button>
               </div>
             </div>
           </div>

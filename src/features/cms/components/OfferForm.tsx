@@ -41,7 +41,6 @@ import {
   OFFER_BADGE_OPTIONS,
   OFFER_CTA_OPTIONS,
   OFFER_TYPE_OPTIONS,
-  slugifyOfferName,
 } from "@/features/cms/constants/offer.mock";
 import {
   offerFormSchema,
@@ -72,8 +71,8 @@ interface OfferFormProps {
 function offerToFormValues(offer: Offer): OfferFormSchema {
   return {
     name: offer.name,
-    slug: offer.slug,
     description: offer.description,
+    startingFrom: offer.startingFrom ?? null,
     status: offer.status,
     priority: offer.priority,
     offerType: offer.offerType,
@@ -90,8 +89,8 @@ function offerToFormValues(offer: Offer): OfferFormSchema {
 
 const CREATE_DEFAULTS: OfferFormSchema = {
   name: "",
-  slug: "",
   description: "",
+  startingFrom: null,
   status: "DRAFT",
   priority: 5,
   offerType: "home-carousel",
@@ -119,7 +118,6 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
   const [mobilePreviewUrl, setMobilePreviewUrl] = useState(
     initialOffer?.mobileBanner ?? "",
   );
-  const [slugTouched, setSlugTouched] = useState(mode === "edit");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [productCatalog, setProductCatalog] = useState<OfferProduct[]>(
     initialOffer?.products ?? [],
@@ -133,10 +131,10 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
   });
 
   const watchedName = watch("name");
-  const watchedSlug = watch("slug");
   const watchedCta = watch("ctaLabel");
   const watchedBadge = watch("badge");
   const watchedDescription = watch("description");
+  const watchedStartingFrom = watch("startingFrom");
   const watchedOfferType = watch("offerType");
   const watchedProductIds = watch("productIds");
   const watchedDesktopBanner = watch("desktopBanner");
@@ -167,14 +165,6 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
       cancelled = true;
     };
   }, [initialOffer?.products]);
-
-  useEffect(() => {
-    if (!slugTouched && mode === "create") {
-      setValue("slug", slugifyOfferName(watchedName), {
-        shouldValidate: false,
-      });
-    }
-  }, [watchedName, slugTouched, mode, setValue]);
 
   const selectedProducts = useMemo(() => {
     return watchedProductIds
@@ -393,24 +383,32 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
 
               <Controller
                 control={control}
-                name="slug"
+                name="startingFrom"
                 render={({ field, fieldState }) => (
                   <div className="space-y-2">
-                    <Label htmlFor="offer-slug" className={fieldLabelClassName}>
-                      Slug
+                    <Label
+                      htmlFor="offer-starting-from"
+                      className={fieldLabelClassName}
+                    >
+                      Starting from (₹)
                     </Label>
                     <Input
-                      {...field}
-                      id="offer-slug"
-                      placeholder="monsoon-cement-mega-sale"
-                      aria-invalid={!!fieldState.error}
+                      id="offer-starting-from"
+                      type="number"
+                      min={1}
+                      step="1"
+                      inputMode="numeric"
+                      placeholder="e.g. 8"
+                      value={field.value ?? ""}
                       onChange={(event) => {
-                        setSlugTouched(true);
-                        field.onChange(event.target.value);
+                        const value = event.target.value;
+                        field.onChange(value === "" ? null : Number(value));
                       }}
+                      aria-invalid={!!fieldState.error}
                     />
                     <p className="text-xs text-[#64748B]">
-                      URL path: /offers/{watchedSlug || "your-slug"}
+                      Shown as “From ₹…” on the offer card. Leave blank to use
+                      the cheapest included product.
                     </p>
                     {fieldState.error ? (
                       <p className="text-destructive text-sm">
@@ -772,6 +770,7 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
               badge={watchedBadge}
               products={selectedProducts}
               offerType={watchedOfferType}
+              startingFrom={watchedStartingFrom}
             />
           </div>
         </aside>

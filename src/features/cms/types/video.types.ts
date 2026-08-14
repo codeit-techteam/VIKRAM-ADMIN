@@ -1,7 +1,15 @@
 export type VideoStatus =
   "PUBLISHED" | "SCHEDULED" | "DRAFT" | "INACTIVE" | "EXPIRED";
 
-export type CtaDestinationType = "product" | "category" | "offer" | "external";
+export type CtaDestinationType =
+  | "product"
+  | "category"
+  | "offer"
+  | "external"
+  | "route"
+  | "catalog"
+  | "loyalty"
+  | "bulk";
 
 export type VideoPlacementFilter =
   | "ALL"
@@ -19,11 +27,12 @@ export interface VideoCta {
   label: string;
   path: string;
   destinationType: CtaDestinationType;
+  linkType: string;
 }
 
 export interface Video {
   id: string;
-  /** R2 poster; empty/null when missing — UI must use SafeRemoteImage/placeholder */
+  /** @deprecated Thumbnails are no longer used — play videoUrl instead */
   thumbnailUrl: string | null;
   /** R2 playback URL — same source Customer App uses */
   videoUrl: string;

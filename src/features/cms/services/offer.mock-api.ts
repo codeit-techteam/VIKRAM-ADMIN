@@ -38,6 +38,7 @@ interface AdminOffer {
   lifecycleStatus?: string;
   updatedAt?: string;
   duplicateWarning?: boolean;
+  bundlePrice?: number | string | null;
   products?: Array<{
     product: {
       id: string;
@@ -131,6 +132,7 @@ function toIstDateInput(value?: string | null): string {
 function mapOffer(row: AdminOffer): Offer {
   const desktop = row.imageUrl || row.mobileImageUrl || "";
   const mobile = row.mobileImageUrl || row.imageUrl || "";
+  const bundle = Number(row.bundlePrice);
   return {
     id: row.id,
     name: row.title,
@@ -158,6 +160,7 @@ function mapOffer(row: AdminOffer): Offer {
     ctaAction: mapCtaAction(row),
     badge: mapBadge(row),
     targetAudience: (row.targetAudience as OfferTargetAudience) || "ALL",
+    startingFrom: Number.isFinite(bundle) && bundle > 0 ? bundle : null,
     updatedAt: row.updatedAt,
     duplicateWarning: row.duplicateWarning,
   };
@@ -166,7 +169,6 @@ function mapOffer(row: AdminOffer): Offer {
 function toPayload(data: OfferFormSchema) {
   return {
     title: data.name,
-    slug: data.slug,
     description: data.description,
     imageUrl: data.desktopBanner || data.mobileBanner,
     mobileImageUrl: data.mobileBanner || data.desktopBanner,
@@ -177,6 +179,10 @@ function toPayload(data: OfferFormSchema) {
     startsAt: data.startDate || undefined,
     endsAt: data.endDate || undefined,
     badge: data.badge || undefined,
+    bundlePrice:
+      typeof data.startingFrom === "number" && data.startingFrom > 0
+        ? data.startingFrom
+        : null,
     ctaLabel: data.ctaLabel,
     ctaAction:
       data.ctaLabel === "Buy Now"
@@ -325,6 +331,7 @@ export async function duplicateOffer(id: string): Promise<Offer | null> {
       ctaLabel: existing.ctaLabel,
       ctaAction: existing.ctaAction,
       targetAudience: existing.targetAudience,
+      bundlePrice: existing.startingFrom ?? null,
     },
   );
 

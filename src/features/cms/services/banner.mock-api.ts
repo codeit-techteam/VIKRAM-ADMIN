@@ -95,8 +95,8 @@ function toCreatePayload(
           ),
         }
       : {}),
-    imageUrl,
-    mobileUrl: asRemoteUrl(data.mobileUrl) || asRemoteUrl(thumbnailUrl) || undefined,
+    imageUrl: imageUrl || undefined,
+    mobileUrl: asRemoteUrl(data.mobileUrl) || asRemoteUrl(thumbnailUrl),
     tabletUrl: asRemoteUrl(data.tabletUrl),
     desktopUrl: asRemoteUrl(data.desktopUrl),
     subtitle: data.subtitle,

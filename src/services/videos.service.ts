@@ -19,6 +19,7 @@ export interface AdminVideo {
   placement?: string;
   linkUrl?: string | null;
   linkTarget?: string | null;
+  linkType?: string | null;
   ctaLabel?: string | null;
   duration?: number | null;
   displayOrder: number;
@@ -89,15 +90,30 @@ function isLiveOnApp(row: AdminVideo): boolean {
   );
 }
 
+function mapCtaDestination(
+  linkType?: string | null,
+  path?: string | null,
+): Video["cta"]["destinationType"] {
+  const type = (linkType || "").toUpperCase();
+  if (type === "PRODUCT") return "product";
+  if (type === "CATEGORY") return "category";
+  if (type === "OFFER") return "offer";
+  if (type === "EXTERNAL") return "external";
+  if (type === "LOYALTY") return "loyalty";
+  if (type === "BULK_INQUIRY") return "bulk";
+  if ((path || "").startsWith("/category/")) return "category";
+  if ((path || "").startsWith("/products/")) return "product";
+  if ((path || "").includes("catalog")) return "catalog";
+  return "route";
+}
+
 export function toUiVideo(row: AdminVideo): Video {
   const videoUrl = (row.publicUrl || row.videoUrl || "").trim();
-  const thumbnailUrl = isRemoteUrl(row.thumbnailUrl)
-    ? row.thumbnailUrl!.trim()
-    : null;
+  const ctaPath = (row.linkTarget || row.linkUrl || "").trim();
 
   return {
     id: row.id,
-    thumbnailUrl,
+    thumbnailUrl: null,
     videoUrl,
     title: row.title,
     status: mapStatus(row),
@@ -114,10 +130,11 @@ export function toUiVideo(row: AdminVideo): Video {
       ? new Date(row.scheduledAt).toLocaleString()
       : undefined,
     cta: {
-      enabled: Boolean(row.linkUrl || row.linkTarget || row.ctaLabel),
+      enabled: Boolean(ctaPath || row.ctaLabel),
       label: row.ctaLabel || "Shop Now",
-      path: row.linkUrl || row.linkTarget || "/",
-      destinationType: "external",
+      path: ctaPath,
+      destinationType: mapCtaDestination(row.linkType, ctaPath),
+      linkType: (row.linkType || "ROUTE").toUpperCase(),
     },
   };
 }
@@ -175,35 +192,31 @@ export const videosService = {
   upload: async (
     payload: {
       file: File;
-      thumbnailFile?: File | null;
       title: string;
       description?: string;
       placement?: string;
       linkUrl?: string;
+      linkType?: string;
+      linkTarget?: string;
       ctaLabel?: string;
       priority?: number;
       publish?: boolean;
-      thumbnailUrl?: string;
     },
     onProgress?: VideoUploadProgress,
   ): Promise<AdminVideo> => {
     const form = new FormData();
     form.append("file", payload.file);
-    if (payload.thumbnailFile) {
-      form.append("thumbnail", payload.thumbnailFile);
-    }
     form.append("title", payload.title);
     if (payload.description) form.append("description", payload.description);
     form.append("placement", payload.placement || "HOME_HERO_VIDEO");
     if (payload.linkUrl) form.append("linkUrl", payload.linkUrl);
+    if (payload.linkType) form.append("linkType", payload.linkType);
+    if (payload.linkTarget) form.append("linkTarget", payload.linkTarget);
     if (payload.ctaLabel) form.append("ctaLabel", payload.ctaLabel);
     if (payload.priority != null) {
       form.append("priority", String(payload.priority));
     }
     form.append("publish", payload.publish ? "true" : "false");
-    if (payload.thumbnailUrl && isRemoteUrl(payload.thumbnailUrl)) {
-      form.append("thumbnailUrl", payload.thumbnailUrl.trim());
-    }
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();

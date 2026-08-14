@@ -10,6 +10,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         position="top-right"
         richColors
         closeButton
+        style={{ zIndex: 200 }}
         toastOptions={{
           classNames: {
             toast: "shadow-card rounded-xl",

@@ -104,7 +104,11 @@ export function OfferTable({
           return (
             <div className="min-w-[160px]">
               <p className="font-semibold text-[#1A1A1A]">{offer.name}</p>
-              <p className="text-xs text-[#64748B]">/{offer.slug}</p>
+              {offer.startingFrom ? (
+                <p className="text-xs text-[#64748B]">
+                  From ₹{offer.startingFrom.toLocaleString("en-IN")}
+                </p>
+              ) : null}
             </div>
           );
         },

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { BANNER_CTA_DESTINATIONS } from "@/features/cms/schema/banner-form.schema";
+
 export const videoUploadSchema = z
   .object({
     title: z.string().min(3, "Title must be at least 3 characters"),
@@ -14,8 +16,10 @@ export const videoUploadSchema = z
     scheduledAt: z.string().optional(),
     ctaEnabled: z.boolean(),
     ctaLabel: z.string().optional(),
+    ctaDestination: z.enum(BANNER_CTA_DESTINATIONS),
+    linkType: z.string().optional(),
     ctaPath: z.string().optional(),
-    ctaDestinationType: z.enum(["product", "category", "offer", "external"]),
+    ctaTargetLabel: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (!data.ctaEnabled) {
@@ -33,7 +37,23 @@ export const videoUploadSchema = z
     if (!data.ctaPath || data.ctaPath.trim().length < 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Select or enter a redirect destination",
+        message: "Choose where the button should open in the app",
+        path: ["ctaPath"],
+      });
+    }
+
+    if (data.ctaDestination === "PRODUCT" && !data.ctaPath.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Select a product to open",
+        path: ["ctaPath"],
+      });
+    }
+
+    if (data.ctaDestination === "CATEGORY" && !data.ctaPath.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Select a category to open",
         path: ["ctaPath"],
       });
     }

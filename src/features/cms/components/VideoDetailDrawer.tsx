@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import { SafeRemoteImage } from "@/components/shared/SafeRemoteImage";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { VideoMediaPreview } from "@/features/cms/components/VideoMediaPreview";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Sheet,
@@ -36,6 +36,10 @@ const DESTINATION_LABELS: Record<Video["cta"]["destinationType"], string> = {
   product: "Product",
   offer: "Offer",
   external: "External Link",
+  route: "App screen",
+  catalog: "Catalog",
+  loyalty: "Loyalty",
+  bulk: "Bulk enquiry",
 };
 
 function formatCount(value: number): string {
@@ -104,13 +108,7 @@ export function VideoDetailDrawer({
         <SheetHeader className="shrink-0 space-y-0 border-b border-gray-100 px-6 py-5 pr-14 text-left">
           <div className="flex items-start gap-4">
             <div className="relative h-20 w-32 shrink-0 overflow-hidden rounded-lg bg-gray-100">
-              <SafeRemoteImage
-                src={video.thumbnailUrl}
-                alt={video.title}
-                fill
-                className="object-cover"
-                sizes="128px"
-              />
+              <VideoMediaPreview src={video.videoUrl} title={video.title} />
               <span className="absolute right-1.5 bottom-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
                 {video.duration}
               </span>

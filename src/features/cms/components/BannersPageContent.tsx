@@ -238,7 +238,7 @@ export function BannersPageContent() {
     <div className="space-y-6">
       <PageHeader
         title="Promotional Banners"
-        subtitle={`${liveCount} banner${liveCount === 1 ? "" : "s"} currently eligible to show on the Customer App Home Screen. Drag rows to change carousel order.`}
+        subtitle={`${liveCount} banner${liveCount === 1 ? "" : "s"} eligible on Home — Hero (full image) and Promo (composed card). Drag rows to change carousel order.`}
         breadcrumbs={getNavBreadcrumbsFromPath("/customer-app-cms/banners")}
         actions={
           <Button

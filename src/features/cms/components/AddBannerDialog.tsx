@@ -70,10 +70,13 @@ function firstErrorMessage(errors: FieldErrors<BannerFormSchema>): string {
   return (
     errors.title?.message ||
     errors.mobileUrl?.message ||
+    errors.imageUrl?.message ||
     errors.ctaPath?.message ||
+    errors.ctaDestination?.message ||
     errors.endsAt?.message ||
     errors.location?.message ||
     errors.priority?.message ||
+    errors.status?.message ||
     "Please fix the highlighted fields."
   );
 }
@@ -101,8 +104,18 @@ function bannerToFormValues(banner: Banner): BannerFormSchema {
     badge: banner.badge ?? "",
     ctaColor: banner.ctaColor ?? "",
     backgroundColor: banner.backgroundColor ?? "",
-    imageUrl: banner.imageUrl ?? "",
-    mobileUrl: banner.mobileUrl ?? "",
+    imageUrl:
+      banner.imageUrl ||
+      banner.mobileUrl ||
+      banner.desktopUrl ||
+      banner.thumbnailUrl ||
+      "",
+    mobileUrl:
+      banner.mobileUrl ||
+      banner.imageUrl ||
+      banner.thumbnailUrl ||
+      banner.desktopUrl ||
+      "",
     desktopUrl: banner.desktopUrl ?? "",
     priority: banner.priority || 1,
     targetAudience: banner.targetAudience ?? "ALL",
@@ -142,6 +155,7 @@ export function AddBannerDialog({
   } = useForm<BannerFormSchema>({
     resolver: zodResolver(bannerFormSchema),
     defaultValues: BANNER_FORM_DEFAULT_VALUES,
+    mode: "onSubmit",
   });
 
   const ctaDestination = useWatch({ control, name: "ctaDestination" });
@@ -240,27 +254,35 @@ export function AddBannerDialog({
       const isLocalPreview =
         resolvedImageUrl.startsWith("blob:") ||
         resolvedImageUrl.startsWith("data:");
-      if (publishing || (resolvedImageUrl && !isLocalPreview)) {
+      if (resolvedImageUrl && !isLocalPreview) {
         assertRemoteMediaUrl(resolvedImageUrl);
+      } else if (publishing && (isLocalPreview || !resolvedImageUrl)) {
+        throw new Error(
+          isHeroBanner
+            ? "Upload a full hero banner image before publishing. It fills the home carousel in the app."
+            : "Upload a banner image before publishing.",
+        );
       }
 
+      const remoteImage = isLocalPreview ? "" : resolvedImageUrl;
       const payload: BannerFormSchema = {
         ...data,
-        imageUrl: isLocalPreview ? "" : resolvedImageUrl,
-        mobileUrl: isLocalPreview
-          ? ""
-          : mobileUrl || desktopUrl || resolvedImageUrl,
-        desktopUrl: desktopUrl ?? "",
+        placement: data.location || data.placement,
+        imageUrl: remoteImage,
+        mobileUrl: remoteImage
+          ? mobileUrl || desktopUrl || remoteImage
+          : "",
+        desktopUrl: desktopUrl && !desktopUrl.startsWith("blob:") ? desktopUrl : "",
         badge: data.badge?.trim() || "",
         ctaColor: data.ctaColor?.trim() || "",
         backgroundColor: data.backgroundColor?.trim() || "",
       };
 
       if (isEdit && editBanner) {
-        await updateBanner(editBanner.id, payload, resolvedImageUrl || undefined);
+        await updateBanner(editBanner.id, payload, remoteImage || undefined);
         notify.success("Banner updated", `${data.title} is live in CMS.`);
       } else {
-        await createBanner(payload, resolvedImageUrl || undefined);
+        await createBanner(payload, remoteImage || undefined);
         notify.success("Banner created", `${data.title} has been saved.`);
       }
       onSaved();
@@ -275,10 +297,56 @@ export function AddBannerDialog({
     }
   };
 
+  const syncImageFields = () => {
+    const existing =
+      mobileR2Url ||
+      desktopR2Url ||
+      editBanner?.mobileUrl ||
+      editBanner?.imageUrl ||
+      editBanner?.desktopUrl ||
+      editBanner?.thumbnailUrl ||
+      "";
+    const preview = pendingMobileFile
+      ? mobilePreview
+      : pendingDesktopFile
+        ? desktopPreview
+        : existing;
+    if (preview) {
+      setValue("mobileUrl", preview, { shouldValidate: false });
+      if (existing && !existing.startsWith("blob:")) {
+        setValue("imageUrl", existing, { shouldValidate: false });
+      }
+    }
+    setValue("placement", location || "HOME_PROMO", { shouldValidate: false });
+  };
+
+  const onInvalid = (formErrors: FieldErrors<BannerFormSchema>) => {
+    notify.error("Can't save banner", firstErrorMessage(formErrors));
+    const targetId = formErrors.title
+      ? "banner-title"
+      : formErrors.mobileUrl
+        ? "banner-mobile-image"
+        : formErrors.ctaPath
+          ? "banner-cta"
+          : formErrors.endsAt
+            ? "banner-ends"
+            : undefined;
+    if (targetId) {
+      document
+        .getElementById(targetId)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+
+  const saveBanner = () => {
+    syncImageFields();
+    void handleSubmit(onSubmit, onInvalid)();
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
+        <DialogHeader className="shrink-0 px-4 pt-4 pr-12">
           <DialogTitle>
             {isHeroBanner
               ? isEdit
@@ -296,25 +364,14 @@ export function AddBannerDialog({
         </DialogHeader>
 
         <form
-          onSubmit={handleSubmit(onSubmit, (formErrors) => {
-            notify.error("Can't save banner", firstErrorMessage(formErrors));
-            const targetId = formErrors.title
-              ? "banner-title"
-              : formErrors.mobileUrl
-                ? "banner-mobile-image"
-                : formErrors.ctaPath
-                  ? "banner-cta"
-                  : formErrors.endsAt
-                    ? "banner-ends"
-                    : undefined;
-            if (targetId) {
-              document
-                .getElementById(targetId)
-                ?.scrollIntoView({ behavior: "smooth", block: "center" });
-            }
-          })}
-          className="grid gap-6 lg:grid-cols-[1fr_280px]"
+          onSubmit={(event) => {
+            event.preventDefault();
+            saveBanner();
+          }}
+          className="flex min-h-0 flex-1 flex-col"
         >
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -325,7 +382,11 @@ export function AddBannerDialog({
                   render={({ field }) => (
                     <Input
                       id="banner-name"
-                      placeholder="3 Free Bike Deliveries"
+                      placeholder={
+                        isHeroBanner
+                          ? "WaterProof Today"
+                          : "3 Free Bike Deliveries"
+                      }
                       {...field}
                     />
                   )}
@@ -793,7 +854,7 @@ export function AddBannerDialog({
             </div>
           </div>
 
-          <div className="lg:sticky lg:top-0">
+          <div>
             <BannerMobilePreview
               variant={isHeroBanner ? "hero" : "promo"}
               title={title}
@@ -811,8 +872,10 @@ export function AddBannerDialog({
               }
             />
           </div>
+            </div>
+          </div>
 
-          <DialogFooter className="!mx-0 !mb-0 lg:col-span-2">
+          <DialogFooter className="relative z-20 mx-0 mb-0 shrink-0 rounded-none border-t bg-white">
             {Object.keys(errors).length > 0 ? (
               <p className="mr-auto text-xs text-red-500">
                 {firstErrorMessage(errors)}
@@ -826,14 +889,13 @@ export function AddBannerDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving}>
-              {isSaving
-                ? isEdit
-                  ? "Saving..."
-                  : "Creating..."
-                : isEdit
-                  ? "Save banner"
-                  : "Save banner"}
+            <Button
+              type="button"
+              nativeButton
+              disabled={isSaving}
+              onClick={saveBanner}
+            >
+              {isSaving ? "Saving..." : "Save banner"}
             </Button>
           </DialogFooter>
         </form>

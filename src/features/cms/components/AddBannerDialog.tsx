@@ -154,6 +154,8 @@ export function AddBannerDialog({
   const ctaLabel = useWatch({ control, name: "ctaLabel" });
   const backgroundColor = useWatch({ control, name: "backgroundColor" });
   const ctaColor = useWatch({ control, name: "ctaColor" });
+  const location = useWatch({ control, name: "location" });
+  const isHeroBanner = location === "HOME_HERO";
 
   useEffect(() => {
     if (!open) return;
@@ -278,12 +280,18 @@ export function AddBannerDialog({
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>
-            {isEdit ? "Edit promotional banner" : "Create promotional banner"}
+            {isHeroBanner
+              ? isEdit
+                ? "Edit hero banner"
+                : "Create hero banner"
+              : isEdit
+                ? "Edit promotional banner"
+                : "Create promotional banner"}
           </DialogTitle>
           <DialogDescription>
-            Home promo banners are composed on the app: title, offer, badge, and
-            CTA come from this form. Upload a product or illustration — it shows
-            fully visible on the right.
+            {isHeroBanner
+              ? "Hero banners are the full-bleed home carousel. Upload complete banner artwork — it fills the card edge-to-edge in the app."
+              : "Home promo banners are composed on the app: title, offer, badge, and CTA come from this form. Upload a product or illustration — it shows fully visible on the right."}
           </DialogDescription>
         </DialogHeader>
 
@@ -361,11 +369,21 @@ export function AddBannerDialog({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div id="banner-mobile-image" className="space-y-1.5">
-                <Label>Mobile banner image</Label>
+                <Label>
+                  {isHeroBanner ? "Hero banner image" : "Mobile banner image"}
+                </Label>
                 <FileDropzone
                   variant="compact"
-                  label="Upload mobile image"
-                  helperText="Product or illustration on the right · JPG/PNG/WebP · shown fully, not cropped"
+                  label={
+                    isHeroBanner
+                      ? "Upload full hero banner"
+                      : "Upload mobile image"
+                  }
+                  helperText={
+                    isHeroBanner
+                      ? "Complete artwork · JPG/PNG/WebP · shown edge-to-edge, not as product art"
+                      : "Product or illustration on the right · JPG/PNG/WebP · shown fully, not cropped"
+                  }
                   accept={{
                     "image/jpeg": [".jpg", ".jpeg"],
                     "image/png": [".png"],
@@ -412,7 +430,11 @@ export function AddBannerDialog({
                 <FileDropzone
                   variant="compact"
                   label="Upload desktop image"
-                  helperText="Optional · used if mobile image is empty"
+                  helperText={
+                    isHeroBanner
+                      ? "Optional · used if the hero image above is empty"
+                      : "Optional · used if mobile image is empty"
+                  }
                   accept={{
                     "image/jpeg": [".jpg", ".jpeg"],
                     "image/png": [".png"],
@@ -467,147 +489,161 @@ export function AddBannerDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="banner-title">Headline on the app</Label>
+              <Label htmlFor="banner-title">
+                {isHeroBanner ? "Banner title" : "Headline on the app"}
+              </Label>
               <Controller
                 name="title"
                 control={control}
                 render={({ field }) => (
                   <Input
                     id="banner-title"
-                    placeholder="BULK ORDER | BIGGER SAVINGS!"
+                    placeholder={
+                      isHeroBanner
+                        ? "WaterProof Today"
+                        : "BULK ORDER | BIGGER SAVINGS!"
+                    }
                     {...field}
                   />
                 )}
               />
               <p className="text-[11px] text-[#64748B]">
-                Use | to split the headline, e.g. BULK ORDER | BIGGER SAVINGS!
+                {isHeroBanner
+                  ? "Used in the admin list and for accessibility. Customers see the uploaded image."
+                  : "Use | to split the headline, e.g. BULK ORDER | BIGGER SAVINGS!"}
               </p>
               {errors.title ? (
                 <p className="text-xs text-red-500">{errors.title.message}</p>
               ) : null}
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="banner-subtitle">Subtitle</Label>
-              <Controller
-                name="subtitle"
-                control={control}
-                render={({ field }) => (
-                  <Input
-                    id="banner-subtitle"
-                    placeholder="Quality you trust, strength you build on."
-                    {...field}
+            {!isHeroBanner ? (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="banner-subtitle">Subtitle</Label>
+                  <Controller
+                    name="subtitle"
+                    control={control}
+                    render={({ field }) => (
+                      <Input
+                        id="banner-subtitle"
+                        placeholder="Quality you trust, strength you build on."
+                        {...field}
+                      />
+                    )}
                   />
-                )}
-              />
-            </div>
+                </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="banner-badge">Badge</Label>
-                <Controller
-                  name="badge"
-                  control={control}
-                  render={({ field }) => (
-                    <Input
-                      id="banner-badge"
-                      placeholder="Ideal for contractors"
-                      {...field}
-                    />
-                  )}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="banner-cta-label">CTA label</Label>
-                <Controller
-                  name="ctaLabel"
-                  control={control}
-                  render={({ field }) => (
-                    <Input
-                      id="banner-cta-label"
-                      placeholder="Shop Now"
-                      {...field}
-                    />
-                  )}
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>Background</Label>
-                <Controller
-                  name="backgroundColor"
-                  control={control}
-                  render={({ field }) => (
-                    <div className="flex flex-wrap items-center gap-2">
-                      {["#FFF6E8", "#FFE082", "#FFD7A8", "#FFFFFF"].map(
-                        (color) => (
-                          <button
-                            key={color}
-                            type="button"
-                            aria-label={color}
-                            onClick={() => field.onChange(color)}
-                            className="size-7 rounded-full border border-black/10"
-                            style={{
-                              backgroundColor: color,
-                              outline:
-                                field.value === color
-                                  ? "2px solid #111111"
-                                  : undefined,
-                              outlineOffset: 2,
-                            }}
-                          />
-                        ),
-                      )}
-                      <Input
-                        className="h-9 w-28"
-                        placeholder="#FFF6E8"
-                        value={field.value ?? ""}
-                        onChange={field.onChange}
-                      />
-                    </div>
-                  )}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>CTA color</Label>
-                <Controller
-                  name="ctaColor"
-                  control={control}
-                  render={({ field }) => (
-                    <div className="flex flex-wrap items-center gap-2">
-                      {["#111111", "#C62828", "#FFFFFF"].map((color) => (
-                        <button
-                          key={color}
-                          type="button"
-                          aria-label={color}
-                          onClick={() => field.onChange(color)}
-                          className="size-7 rounded-full border border-black/10"
-                          style={{
-                            backgroundColor: color,
-                            outline:
-                              field.value === color
-                                ? "2px solid #111111"
-                                : undefined,
-                            outlineOffset: 2,
-                          }}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="banner-badge">Badge</Label>
+                    <Controller
+                      name="badge"
+                      control={control}
+                      render={({ field }) => (
+                        <Input
+                          id="banner-badge"
+                          placeholder="Ideal for contractors"
+                          {...field}
                         />
-                      ))}
-                      <Input
-                        className="h-9 w-28"
-                        placeholder="#111111"
-                        value={field.value ?? ""}
-                        onChange={field.onChange}
-                      />
-                    </div>
-                  )}
-                />
-              </div>
-            </div>
+                      )}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="banner-cta-label">CTA label</Label>
+                    <Controller
+                      name="ctaLabel"
+                      control={control}
+                      render={({ field }) => (
+                        <Input
+                          id="banner-cta-label"
+                          placeholder="Shop Now"
+                          {...field}
+                        />
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>Background</Label>
+                    <Controller
+                      name="backgroundColor"
+                      control={control}
+                      render={({ field }) => (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {["#FFF6E8", "#FFE082", "#FFD7A8", "#FFFFFF"].map(
+                            (color) => (
+                              <button
+                                key={color}
+                                type="button"
+                                aria-label={color}
+                                onClick={() => field.onChange(color)}
+                                className="size-7 rounded-full border border-black/10"
+                                style={{
+                                  backgroundColor: color,
+                                  outline:
+                                    field.value === color
+                                      ? "2px solid #111111"
+                                      : undefined,
+                                  outlineOffset: 2,
+                                }}
+                              />
+                            ),
+                          )}
+                          <Input
+                            className="h-9 w-28"
+                            placeholder="#FFF6E8"
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                          />
+                        </div>
+                      )}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>CTA color</Label>
+                    <Controller
+                      name="ctaColor"
+                      control={control}
+                      render={({ field }) => (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {["#111111", "#C62828", "#FFFFFF"].map((color) => (
+                            <button
+                              key={color}
+                              type="button"
+                              aria-label={color}
+                              onClick={() => field.onChange(color)}
+                              className="size-7 rounded-full border border-black/10"
+                              style={{
+                                backgroundColor: color,
+                                outline:
+                                  field.value === color
+                                    ? "2px solid #111111"
+                                    : undefined,
+                                outlineOffset: 2,
+                              }}
+                            />
+                          ))}
+                          <Input
+                            className="h-9 w-28"
+                            placeholder="#111111"
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                          />
+                        </div>
+                      )}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : null}
 
             <p className="text-[11px] text-[#64748B]">
-              Tapping the banner on the app opens this destination.
+              {isHeroBanner
+                ? "Tapping the hero banner in the app opens this destination."
+                : "Tapping the banner on the app opens this destination."}
             </p>
             <div id="banner-cta">
               <BannerCtaDestinationPicker
@@ -631,7 +667,12 @@ export function AddBannerDialog({
                   const isRemote =
                     remoteImage.startsWith("http://") ||
                     remoteImage.startsWith("https://");
-                  if (isRemote && !pendingMobileFile && !mobileR2Url) {
+                  if (
+                    !isHeroBanner &&
+                    isRemote &&
+                    !pendingMobileFile &&
+                    !mobileR2Url
+                  ) {
                     setMobilePreview(remoteImage);
                     setMobileR2Url(remoteImage);
                     setValue("imageUrl", remoteImage, { shouldValidate: true });
@@ -754,6 +795,7 @@ export function AddBannerDialog({
 
           <div className="lg:sticky lg:top-0">
             <BannerMobilePreview
+              variant={isHeroBanner ? "hero" : "promo"}
               title={title}
               subtitle={subtitle}
               badge={badge}

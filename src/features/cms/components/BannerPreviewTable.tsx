@@ -208,7 +208,11 @@ export function BannerPreviewTable({
                   src={src}
                   alt={row.title}
                   fill
-                  className="object-contain"
+                  className={
+                    row.location === "HOME_HERO"
+                      ? "object-cover"
+                      : "object-contain"
+                  }
                   sizes="112px"
                 />
               ) : (

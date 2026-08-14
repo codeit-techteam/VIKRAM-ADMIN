@@ -38,7 +38,9 @@ const HIDDEN_HOME_SECTIONS = new Set(["LOYALTY", "MEMBERSHIP"]);
 function sectionHint(sectionType: string): string {
   switch (sectionType) {
     case "PROMO_BANNER":
-      return " · Promotional Banners → Home Promo";
+      return " · Promotional Banners → Home promotional banner";
+    case "HERO_BANNER":
+      return " · Promotional Banners → Hero banner";
     case "FEATURED_PRODUCTS":
       return " · product rail: featured";
     case "RECENTLY_ADDED":

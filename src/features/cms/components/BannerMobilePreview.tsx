@@ -2,6 +2,8 @@
 
 import { cn } from "@/lib/utils";
 
+export type BannerPreviewVariant = "promo" | "hero";
+
 interface BannerMobilePreviewProps {
   title?: string;
   subtitle?: string | null;
@@ -12,6 +14,8 @@ interface BannerMobilePreviewProps {
   ctaColor?: string | null;
   className?: string;
   framed?: boolean;
+  /** Home promo = composed card. Home hero = full-bleed uploaded artwork. */
+  variant?: BannerPreviewVariant;
 }
 
 function isPreviewableImageUrl(url?: string | null): boolean {
@@ -62,6 +66,7 @@ export function BannerMobilePreview({
   ctaColor,
   className,
   framed = true,
+  variant = "promo",
 }: BannerMobilePreviewProps) {
   const hasRemoteImage = isPreviewableImageUrl(imageUrl);
   const { lead, accent } = splitHeadline(title ?? "");
@@ -69,8 +74,26 @@ export function BannerMobilePreview({
   const ctaBg = ctaColor?.trim() || "#111111";
   const ctaText = isLightHex(ctaBg) ? "#C62828" : "#FEB623";
   const button = ctaLabel?.trim() || "Shop Now";
+  const isHero = variant === "hero";
 
-  const imageBanner = (
+  const imageBanner = isHero ? (
+    <div className="relative aspect-[343/180] overflow-hidden rounded-[18px] bg-[#E8E8E8] shadow-md">
+      {hasRemoteImage ? (
+        <img
+          src={imageUrl!}
+          alt={title?.trim() || "Hero banner"}
+          className="h-full w-full object-cover object-center"
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center px-4">
+          <p className="text-center text-[10px] leading-4 text-gray-400">
+            Upload a full hero banner. It fills this card edge-to-edge in the
+            app.
+          </p>
+        </div>
+      )}
+    </div>
+  ) : (
     <div
       className="relative flex aspect-[2.15/1] overflow-hidden rounded-[18px] shadow-md"
       style={{ background: `linear-gradient(90deg, ${bg} 0%, ${bg} 100%)` }}

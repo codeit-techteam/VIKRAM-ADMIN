@@ -102,11 +102,14 @@ export const bannerFormSchema = z
       data.imageUrl?.trim() || data.mobileUrl?.trim() || data.desktopUrl?.trim(),
     );
     if (publishing && !hasImage) {
+      const isHero =
+        data.location === "HOME_HERO" || data.placement === "HOME_HERO";
       ctx.addIssue({
         code: "custom",
         path: ["mobileUrl"],
-        message:
-          "Upload a product or illustration before publishing. It appears on the right of the banner.",
+        message: isHero
+          ? "Upload a full hero banner image before publishing. It fills the home carousel in the app."
+          : "Upload a product or illustration before publishing. It appears on the right of the banner.",
       });
     }
   });

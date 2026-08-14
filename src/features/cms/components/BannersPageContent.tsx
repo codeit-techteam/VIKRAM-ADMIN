@@ -421,6 +421,9 @@ export function BannersPageContent() {
           </DialogHeader>
           {previewBanner ? (
             <BannerMobilePreview
+              variant={
+                previewBanner.location === "HOME_HERO" ? "hero" : "promo"
+              }
               title={previewBanner.title}
               subtitle={previewBanner.subtitle}
               badge={previewBanner.badge}

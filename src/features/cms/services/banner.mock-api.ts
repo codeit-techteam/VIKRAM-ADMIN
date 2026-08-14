@@ -110,7 +110,10 @@ function toCreatePayload(
     linkTarget: data.ctaPath.trim().slice(0, 200),
     placement: data.placement || data.location || "HOME_PROMO",
     targetAudience: data.targetAudience,
-    bannerType: data.bannerType || "IMAGE",
+    bannerType:
+      data.placement === "HOME_HERO" || data.location === "HOME_HERO"
+        ? "IMAGE"
+        : data.bannerType || "IMAGE",
     displayOrder: data.displayOrder ?? 0,
     priority: data.priority ?? 1,
     startsAt: toIsoDate(data.startsAt),

@@ -190,6 +190,28 @@ function mapQuotations(raw: Record<string, unknown>): BulkQuotation[] {
   });
 }
 
+function materialQuantities(
+  raw: Record<string, unknown>,
+): Array<{ name: string; quantity: number; unit: string }> {
+  const categories = asArray(raw.materialCategoriesJson).length
+    ? asArray(raw.materialCategoriesJson)
+    : asArray(raw.materialCategories);
+
+  return categories
+    .map((item) => {
+      const rec = asRecord(item);
+      const quantity = asNumber(rec.quantity);
+      const unit = asString(rec.unit);
+      const name = asString(rec.name);
+      if (quantity == null || quantity <= 0 || !unit) return null;
+      return { name, quantity, unit: normalizeVolumeUnit(unit) };
+    })
+    .filter(
+      (line): line is { name: string; quantity: number; unit: string } =>
+        line != null,
+    );
+}
+
 function materialLabel(raw: Record<string, unknown>): string {
   const isMixed = raw.isMixedLoad === true;
   const categories = asArray(raw.materialCategoriesJson).length
@@ -227,6 +249,18 @@ export function mapBulkEnquiry(
   const estimatedValue = asNumber(raw.estimatedValue);
   const quotedValue = asNumber(raw.quotedValue);
   const quantity = asNumber(raw.expectedQuantity) ?? 0;
+  const unit = normalizeVolumeUnit(asString(raw.expectedUnit, "Units"));
+  const materialLines = materialQuantities(raw);
+  const quantityLabel =
+    materialLines.length > 0
+      ? materialLines
+          .map((line) =>
+            line.name
+              ? `${line.quantity} ${line.unit} ${line.name}`
+              : `${line.quantity} ${line.unit}`,
+          )
+          .join(", ")
+      : `${quantity} ${unit}`;
 
   const customerName =
     asString(raw.customerNameSnapshot) ||
@@ -257,7 +291,9 @@ export function mapBulkEnquiry(
     projectLocation: asString(raw.location) || "—",
     material: materialLabel(raw),
     quantity,
-    unit: normalizeVolumeUnit(asString(raw.expectedUnit, "Units")),
+    unit,
+    quantityLabel,
+    materialLines,
     deliveryRequirement: raw.deliveryRequirement
       ? (asString(raw.deliveryRequirement) as BulkDeliveryRequirement)
       : null,

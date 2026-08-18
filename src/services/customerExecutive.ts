@@ -102,6 +102,7 @@ export interface CeOrdersQuery {
   status?: string;
   orderSource?: string;
   customerId?: string;
+  unassigned?: boolean;
 }
 
 export interface CePaymentsQuery {

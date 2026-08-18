@@ -147,6 +147,21 @@ export interface BackendAdminOrder {
   deliveryCompletedAt?: string | null;
   paymentCollectedAt?: string | null;
   deliveredAt?: string | null;
+  routing?: {
+    assignmentStatus?: "ASSIGNED" | "UNASSIGNED";
+    assignmentReason?: string | null;
+    assignmentReasonLabel?: string | null;
+    snapshot?: {
+      customerLatitude?: number | null;
+      customerLongitude?: number | null;
+      selectedHubName?: string | null;
+      nearestHubName?: string | null;
+      nearestDistanceKm?: number | null;
+      nearestHubRadiusKm?: number | null;
+      inCoverage?: boolean;
+      reason?: string | null;
+    } | null;
+  };
 }
 
 /** Map canonical + legacy backend statuses → CE OrderStatus buckets. */
@@ -354,5 +369,6 @@ export function mapBackendOrderToCeOrder(order: BackendAdminOrder): CeOrder {
           verificationLink: order.deliveryVerification.verificationLink,
         }
       : undefined,
+    routing: order.routing,
   };
 }

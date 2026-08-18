@@ -215,6 +215,20 @@ export function RequisitionPage() {
 
   useEffect(() => {
     void loadRequisitions();
+    const timer = window.setInterval(() => {
+      void loadRequisitions();
+    }, 15_000);
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "hidden") return;
+      void loadRequisitions();
+    };
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnFocus);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
+    };
   }, [loadRequisitions]);
 
   const queryResult = useMemo(

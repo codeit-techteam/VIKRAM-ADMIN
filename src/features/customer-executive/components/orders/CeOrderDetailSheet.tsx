@@ -258,6 +258,61 @@ export function CeOrderDetailSheet({
             </div>
           </Section>
 
+          <Section title="Hub routing" icon={MapPin}>
+            <div className="grid gap-4 rounded-lg border border-gray-100 p-4 sm:grid-cols-2">
+              <DetailField
+                label="Assignment"
+                value={
+                  liveOrder.routing?.assignmentStatus === "UNASSIGNED" || !hubName
+                    ? "Not Assigned"
+                    : hubName
+                }
+              />
+              <DetailField
+                label="Status"
+                value={
+                  liveOrder.routing?.snapshot?.inCoverage
+                    ? "Inside service area"
+                    : liveOrder.routing?.assignmentReasonLabel ||
+                      (hubName ? "Assigned" : "Outside service area")
+                }
+              />
+              <DetailField
+                label="Nearest Hub"
+                value={
+                  liveOrder.routing?.snapshot?.nearestHubName ||
+                  hubName ||
+                  "—"
+                }
+              />
+              <DetailField
+                label="Distance"
+                value={
+                  liveOrder.routing?.snapshot?.nearestDistanceKm != null
+                    ? `${liveOrder.routing.snapshot.nearestDistanceKm} km`
+                    : "—"
+                }
+              />
+              <DetailField
+                label="Hub radius"
+                value={
+                  liveOrder.routing?.snapshot?.nearestHubRadiusKm != null
+                    ? `${liveOrder.routing.snapshot.nearestHubRadiusKm} km`
+                    : "—"
+                }
+              />
+              <DetailField
+                label="Customer location"
+                value={
+                  liveOrder.routing?.snapshot?.customerLatitude != null &&
+                  liveOrder.routing?.snapshot?.customerLongitude != null
+                    ? `${liveOrder.routing.snapshot.customerLatitude}, ${liveOrder.routing.snapshot.customerLongitude}`
+                    : "Not available"
+                }
+              />
+            </div>
+          </Section>
+
           {hubName ? (
             <Section title="Assigned Hub" icon={MapPin}>
               <div className="grid gap-4 rounded-lg border border-gray-100 p-4 sm:grid-cols-2">

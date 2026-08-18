@@ -543,8 +543,20 @@ export function BulkProcurementDetailDrawer({
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-[#64748B]">Quantity</span>
-                    <span className="font-medium text-[#1A1A1A]">
-                      {request.quantity} {request.unit}
+                    <span className="text-right font-medium text-[#1A1A1A]">
+                      {request.materialLines?.length > 1 ? (
+                        <span className="flex flex-col items-end gap-1">
+                          {request.materialLines.map((line) => (
+                            <span key={`${line.name}-${line.unit}`}>
+                              {line.quantity} {line.unit}
+                              {line.name ? ` ${line.name}` : ""}
+                            </span>
+                          ))}
+                        </span>
+                      ) : (
+                        request.quantityLabel ||
+                        `${request.quantity} ${request.unit}`
+                      )}
                     </span>
                   </div>
                   <div className="flex justify-between gap-2">

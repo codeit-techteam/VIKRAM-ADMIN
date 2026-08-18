@@ -259,6 +259,20 @@ export function CeOrdersPage() {
               { label: "Executive", value: "EXECUTIVE" },
             ],
           },
+          {
+            key: "assignment",
+            label: "Hub assignment",
+            value: draftFilters.assignment,
+            onChange: (v) =>
+              setDraftFilters((f) => ({
+                ...f,
+                assignment: v as CeOrderFilters["assignment"],
+              })),
+            options: [
+              { label: "All orders", value: "ALL" },
+              { label: "Needs assignment", value: "UNASSIGNED" },
+            ],
+          },
         ]}
         onClear={() => {
           setDraftFilters(EMPTY_ORDER_FILTERS);
@@ -330,7 +344,11 @@ export function CeOrdersPage() {
                       query={appliedFilters.search}
                     />
                   </TableCell>
-                  <TableCell>{order.hubName || order.hubCode || "—"}</TableCell>
+                  <TableCell>
+                    {order.routing?.assignmentStatus === "UNASSIGNED"
+                      ? "Not Assigned"
+                      : order.hubName || order.hubCode || "—"}
+                  </TableCell>
                   <TableCell>{order.managerName || "—"}</TableCell>
                   <TableCell>{order.paymentMethod}</TableCell>
                   <TableCell>{formatCurrency(order.amount)}</TableCell>

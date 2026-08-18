@@ -94,6 +94,8 @@ export interface BulkProcurementRequest {
   material: string;
   quantity: number;
   unit: string;
+  quantityLabel: string;
+  materialLines: Array<{ name: string; quantity: number; unit: string }>;
   deliveryRequirement?: BulkDeliveryRequirement | null;
   deliveryDate?: string | null;
   status: BulkProcurementStatus;

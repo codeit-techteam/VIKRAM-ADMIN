@@ -361,13 +361,16 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
           limit: params?.limit ?? 10,
           q: filters?.search || undefined,
           status:
-            filters?.status && filters.status !== "ALL"
-              ? filters.status
-              : undefined,
+            filters?.assignment === "UNASSIGNED"
+              ? undefined
+              : filters?.status && filters.status !== "ALL"
+                ? filters.status
+                : undefined,
           orderSource:
             filters?.orderSource && filters.orderSource !== "ALL"
               ? filters.orderSource
               : undefined,
+          unassigned: filters?.assignment === "UNASSIGNED" ? true : undefined,
           customerId: params?.customerId,
         });
 

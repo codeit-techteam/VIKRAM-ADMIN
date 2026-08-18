@@ -145,6 +145,11 @@ export function SubHubTable({ rows, isLoading }: SubHubTableProps) {
                 {row.original.nodeId} · {row.original.city}
                 {row.original.region ? ` · ${row.original.region}` : null}
               </p>
+              {row.original.routingWarning ? (
+                <p className="mt-0.5 truncate text-[11px] font-medium text-amber-700">
+                  Hub location/radius incomplete
+                </p>
+              ) : null}
             </div>
           </div>
         ),

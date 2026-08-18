@@ -101,6 +101,8 @@ function toTableRow(hub: AdminHubListItem): SubHubTableRow {
     transfersInTransit: hub.incomingTransfers ?? 0,
     status,
     isActive: hub.isActive,
+    routingReady: hub.routingReady,
+    routingWarning: hub.routingWarning,
   };
 }
 

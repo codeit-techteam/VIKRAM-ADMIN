@@ -419,7 +419,8 @@ export function BulkProcurementPageContent() {
                         {request.material}
                       </TableCell>
                       <TableCell className="text-sm text-[#64748B]">
-                        {request.quantity} {request.unit}
+                        {request.quantityLabel ||
+                          `${request.quantity} ${request.unit}`}
                       </TableCell>
                       <TableCell className="max-w-[160px] truncate text-sm text-[#64748B]">
                         {request.projectLocation}

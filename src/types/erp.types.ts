@@ -138,6 +138,10 @@ export interface SubHub {
   hubType?: string;
   hubTypeLabel?: string;
   coverageRadiusKm?: number;
+  latitude?: number;
+  longitude?: number;
+  routingReady?: boolean;
+  routingWarning?: string | null;
   linkedWarehouseId?: string;
   linkedWarehouseName?: string;
   fulfillmentPriority?: string;
@@ -180,6 +184,8 @@ export interface SubHubTableRow {
   transfersInTransit: number;
   status: SubHubOperationalStatus;
   isActive: boolean;
+  routingReady?: boolean;
+  routingWarning?: string | null;
 }
 
 export type OperationsAlertSeverity = "default" | "warning" | "critical";

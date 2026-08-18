@@ -140,6 +140,21 @@ export interface CeOrder {
   lastUpdated?: string;
   expectedDelivery?: string;
   orderAgeHours?: number;
+  routing?: {
+    assignmentStatus?: "ASSIGNED" | "UNASSIGNED";
+    assignmentReason?: string | null;
+    assignmentReasonLabel?: string | null;
+    snapshot?: {
+      customerLatitude?: number | null;
+      customerLongitude?: number | null;
+      selectedHubName?: string | null;
+      nearestHubName?: string | null;
+      nearestDistanceKm?: number | null;
+      nearestHubRadiusKm?: number | null;
+      inCoverage?: boolean;
+      reason?: string | null;
+    } | null;
+  };
   timeline?: CeOrderTimelineEntry[];
   deliveryVerification?: {
     driverReached: boolean;
@@ -272,6 +287,7 @@ export interface CeOrderFilters {
   status: OrderStatus | "ALL";
   statusGroup: "IN_TRANSIT" | "ALL";
   orderSource: OrderSource | "ALL";
+  assignment: "ALL" | "UNASSIGNED";
 }
 
 export interface CePaymentFilters {
@@ -363,6 +379,7 @@ export const EMPTY_ORDER_FILTERS: CeOrderFilters = {
   status: "ALL",
   statusGroup: "ALL",
   orderSource: "ALL",
+  assignment: "ALL",
 };
 
 export const EMPTY_PAYMENT_FILTERS: CePaymentFilters = {

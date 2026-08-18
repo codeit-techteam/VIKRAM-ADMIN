@@ -184,12 +184,16 @@ export function HubRequisitionsPage() {
         search: search || undefined,
       }),
     refetchInterval: 15000,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
 
   const statsQuery = useQuery({
     queryKey: ["hub-requisitions-stats", scopedHubId ?? "all"],
     queryFn: () => adminRequisitionsService.stats(scopedHubId),
     refetchInterval: 15000,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
 
   const items = listQuery.data?.data ?? [];

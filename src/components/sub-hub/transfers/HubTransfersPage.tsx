@@ -243,6 +243,8 @@ export function HubTransfersPage() {
             : String(filters.status),
       }),
     refetchInterval: 15000,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
 
   const items = useMemo(

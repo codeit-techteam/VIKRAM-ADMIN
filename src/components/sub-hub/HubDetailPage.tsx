@@ -180,6 +180,10 @@ export function HubDetailPage({ hubId, initialTab }: HubDetailPageProps) {
       workingHours: detail.workingHours ?? undefined,
       hubType: detail.hubType ?? undefined,
       coverageRadiusKm: detail.serviceRadiusKm,
+      latitude: detail.latitude,
+      longitude: detail.longitude,
+      routingReady: detail.routingReady,
+      routingWarning: detail.routingWarning,
       linkedWarehouseName: detail.warehouseCode ?? undefined,
       servicePincodes: detail.coveragePincodes,
     };

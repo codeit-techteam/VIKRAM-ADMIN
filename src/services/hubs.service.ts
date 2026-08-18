@@ -30,6 +30,8 @@ export interface AdminHubListItem {
   isActive: boolean;
   status: string;
   operationalStatus: "ENABLED" | "DISABLED" | "SUSPENDED";
+  routingReady?: boolean;
+  routingWarning?: string | null;
   healthStatus?: "HEALTHY" | "ATTENTION" | "CRITICAL";
   inventoryHealth?: number;
   totalStock?: number;

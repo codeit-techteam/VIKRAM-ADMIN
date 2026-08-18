@@ -218,7 +218,6 @@ export function mapAdminCustomerToDetail(
     orders: Array.isArray(detail.orders) ? detail.orders.length : 0,
     wallet: {
       balance: detail.loyalty?.availablePoints ?? 0,
-      tier: detail.loyalty?.tier ?? null,
     },
     addresses: detail.addresses?.length ?? 0,
     assignedHubId: detail.assignedHubId ?? null,

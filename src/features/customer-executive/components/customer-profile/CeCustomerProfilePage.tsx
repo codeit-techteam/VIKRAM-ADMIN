@@ -96,7 +96,6 @@ export function CeCustomerProfilePage({
     availableValue: number;
     lifetimeEarned: number;
     lifetimeRedeemed: number;
-    tier?: string;
     firstOrderBonusClaimed?: boolean;
     freeBikeDeliveriesUsed?: number;
     freeBikeDeliveriesAllowed?: number;
@@ -140,7 +139,6 @@ export function CeCustomerProfilePage({
           availableValue: data.availableValue ?? 0,
           lifetimeEarned: data.lifetimeEarned ?? data.currentPoints ?? 0,
           lifetimeRedeemed: data.lifetimeRedeemed ?? data.redeemedPoints ?? 0,
-          tier: data.tier,
           firstOrderBonusClaimed: data.firstOrderBonusClaimed,
           freeBikeDeliveriesUsed: data.freeBikeDeliveriesUsed,
           freeBikeDeliveriesAllowed: data.freeBikeDeliveriesAllowed,
@@ -289,11 +287,6 @@ export function CeCustomerProfilePage({
                         <p className="text-xs text-[#64748B]">BajriPro Points</p>
                         <p className="text-lg font-bold">
                           {loyalty.availablePoints.toLocaleString("en-IN")}
-                          {loyalty.tier ? (
-                            <span className="ml-2 text-xs font-semibold text-orange-600">
-                              {loyalty.tier}
-                            </span>
-                          ) : null}
                         </p>
                         <p className="text-xs text-[#64748B]">
                           ≈ {formatCurrency(loyalty.availableValue)} · earned{" "}

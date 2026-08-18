@@ -103,11 +103,8 @@ export function mapApiCustomer(raw: Record<string, unknown>): CeCustomer {
     (raw.defaultAddress as ApiAddress | null | undefined) ??
     ((raw.addresses as ApiAddress[] | undefined)?.[0] ?? null);
 
-  const wallet = raw.wallet as { tier?: string } | undefined;
   const membership =
-    (raw.membership as string | null | undefined) ??
-    wallet?.tier ??
-    (raw.loyaltyAccount as { tier?: string } | undefined)?.tier;
+    (raw.membership as string | null | undefined) ?? null;
 
   const name =
     (raw.fullName as string | null | undefined) ??

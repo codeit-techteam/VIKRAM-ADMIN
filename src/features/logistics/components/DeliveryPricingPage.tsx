@@ -71,6 +71,7 @@ import {
   type DeliveryVehicleType,
 } from "@/features/logistics/types/delivery-pricing.types";
 import { getApiErrorMessage } from "@/services/api";
+import { uploadMediaFile } from "@/services/media.service";
 import { formatCurrency } from "@/utils/format-currency";
 import { notify } from "@/utils/notify";
 
@@ -114,6 +115,38 @@ function formatHistoryAt(value: string) {
   }
 }
 
+function VehiclePhoto({
+  src,
+  name,
+  size = 40,
+}: {
+  src?: string | null;
+  name: string;
+  size?: number;
+}) {
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={name}
+        width={size}
+        height={size}
+        className="rounded-lg border border-gray-100 bg-gray-50 object-contain"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+  return (
+    <div
+      className="flex items-center justify-center rounded-lg bg-[#FFF4D1] text-[#FEB623]"
+      style={{ width: size, height: size }}
+    >
+      <Truck className="size-4" />
+    </div>
+  );
+}
+
 export function DeliveryPricingPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
@@ -126,6 +159,7 @@ export function DeliveryPricingPage() {
   const [vehicleEditor, setVehicleEditor] = useState<{
     vehicleType: DeliveryVehicleType;
     displayName: string;
+    imageUrl: string | null;
     maxWeightKg: string;
     maxVolumeCft: string;
     maxQuantity: string;
@@ -139,6 +173,7 @@ export function DeliveryPricingPage() {
     operationalBufferMinutes: string;
   } | null>(null);
   const [savingVehicle, setSavingVehicle] = useState(false);
+  const [uploadingVehicleImage, setUploadingVehicleImage] = useState(false);
   const [savingEngine, setSavingEngine] = useState(false);
   const [engineDraft, setEngineDraft] = useState({
     multiVehicleMode: "BULK_QUOTE" as DeliveryEngineConfig["multiVehicleMode"],
@@ -373,6 +408,7 @@ export function DeliveryPricingPage() {
     setVehicleEditor({
       vehicleType: vehicle.vehicleType,
       displayName: vehicle.displayName,
+      imageUrl: vehicle.imageUrl ?? null,
       maxWeightKg: vehicle.maxWeightKg != null ? String(vehicle.maxWeightKg) : "",
       maxVolumeCft:
         vehicle.maxVolumeCft != null ? String(vehicle.maxVolumeCft) : "",
@@ -413,6 +449,7 @@ export function DeliveryPricingPage() {
       };
       await updateDeliveryVehicleConfig(vehicleEditor.vehicleType, {
         displayName: vehicleEditor.displayName,
+        imageUrl: vehicleEditor.imageUrl,
         maxWeightKg: parseOptional(vehicleEditor.maxWeightKg),
         maxVolumeCft: parseOptional(vehicleEditor.maxVolumeCft),
         maxQuantity: parseOptional(vehicleEditor.maxQuantity),
@@ -651,7 +688,13 @@ export function DeliveryPricingPage() {
               {vehicles.map((vehicle) => (
                 <TableRow key={vehicle.id}>
                   <TableCell className="font-medium">
-                    {vehicle.displayName}
+                    <div className="flex items-center gap-3">
+                      <VehiclePhoto
+                        src={vehicle.imageUrl}
+                        name={vehicle.displayName}
+                      />
+                      <span>{vehicle.displayName}</span>
+                    </div>
                   </TableCell>
                   <TableCell>
                     {vehicle.maxWeightKg != null
@@ -908,7 +951,16 @@ export function DeliveryPricingPage() {
               {rules.map((rule) => (
                 <TableRow key={rule.id}>
                   <TableCell className="font-medium">
-                    {rule.vehicleDisplayName}
+                    <div className="flex items-center gap-3">
+                      <VehiclePhoto
+                        src={
+                          vehicles.find((v) => v.vehicleType === rule.vehicleType)
+                            ?.imageUrl
+                        }
+                        name={rule.vehicleDisplayName}
+                      />
+                      <span>{rule.vehicleDisplayName}</span>
+                    </div>
                   </TableCell>
                   <TableCell>{rule.distanceSlab}</TableCell>
                   <TableCell>{formatCurrency(rule.price)}</TableCell>
@@ -1158,6 +1210,54 @@ export function DeliveryPricingPage() {
                     )
                   }
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>Vehicle Photo</Label>
+                <div className="flex items-center gap-3">
+                  <VehiclePhoto
+                    src={vehicleEditor.imageUrl}
+                    name={vehicleEditor.displayName}
+                    size={64}
+                  />
+                  <div className="flex flex-col gap-1">
+                    <Input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      disabled={uploadingVehicleImage}
+                      onChange={async (event) => {
+                        const file = event.target.files?.[0];
+                        event.target.value = "";
+                        if (!file) return;
+                        setUploadingVehicleImage(true);
+                        try {
+                          const uploaded = await uploadMediaFile(
+                            file,
+                            "delivery-vehicles",
+                            { replaceKey: vehicleEditor.imageUrl },
+                          );
+                          setVehicleEditor((s) =>
+                            s ? { ...s, imageUrl: uploaded.publicUrl } : s,
+                          );
+                          notify.success("Vehicle photo uploaded");
+                        } catch (error) {
+                          notify.error(
+                            getApiErrorMessage(
+                              error,
+                              "Unable to upload vehicle photo.",
+                            ),
+                          );
+                        } finally {
+                          setUploadingVehicleImage(false);
+                        }
+                      }}
+                    />
+                    <p className="text-xs text-gray-400">
+                      {uploadingVehicleImage
+                        ? "Uploading…"
+                        : "Shown in Admin and the Customer App checkout."}
+                    </p>
+                  </div>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">

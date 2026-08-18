@@ -290,7 +290,7 @@ export const OFFER_AUDIENCE_OPTIONS = [
   { value: "ARCHITECTS", label: "Architects" },
   { value: "BUILDERS", label: "Builders" },
   { value: "DEVELOPERS", label: "Developers" },
-  { value: "MEMBERSHIP_TIER", label: "Loyalty Tier" },
+  { value: "MEMBERSHIP_TIER", label: "Membership Plan" },
   { value: "CUSTOM_SEGMENT", label: "Custom Segment" },
 ] as const;
 

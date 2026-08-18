@@ -221,7 +221,6 @@ export const customerExecutiveService = {
     redeemablePoints: number;
     currentPoints: number;
     redeemedPoints: number;
-    tier: string;
     pointValueInr: number;
     firstOrderBonusClaimed?: boolean;
     freeBikeDeliveriesUsed?: number;
@@ -237,7 +236,6 @@ export const customerExecutiveService = {
         redeemablePoints: number;
         currentPoints: number;
         redeemedPoints: number;
-        tier: string;
         pointValueInr: number;
         firstOrderBonusClaimed?: boolean;
         freeBikeDeliveriesUsed?: number;

@@ -399,6 +399,43 @@ export function HubOrderDetailDrawer({
                 </div>
               </Section>
 
+              <Section title="Delivery Preference" icon={Truck}>
+                <div className="grid gap-4 rounded-xl border border-gray-100 p-4 sm:grid-cols-2">
+                  <DetailField
+                    label="Delivery Type"
+                    value={
+                      order.deliveryPreference?.label ??
+                      "As soon as possible"
+                    }
+                  />
+                  <DetailField
+                    label="Date"
+                    value={
+                      order.deliveryPreference?.scheduledDateLabel ?? "—"
+                    }
+                  />
+                  <DetailField
+                    label="Time"
+                    value={
+                      order.deliveryPreference?.scheduledSlotLabel ?? "—"
+                    }
+                  />
+                  <DetailField
+                    label="Customer Remark"
+                    value={
+                      order.deliveryPreference?.customerRemark ??
+                      order.deliveryCustomerRemark ??
+                      order.notes ??
+                      "—"
+                    }
+                  />
+                  <DetailField
+                    label="Internal Note"
+                    value={order.adminInternalNote ?? "—"}
+                  />
+                </div>
+              </Section>
+
               {order.items && order.items.length > 0 ? (
                 <Section title="Items" icon={Package}>
                   <div className="overflow-hidden rounded-xl border border-gray-100">

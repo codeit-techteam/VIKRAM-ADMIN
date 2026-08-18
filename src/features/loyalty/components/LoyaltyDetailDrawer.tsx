@@ -23,7 +23,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sheet,
@@ -34,7 +33,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { LoyaltyTierBadge } from "@/features/loyalty/components/LoyaltyTierBadge";
 import {
   useAdjustLoyaltyPoints,
   useLoyaltyDetail,
@@ -129,8 +127,7 @@ export function LoyaltyDetailDrawer({
                     ? ` · ${detail.customerCity}`
                     : ""}
                 </SheetDescription>
-                <div className="mt-3 flex items-center gap-3">
-                  <LoyaltyTierBadge tier={detail.currentTier} />
+                <div className="mt-3">
                   <span className="text-primary text-lg font-bold">
                     {detail.availablePoints.toLocaleString("en-IN")} pts
                   </span>
@@ -164,7 +161,7 @@ export function LoyaltyDetailDrawer({
               </div>
             ) : detail ? (
               <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <div className="rounded-lg border border-gray-100 bg-[#F5F6F8] p-3 text-center">
                     <p className="text-xs text-[#64748B]">Balance</p>
                     <p className="text-primary mt-1 text-sm font-bold">
@@ -187,30 +184,7 @@ export function LoyaltyDetailDrawer({
                       ).toLocaleString("en-IN")}
                     </p>
                   </div>
-                  <div className="rounded-lg border border-gray-100 bg-[#F5F6F8] p-3 text-center">
-                    <p className="text-xs text-[#64748B]">Tier</p>
-                    <p className="mt-1 text-sm font-bold text-[#1A1A1A]">
-                      {detail.currentTier.charAt(0) +
-                        detail.currentTier.slice(1).toLowerCase()}
-                    </p>
-                  </div>
                 </div>
-
-                {detail.nextTier && (
-                  <div className="rounded-lg border border-gray-100 p-4">
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className="text-sm font-semibold text-[#1A1A1A]">
-                        Tier Progress
-                      </p>
-                      <LoyaltyTierBadge tier={detail.nextTier} />
-                    </div>
-                    <Progress value={detail.tierProgress} className="h-2" />
-                    <p className="mt-2 text-xs text-[#64748B]">
-                      {detail.pointsToNextTier.toLocaleString("en-IN")} points to{" "}
-                      {detail.nextTier.toLowerCase()} ({detail.tierProgress}%)
-                    </p>
-                  </div>
-                )}
 
                 <div className="rounded-lg border border-gray-100 p-4">
                   <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#1A1A1A]">

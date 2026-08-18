@@ -258,6 +258,44 @@ export function CeOrderDetailSheet({
             </div>
           </Section>
 
+          <Section title="Delivery Preference" icon={Truck}>
+            <div className="grid gap-4 rounded-lg border border-gray-100 p-4 sm:grid-cols-2">
+              <DetailField
+                label="Delivery Type"
+                value={liveOrder.deliveryPreference?.label ?? "As soon as possible"}
+              />
+              <DetailField
+                label="Date"
+                value={liveOrder.deliveryPreference?.scheduledDateLabel ?? "—"}
+              />
+              <DetailField
+                label="Time"
+                value={liveOrder.deliveryPreference?.scheduledSlotLabel ?? "—"}
+              />
+              <DetailField
+                label="Status"
+                value={
+                  liveOrder.rawBackendStatus === "PENDING" ||
+                  liveOrder.rawBackendStatus === "CONFIRMED"
+                    ? "Awaiting Reconfirmation"
+                    : "Scheduled"
+                }
+              />
+              <DetailField
+                label="Customer Remark"
+                value={
+                  liveOrder.customerRemark ||
+                  liveOrder.deliveryPreference?.customerRemark ||
+                  "—"
+                }
+              />
+              <DetailField
+                label="Admin Note"
+                value={liveOrder.adminInternalNote || "—"}
+              />
+            </div>
+          </Section>
+
           <Section title="Hub routing" icon={MapPin}>
             <div className="grid gap-4 rounded-lg border border-gray-100 p-4 sm:grid-cols-2">
               <DetailField

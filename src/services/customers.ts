@@ -18,7 +18,7 @@ export interface AdminCustomerListItem {
   createdAt: string;
   lastLogin: string | null;
   orders: number;
-  wallet: { balance: number; tier: string | null };
+  wallet: { balance: number };
   addresses: number;
   assignedHubId?: string | null;
   assignedHubName?: string | null;
@@ -75,7 +75,6 @@ export interface AdminCustomerDetail {
     availablePoints?: number;
     currentPoints?: number;
     redeemedPoints?: number;
-    tier?: string;
   } | null;
   memberships: Array<{
     id: string;

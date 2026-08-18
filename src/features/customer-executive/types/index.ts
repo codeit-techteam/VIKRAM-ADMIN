@@ -173,6 +173,18 @@ export interface CeOrder {
     hub?: { id?: string; name?: string; code?: string } | null;
     verificationLink?: string;
   };
+  deliveryPreference?: {
+    type?: string;
+    label?: string;
+    scheduledDate?: string | null;
+    scheduledDateLabel?: string | null;
+    scheduledSlotLabel?: string | null;
+    scheduledStartAt?: string | null;
+    scheduledEndAt?: string | null;
+    customerRemark?: string | null;
+  };
+  customerRemark?: string | null;
+  adminInternalNote?: string | null;
 }
 
 export interface CePayment {

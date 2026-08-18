@@ -4,21 +4,16 @@ import type {
   CustomerLoyalty,
   LoyaltyDashboardStats,
   LoyaltyPointHistory,
-  LoyaltyTier,
 } from "@/features/loyalty/types";
 
 export const LOYALTY_PAGE_SIZE = 10;
 
-export type LoyaltyTierFilter = "all" | LoyaltyTier;
-
 export interface LoyaltyFilters {
   search: string;
-  tier: LoyaltyTierFilter;
 }
 
 export const EMPTY_LOYALTY_FILTERS: LoyaltyFilters = {
   search: "",
-  tier: "all",
 };
 
 export interface LoyaltyQueryParams {
@@ -42,10 +37,6 @@ interface LoyaltyAccountApiRow {
   redeemedPoints: number;
   lifetimeRedeemed?: number;
   availablePoints: number;
-  tier: LoyaltyTier;
-  tierProgress?: number;
-  nextTier?: LoyaltyTier | null;
-  pointsToNextTier?: number;
   customerCity?: string | null;
   customerCompany?: string | null;
   firstOrderBonusClaimed?: boolean;
@@ -88,7 +79,6 @@ interface LoyaltyStatsResponse {
   activeAccounts?: number;
   topCustomersCount?: number;
   topCustomers?: number;
-  tierDistribution: Array<{ tier: LoyaltyTier; count: number }>;
 }
 
 function mapHistoryType(type: string, reason: string): LoyaltyPointHistory["type"] {
@@ -116,15 +106,11 @@ function mapAccountRow(row: LoyaltyAccountApiRow): CustomerLoyalty {
     customerCity: row.customerCity ?? "—",
     customerCompany:
       row.customerCompany ?? row.customer.profile?.companyName ?? undefined,
-    currentTier: row.tier,
     currentPoints: row.currentPoints,
     lifetimeEarned,
     redeemedPoints: row.redeemedPoints,
     lifetimeRedeemed,
     availablePoints: row.availablePoints,
-    tierProgress: row.tierProgress ?? 0,
-    nextTier: row.nextTier ?? null,
-    pointsToNextTier: row.pointsToNextTier ?? 0,
     firstOrderBonusClaimed: row.firstOrderBonusClaimed,
     freeBikeDeliveriesAllowed: row.freeBikeDeliveriesAllowed,
     freeBikeDeliveriesUsed: row.freeBikeDeliveriesUsed,
@@ -187,7 +173,6 @@ export async function getLoyaltyCustomers(
       params: {
         page: params.page,
         limit: params.limit,
-        tier: params.filters.tier === "all" ? undefined : params.filters.tier,
         search: params.filters.search.trim() || undefined,
       },
     });

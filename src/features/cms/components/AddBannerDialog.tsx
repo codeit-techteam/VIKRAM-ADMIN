@@ -35,8 +35,11 @@ import { BannerCtaDestinationPicker } from "@/features/cms/components/BannerCtaD
 import { BannerMobilePreview } from "@/features/cms/components/BannerMobilePreview";
 import {
   BANNER_FORM_DEFAULT_VALUES,
+  BANNER_PLACEMENT_LABELS,
+  BANNER_PLACEMENTS,
   bannerFormSchema,
   inferBannerCtaDestination,
+  normalizeBannerPlacement,
   type BannerFormSchema,
 } from "@/features/cms/schema/banner-form.schema";
 import {
@@ -97,8 +100,8 @@ function bannerToFormValues(banner: Banner): BannerFormSchema {
     description: banner.description ?? "",
     title: banner.title,
     subtitle: banner.subtitle ?? "",
-    location: banner.location,
-    placement: banner.location,
+    location: normalizeBannerPlacement(banner.location),
+    placement: normalizeBannerPlacement(banner.location),
     ctaLabel: banner.ctaLabel ?? "",
     ...cta,
     badge: banner.badge ?? "",
@@ -410,17 +413,11 @@ export function AddBannerDialog({
                         <SelectValue placeholder="Select placement" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="HOME_PROMO">
-                          Home promotional banner
-                        </SelectItem>
-                        <SelectItem value="HOME_HERO">Hero banner</SelectItem>
-                        <SelectItem value="EMERGENCY_DELIVERY">
-                          Emergency delivery
-                        </SelectItem>
-                        <SelectItem value="BULK_PROCUREMENT">
-                          Bulk procurement
-                        </SelectItem>
-                        <SelectItem value="CATEGORY">Category</SelectItem>
+                        {BANNER_PLACEMENTS.map((placement) => (
+                          <SelectItem key={placement} value={placement}>
+                            {BANNER_PLACEMENT_LABELS[placement]}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   )}

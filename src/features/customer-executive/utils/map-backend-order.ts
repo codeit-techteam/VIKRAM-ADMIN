@@ -162,6 +162,20 @@ export interface BackendAdminOrder {
       reason?: string | null;
     } | null;
   };
+  notes?: string | null;
+  deliveryCustomerRemark?: string | null;
+  adminInternalNote?: string | null;
+  deliveryPreferenceType?: string;
+  deliveryPreference?: {
+    type?: string;
+    label?: string;
+    scheduledDate?: string | null;
+    scheduledDateLabel?: string | null;
+    scheduledSlotLabel?: string | null;
+    scheduledStartAt?: string | null;
+    scheduledEndAt?: string | null;
+    customerRemark?: string | null;
+  } | null;
 }
 
 /** Map canonical + legacy backend statuses → CE OrderStatus buckets. */
@@ -370,5 +384,23 @@ export function mapBackendOrderToCeOrder(order: BackendAdminOrder): CeOrder {
         }
       : undefined,
     routing: order.routing,
+    deliveryPreference: order.deliveryPreference
+      ? {
+          type: order.deliveryPreference.type,
+          label: order.deliveryPreference.label,
+          scheduledDate: order.deliveryPreference.scheduledDate,
+          scheduledDateLabel: order.deliveryPreference.scheduledDateLabel,
+          scheduledSlotLabel: order.deliveryPreference.scheduledSlotLabel,
+          scheduledStartAt: order.deliveryPreference.scheduledStartAt,
+          scheduledEndAt: order.deliveryPreference.scheduledEndAt,
+          customerRemark: order.deliveryPreference.customerRemark,
+        }
+      : undefined,
+    customerRemark:
+      order.deliveryPreference?.customerRemark ??
+      order.deliveryCustomerRemark ??
+      order.notes ??
+      null,
+    adminInternalNote: order.adminInternalNote ?? null,
   };
 }

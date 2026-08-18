@@ -1,5 +1,3 @@
-export type LoyaltyTier = "BRONZE" | "SILVER" | "GOLD" | "PLATINUM";
-
 export interface LoyaltyPointHistory {
   id: string;
   type: "EARNED" | "REDEEMED" | "EXPIRED" | "BONUS" | "ADJUSTMENT";
@@ -35,15 +33,11 @@ export interface CustomerLoyalty {
   customerPhone: string;
   customerCity: string;
   customerCompany?: string;
-  currentTier: LoyaltyTier;
   currentPoints: number;
   lifetimeEarned: number;
   redeemedPoints: number;
   lifetimeRedeemed: number;
   availablePoints: number;
-  tierProgress: number;
-  nextTier: LoyaltyTier | null;
-  pointsToNextTier: number;
   firstOrderBonusClaimed?: boolean;
   freeBikeDeliveriesAllowed?: number;
   freeBikeDeliveriesUsed?: number;

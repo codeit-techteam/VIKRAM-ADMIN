@@ -29,7 +29,8 @@ export type MediaFolder =
   | "testimonials"
   | "icons"
   | "thumbnails"
-  | "documents";
+  | "documents"
+  | "delivery-vehicles";
 
 function parseUploadResponse(
   json: ApiResponse<MediaUploadResult> & {

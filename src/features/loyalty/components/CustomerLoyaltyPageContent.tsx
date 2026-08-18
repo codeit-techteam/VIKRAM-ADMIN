@@ -24,14 +24,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -43,7 +35,6 @@ import {
 } from "@/components/ui/table";
 import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { LoyaltyDetailDrawer } from "@/features/loyalty/components/LoyaltyDetailDrawer";
-import { LoyaltyTierBadge } from "@/features/loyalty/components/LoyaltyTierBadge";
 import {
   useLoyaltyCustomers,
   useLoyaltyStats,
@@ -106,7 +97,7 @@ export function CustomerLoyaltyPageContent() {
     <div className="space-y-6">
       <PageHeader
         title="Customer Loyalty"
-        subtitle="Track loyalty points, tiers, and redemption activity."
+        subtitle="Track BajriPro Points and redemption activity."
         breadcrumbs={breadcrumbs}
       />
 
@@ -159,7 +150,7 @@ export function CustomerLoyaltyPageContent() {
         <StatCard
           label="Top Customers"
           value={stats?.topCustomersCount ?? 0}
-          subtext="Gold & Platinum members"
+          subtext="Customers with a points balance"
           icon={Users}
           iconContainerClassName="bg-purple-50"
           iconClassName="text-purple-600"
@@ -181,28 +172,6 @@ export function CustomerLoyaltyPageContent() {
               className="pl-9"
             />
           </div>
-          <Select
-            value={filters.tier}
-            onValueChange={(v: string | null) => {
-              if (!v) return;
-              setFilters((prev) => ({
-                ...prev,
-                tier: v as LoyaltyFilters["tier"],
-              }));
-              setCurrentPage(1);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-40">
-              <SelectValue placeholder="Tier" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Tiers</SelectItem>
-              <SelectItem value="BRONZE">Bronze</SelectItem>
-              <SelectItem value="SILVER">Silver</SelectItem>
-              <SelectItem value="GOLD">Gold</SelectItem>
-              <SelectItem value="PLATINUM">Platinum</SelectItem>
-            </SelectContent>
-          </Select>
           <Button
             className="bg-primary hover:bg-primary/90"
             onClick={applySearch}
@@ -219,19 +188,13 @@ export function CustomerLoyaltyPageContent() {
                   Customer
                 </TableHead>
                 <TableHead className="text-xs font-semibold text-[#64748B]">
-                  Current Tier
-                </TableHead>
-                <TableHead className="text-xs font-semibold text-[#64748B]">
-                  Current Points
+                  Lifetime Earned
                 </TableHead>
                 <TableHead className="text-xs font-semibold text-[#64748B]">
                   Redeemed
                 </TableHead>
                 <TableHead className="text-xs font-semibold text-[#64748B]">
                   Available
-                </TableHead>
-                <TableHead className="text-xs font-semibold text-[#64748B]">
-                  Progress
                 </TableHead>
                 <TableHead className="text-right text-xs font-semibold text-[#64748B]">
                   Actions
@@ -242,7 +205,7 @@ export function CustomerLoyaltyPageContent() {
               {isLoading && customers.length === 0 ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 7 }).map((__, j) => (
+                    {Array.from({ length: 5 }).map((__, j) => (
                       <TableCell key={j}>
                         <Skeleton className="h-4 w-full" />
                       </TableCell>
@@ -251,7 +214,7 @@ export function CustomerLoyaltyPageContent() {
                 ))
               ) : customers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7}>
+                  <TableCell colSpan={5}>
                     <EmptyState
                       title="No loyalty customers yet."
                       description="Try adjusting your search or filters."
@@ -278,9 +241,6 @@ export function CustomerLoyaltyPageContent() {
                         </p>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <LoyaltyTierBadge tier={customer.currentTier} />
-                    </TableCell>
                     <TableCell className="font-medium text-[#1A1A1A]">
                       {customer.currentPoints.toLocaleString("en-IN")}
                     </TableCell>
@@ -289,19 +249,6 @@ export function CustomerLoyaltyPageContent() {
                     </TableCell>
                     <TableCell className="text-primary font-semibold">
                       {customer.availablePoints.toLocaleString("en-IN")}
-                    </TableCell>
-                    <TableCell>
-                      <div className="w-24">
-                        <Progress
-                          value={customer.tierProgress}
-                          className="h-1.5"
-                        />
-                        {customer.nextTier && (
-                          <p className="mt-1 text-xs text-[#64748B]">
-                            → {customer.nextTier.toLowerCase()}
-                          </p>
-                        )}
-                      </div>
                     </TableCell>
                     <TableCell
                       className="text-right"

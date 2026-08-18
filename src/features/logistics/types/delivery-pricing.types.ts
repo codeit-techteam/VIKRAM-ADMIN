@@ -4,6 +4,7 @@ export type DeliveryVehicleType =
   | "THREE_WHEELER_LOADER"
   | "PICK_UP_VAN"
   | "FULL_TRUCK"
+  | "HEAVY_LOADER"
   | "RMC_TRANSIT_MIXER";
 
 export type DeliveryPricingStatus = "ACTIVE" | "INACTIVE";
@@ -17,6 +18,7 @@ export const DELIVERY_VEHICLE_OPTIONS: Array<{
   { value: "THREE_WHEELER_LOADER", label: "3 Wheeler Loader" },
   { value: "PICK_UP_VAN", label: "Pick Up Van" },
   { value: "FULL_TRUCK", label: "Full Truck" },
+  { value: "HEAVY_LOADER", label: "600 sqft Loader" },
   { value: "RMC_TRANSIT_MIXER", label: "RMC Transit Mixer" },
 ];
 
@@ -88,6 +90,7 @@ export interface DeliveryVehicleConfig {
   id: string;
   vehicleType: DeliveryVehicleType;
   displayName: string;
+  imageUrl: string | null;
   maxWeightKg: number | null;
   maxVolumeCft: number | null;
   maxQuantity: number | null;
@@ -143,6 +146,7 @@ export interface DeliveryEtaConfig {
 
 export interface UpdateDeliveryVehicleConfigPayload {
   displayName?: string;
+  imageUrl?: string | null;
   maxWeightKg?: number | null;
   maxVolumeCft?: number | null;
   maxQuantity?: number | null;

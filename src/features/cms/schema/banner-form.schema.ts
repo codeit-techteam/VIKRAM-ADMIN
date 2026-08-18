@@ -14,6 +14,19 @@ export const BANNER_CTA_DESTINATIONS = [
 
 export type BannerCtaDestination = (typeof BANNER_CTA_DESTINATIONS)[number];
 
+export const BANNER_PLACEMENTS = ["HOME_PROMO", "HOME_HERO"] as const;
+
+export type BannerPlacement = (typeof BANNER_PLACEMENTS)[number];
+
+export const BANNER_PLACEMENT_LABELS: Record<BannerPlacement, string> = {
+  HOME_PROMO: "Home promotional banner",
+  HOME_HERO: "Hero banner",
+};
+
+export function normalizeBannerPlacement(value?: string | null): BannerPlacement {
+  return value === "HOME_HERO" ? "HOME_HERO" : "HOME_PROMO";
+}
+
 export const BANNER_TARGET_AUDIENCES = [
   "ALL",
   "NEW_CUSTOMERS",
@@ -32,8 +45,8 @@ export const bannerFormSchema = z
     description: z.string().optional(),
     title: z.string().min(2, "Banner title must be at least 2 characters"),
     subtitle: z.string().optional(),
-    location: z.string().min(2, "Location / placement is required"),
-    placement: z.string().optional(),
+    location: z.enum(BANNER_PLACEMENTS),
+    placement: z.enum(BANNER_PLACEMENTS).optional(),
     ctaLabel: z.string().optional(),
     ctaDestination: z.enum(BANNER_CTA_DESTINATIONS),
     linkType: z.string().min(1),

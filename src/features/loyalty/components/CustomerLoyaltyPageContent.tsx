@@ -97,7 +97,7 @@ export function CustomerLoyaltyPageContent() {
     <div className="space-y-6">
       <PageHeader
         title="Customer Loyalty"
-        subtitle="Track BajriPro Points and redemption activity."
+        subtitle="Track BajriPro Points (1% cashback) and redemption activity."
         breadcrumbs={breadcrumbs}
       />
 

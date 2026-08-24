@@ -47,7 +47,25 @@ export interface QuickActionItem {
 
 export type OrderSource = "App" | "Exec";
 
-export type PaymentStatus = "PAID" | "PENDING";
+export type PaymentStatus =
+  | "PAID"
+  | "PENDING"
+  | "COLLECTED"
+  | "FAILED"
+  | "REFUNDED";
+
+/** Normalize backend payment status for dashboard display. */
+export function mapDashboardPaymentStatus(
+  raw?: string | null,
+): PaymentStatus {
+  const value = (raw || "").toUpperCase();
+  if (value === "PAID") return "PAID";
+  if (value === "COLLECTED") return "COLLECTED";
+  if (value === "FAILED") return "FAILED";
+  if (value === "REFUNDED") return "REFUNDED";
+  if (value === "PENDING") return "PENDING";
+  return "PENDING";
+}
 
 export type OrderStatus =
   "DISPATCHED" | "PROCESSING" | "DELIVERED" | "AWAITING HUB";
@@ -99,4 +117,55 @@ export interface WarehouseActivityData {
 
 export interface ExecutiveStatsData {
   items: ActivityStatItem[];
+}
+
+export interface DashboardMembershipPurchase {
+  id: string;
+  customer: string;
+  plan: string;
+  amount: string;
+  date: string;
+  href: string;
+}
+
+export interface DashboardRefund {
+  id: string;
+  customer: string;
+  orderNumber: string;
+  amount: string;
+  status: string;
+  date: string;
+  href: string;
+}
+
+export interface DashboardBulkLead {
+  id: string;
+  company: string;
+  project: string;
+  value: string;
+  status: string;
+  href: string;
+}
+
+export interface DashboardTestimonialPreview {
+  id: string;
+  customerName: string;
+  city: string;
+  type: "VIDEO" | "IMAGE" | "TEXT";
+  rating: number;
+  review: string;
+  mediaUrl: string;
+  status: string;
+  href: string;
+}
+
+export interface CustomerFeaturesDashboardData {
+  membershipRevenue: string;
+  loyaltyMembers: number;
+  bulkProcurementLeads: number;
+  testimonialCount: number;
+  recentMembershipPurchases: DashboardMembershipPurchase[];
+  latestRefunds: DashboardRefund[];
+  bulkLeads: DashboardBulkLead[];
+  latestTestimonials: DashboardTestimonialPreview[];
 }

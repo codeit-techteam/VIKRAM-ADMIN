@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { HubRequisitionFilters } from "@/mock/hub-requisitions";
+import type { HubRequisitionFilters } from "@/constants/sub-hub-ops.constants";
 import type { SubHub } from "@/types/erp.types";
 import type {
   RequisitionPriority,

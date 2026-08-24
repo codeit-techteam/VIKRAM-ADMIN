@@ -26,14 +26,39 @@ import {
   EMPTY_EXECUTIVE_FILTERS,
   EXECUTIVE_PAGE_SIZE,
   type CustomerExecutiveRecord,
+  type ExecutiveDashboardStats,
   type ExecutiveFilters,
 } from "@/features/user-management/types/support-executive.types";
-import { getExecutiveFilterOptions } from "@/mock/customer-executive-service";
 import { ROUTES } from "@/constants/routes";
-import { useCustomerStore } from "@/store/customer-store";
+import { getApiErrorMessage } from "@/services/api";
+import {
+  fetchCustomerExecutives,
+  type AdminUserListItem,
+} from "@/services/admin-users";
 import { notify } from "@/utils/notify";
 
 type ExecutiveStatKey = "total" | "available" | "ordersToday" | "callsAssisted";
+
+function mapAdminUserToExecutive(user: AdminUserListItem): CustomerExecutiveRecord {
+  const isActive = user.isActive || user.status === "ACTIVE";
+  return {
+    id: user.id,
+    employeeId: user.id.slice(0, 8).toUpperCase(),
+    name: user.fullName || user.email,
+    phone: user.phone ?? "Not available",
+    email: user.email,
+    hubId: "",
+    hub: "Not available",
+    region: "Not available",
+    assignedCustomers: (user as AdminUserListItem & { assignedCustomers?: number })
+      .assignedCustomers ?? 0,
+    todayOrders: 0,
+    totalOrders: 0,
+    todayCalls: 0,
+    status: isActive ? "AVAILABLE" : "OFFLINE",
+    joiningDate: user.createdAt,
+  };
+}
 
 function getActiveStatKey(filters: ExecutiveFilters): ExecutiveStatKey | null {
   if (filters.activity === "orders-today" && filters.status === "all") {
@@ -82,33 +107,33 @@ function buildStatCardFilters(statId: ExecutiveStatKey): ExecutiveFilters {
 
 export function ExecutivesPageContent() {
   const searchParams = useSearchParams();
-  const queryExecutives = useCustomerStore((state) => state.queryExecutives);
-  const customers = useCustomerStore((state) => state.customers);
-  const orders = useCustomerStore((state) => state.orders);
-  const supportExecutiveAssignmentHistory = useCustomerStore(
-    (state) => state.supportExecutiveAssignmentHistory,
-  );
 
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [executives, setExecutives] = useState<CustomerExecutiveRecord[]>([]);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [stats, setStats] = useState<ExecutiveDashboardStats>({
+    totalExecutives: 0,
+    availableToday: 0,
+    ordersCreatedToday: 0,
+    customerCallsAssisted: 0,
+    joinedThisMonth: 0,
+  });
   const [draftFilters, setDraftFilters] = useState<ExecutiveFilters>(
     EMPTY_EXECUTIVE_FILTERS,
   );
   const [appliedFilters, setAppliedFilters] = useState<ExecutiveFilters>(
     EMPTY_EXECUTIVE_FILTERS,
   );
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 450);
-    return () => window.clearTimeout(timer);
-  }, []);
+  const [refreshToken] = useState(0);
 
   useEffect(() => {
     const statusParam = searchParams.get("status");
     if (statusParam) {
       const filters: ExecutiveFilters = {
         ...EMPTY_EXECUTIVE_FILTERS,
-        status: statusParam.toLowerCase(),
+        status: statusParam.toUpperCase(),
       };
       setDraftFilters(filters);
       setAppliedFilters(filters);
@@ -116,24 +141,77 @@ export function ExecutivesPageContent() {
     }
   }, [searchParams]);
 
-  const queryResult = useMemo(
-    () =>
-      queryExecutives({
-        page: currentPage,
-        limit: EXECUTIVE_PAGE_SIZE,
-        filters: appliedFilters,
-      }),
-    [
-      queryExecutives,
-      currentPage,
-      appliedFilters,
-      customers,
-      orders,
-      supportExecutiveAssignmentHistory,
-    ],
-  );
+  useEffect(() => {
+    let ignore = false;
 
-  const filterOptions = useMemo(() => getExecutiveFilterOptions(), []);
+    async function load() {
+      setIsLoading(true);
+      try {
+        const statusFilter =
+          appliedFilters.status === "AVAILABLE"
+            ? "ACTIVE"
+            : appliedFilters.status === "OFFLINE"
+              ? "INACTIVE"
+              : undefined;
+
+        const [list, activeList] = await Promise.all([
+          fetchCustomerExecutives({
+            search: appliedFilters.search.trim() || undefined,
+            status: statusFilter,
+            page: currentPage,
+            limit: EXECUTIVE_PAGE_SIZE,
+          }),
+          fetchCustomerExecutives({
+            status: "ACTIVE",
+            page: 1,
+            limit: 1,
+          }),
+        ]);
+
+        if (ignore) return;
+
+        const mapped = list.data.map(mapAdminUserToExecutive);
+        setExecutives(mapped);
+        setTotal(list.meta.total);
+        setTotalPages(list.meta.totalPages);
+        setStats({
+          totalExecutives: list.meta.total,
+          availableToday: activeList.meta.total,
+          ordersCreatedToday: 0,
+          customerCallsAssisted: 0,
+          joinedThisMonth: mapped.filter((item) => {
+            const created = new Date(item.joiningDate);
+            const now = new Date();
+            return (
+              created.getMonth() === now.getMonth() &&
+              created.getFullYear() === now.getFullYear()
+            );
+          }).length,
+        });
+      } catch (error) {
+        if (ignore) return;
+        notify.error("Failed to load executives", getApiErrorMessage(error));
+        setExecutives([]);
+        setTotal(0);
+        setTotalPages(1);
+      } finally {
+        if (!ignore) setIsLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      ignore = true;
+    };
+  }, [currentPage, appliedFilters, refreshToken]);
+
+  const filterOptions = useMemo(
+    () => ({
+      regions: [] as Array<{ value: string; label: string }>,
+      hubs: [] as Array<{ value: string; label: string }>,
+    }),
+    [],
+  );
 
   const handleApplyFilters = useCallback(() => {
     setAppliedFilters(draftFilters);
@@ -162,19 +240,14 @@ export function ExecutivesPageContent() {
     [activeStatKey],
   );
 
-  const handleExecutiveAction = (
-    action: string,
-    executive: CustomerExecutiveRecord,
-  ) => {
-    notify.success(
-      action,
-      `${action} for ${executive.name} — mock action completed.`,
-    );
+  const handleExport = () => {
+    notify.success("Export started", "Executive list export uses current filters.");
   };
 
-  const handleExport = () => {
-    notify.success("Export started", "Executive list exported as CSV.");
-  };
+  const statusOptions = [
+    { value: "AVAILABLE", label: "Available" },
+    { value: "OFFLINE", label: "Offline" },
+  ];
 
   return (
     <div className="space-y-6">
@@ -195,9 +268,9 @@ export function ExecutivesPageContent() {
               variant="outline"
               className="gap-2"
               onClick={() =>
-                notify.success(
+                notify.info(
                   "Assign Warehouse",
-                  "Warehouse assignment flow opened.",
+                  "Hub assignment is managed from the executive profile.",
                 )
               }
             >
@@ -209,9 +282,9 @@ export function ExecutivesPageContent() {
               variant="outline"
               className="gap-2"
               onClick={() =>
-                notify.success(
+                notify.info(
                   "Assign Region",
-                  "Region assignment flow opened.",
+                  "Region assignment will use hub coverage once configured.",
                 )
               }
             >
@@ -253,8 +326,8 @@ export function ExecutivesPageContent() {
           <>
             <StatCard
               label="Total Executives"
-              value={queryResult.stats.totalExecutives}
-              subtext={`+${queryResult.stats.joinedThisMonth} joined this month`}
+              value={stats.totalExecutives}
+              subtext={`+${stats.joinedThisMonth} joined this month`}
               icon={Users}
               iconContainerClassName="bg-amber-50"
               iconClassName="text-amber-700"
@@ -263,31 +336,31 @@ export function ExecutivesPageContent() {
             />
             <StatCard
               label="Available Today"
-              value={queryResult.stats.availableToday}
+              value={stats.availableToday}
               subtext="Active and ready"
               icon={UserCheck}
-              iconContainerClassName="bg-blue-50"
-              iconClassName="text-blue-600"
+              iconContainerClassName="bg-emerald-50"
+              iconClassName="text-emerald-600"
               isActive={activeStatKey === "available"}
               onClick={() => handleStatCardClick("available")}
             />
             <StatCard
               label="Orders Created Today"
-              value={queryResult.stats.ordersCreatedToday}
-              subtext={`Average ${queryResult.stats.totalExecutives > 0 ? (queryResult.stats.ordersCreatedToday / queryResult.stats.totalExecutives).toFixed(1) : "0"} per exec`}
+              value={stats.ordersCreatedToday}
+              subtext="From CE workbench"
               icon={Package}
-              iconContainerClassName="bg-purple-50"
-              iconClassName="text-purple-600"
+              iconContainerClassName="bg-blue-50"
+              iconClassName="text-blue-600"
               isActive={activeStatKey === "ordersToday"}
               onClick={() => handleStatCardClick("ordersToday")}
             />
             <StatCard
               label="Customer Calls Assisted"
-              value={queryResult.stats.customerCallsAssisted}
-              subtext="96% resolution rate"
+              value={stats.customerCallsAssisted}
+              subtext="Tracked when CE call logging is enabled"
               icon={Headphones}
-              iconContainerClassName="bg-red-50"
-              iconClassName="text-red-600"
+              iconContainerClassName="bg-violet-50"
+              iconClassName="text-violet-600"
               isActive={activeStatKey === "callsAssisted"}
               onClick={() => handleStatCardClick("callsAssisted")}
             />
@@ -295,37 +368,26 @@ export function ExecutivesPageContent() {
         )}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-        <ExecutiveFiltersBar
-          filters={draftFilters}
-          onChange={setDraftFilters}
-          onApply={handleApplyFilters}
-          onReset={handleResetFilters}
-          regionOptions={filterOptions.regions}
-          hubOptions={filterOptions.hubs}
-          statusOptions={filterOptions.statuses}
-        />
+      <ExecutiveFiltersBar
+        filters={draftFilters}
+        onChange={setDraftFilters}
+        onApply={handleApplyFilters}
+        onReset={handleResetFilters}
+        regionOptions={filterOptions.regions}
+        hubOptions={filterOptions.hubs}
+        statusOptions={statusOptions}
+      />
 
-        <ExecutiveTable
-          executives={queryResult.data}
-          isLoading={isLoading}
-          onEdit={(executive) =>
-            handleExecutiveAction("Edit Executive", executive)
-          }
-          onAssignCustomers={(executive) =>
-            handleExecutiveAction("Assign Customers", executive)
-          }
-        />
+      <ExecutiveTable executives={executives} isLoading={isLoading} />
 
-        <Pagination
-          currentPage={queryResult.meta.page}
-          totalPages={queryResult.meta.totalPages}
-          pageSize={queryResult.meta.limit}
-          totalItems={queryResult.meta.total}
-          onPageChange={setCurrentPage}
-          itemLabel="results"
-        />
-      </div>
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={total}
+        pageSize={EXECUTIVE_PAGE_SIZE}
+        onPageChange={setCurrentPage}
+        itemLabel="executives"
+      />
     </div>
   );
 }

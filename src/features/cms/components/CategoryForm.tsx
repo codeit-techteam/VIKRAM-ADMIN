@@ -26,6 +26,8 @@ import {
   updateCategory,
 } from "@/features/cms/services/category.mock-api";
 import type { Category } from "@/features/cms/types/category.types";
+import { uploadMediaFile } from "@/services/media.service";
+import { notify } from "@/utils/notify";
 import { cn } from "@/lib/utils";
 
 const fieldLabelClassName =
@@ -67,13 +69,55 @@ export function CategoryForm({ mode, initialCategory }: CategoryFormProps) {
   const onSave = async (data: CategoryFormSchema) => {
     setIsSaving(true);
     try {
-      if (isEdit && initialCategory) {
-        await updateCategory(initialCategory.id, data);
-      } else {
-        await createCategory(data);
+      let iconUrl: string | undefined;
+      let imageUrl: string | undefined;
+
+      if (data.iconFile instanceof File) {
+        setIconUpload({ name: data.iconFile.name, progress: 0 });
+        const uploaded = await uploadMediaFile(data.iconFile, "categories", {
+          replaceKey: initialCategory?.thumbnailUrl,
+          onProgress: (percent) => {
+            setIconUpload({ name: data.iconFile!.name, progress: percent });
+          },
+        });
+        iconUrl = uploaded.publicUrl;
       }
+
+      if (data.heroImageFile instanceof File) {
+        setHeroUpload({ name: data.heroImageFile.name, progress: 0 });
+        const uploaded = await uploadMediaFile(
+          data.heroImageFile,
+          "categories",
+          {
+            onProgress: (percent) => {
+              setHeroUpload({
+                name: data.heroImageFile!.name,
+                progress: percent,
+              });
+            },
+          },
+        );
+        imageUrl = uploaded.publicUrl;
+      }
+
+      const payload = { ...data, iconUrl, imageUrl };
+
+      if (isEdit && initialCategory) {
+        await updateCategory(initialCategory.id, payload);
+      } else {
+        await createCategory(payload);
+      }
+      notify.success(
+        isEdit ? "Category updated" : "Category created",
+        "Images are stored on Cloudflare R2.",
+      );
       router.push("/customer-app-cms/categories");
       router.refresh();
+    } catch (error) {
+      notify.error(
+        "Save failed",
+        error instanceof Error ? error.message : "Could not save category",
+      );
     } finally {
       setIsSaving(false);
     }

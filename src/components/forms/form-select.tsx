@@ -49,7 +49,7 @@ export function FormSelect<T extends FieldValues>({
         <Field data-invalid={!!fieldState.error}>
           <FieldLabel>{label}</FieldLabel>
           <Select
-            value={field.value}
+            value={field.value ?? null}
             onValueChange={field.onChange}
             disabled={disabled}
           >

@@ -93,14 +93,17 @@ export function mapAllocationToTransferContext(
   return {
     allocationId: result.allocationId,
     requisitionId: result.requestId,
+    requisitionUuid: result.requisitionUuid,
     material: result.material,
     sku: extractSku(result.material),
     quantity: result.quantity,
     unit: result.unit,
     sourceWarehouse: result.warehouseName,
-    sourceWarehouseId: resolveWarehouseId(result.warehouseName),
+    sourceWarehouseId:
+      result.warehouseHubId ?? resolveWarehouseId(result.warehouseName),
     destinationHub: result.destinationHub,
-    destinationHubId: resolveHubId(result.destinationHub),
+    destinationHubId:
+      result.destinationHubId ?? resolveHubId(result.destinationHub),
     estimatedWeightKg,
   };
 }

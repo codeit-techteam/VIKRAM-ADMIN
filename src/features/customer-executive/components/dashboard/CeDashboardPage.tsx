@@ -5,7 +5,7 @@ import {
   MessageSquareWarning,
   UserPlus,
   Users,
-  Wallet,
+  IndianRupee,
   ShoppingCart,
   CreditCard,
   Truck,
@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Pagination } from "@/components/shared/Pagination";
@@ -41,7 +41,6 @@ import { CePageShell } from "@/features/customer-executive/components/shared/CeP
 import { CeStatusBadge } from "@/features/customer-executive/components/shared/CeStatusBadge";
 import { CeTableSkeleton } from "@/features/customer-executive/components/shared/CeTableSkeleton";
 import { CeTimeline } from "@/features/customer-executive/components/shared/CeTimeline";
-import { useCeLoading } from "@/features/customer-executive/hooks/use-ce-loading";
 import { CE_PAGE_SIZE } from "@/features/customer-executive/types";
 import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
 import { formatCurrency } from "@/utils/format-currency";
@@ -61,11 +60,17 @@ import type { CePayment } from "@/features/customer-executive/types";
 
 export function CeDashboardPage() {
   const router = useRouter();
-  const { isLoading } = useCeLoading();
+  const loadDashboard = useCustomerExecutiveStore((s) => s.loadDashboard);
+  const loadOrders = useCustomerExecutiveStore((s) => s.loadOrders);
+  const dashboardLoading = useCustomerExecutiveStore((s) => s.dashboardLoading);
+  const ordersLoading = useCustomerExecutiveStore((s) => s.ordersLoading);
+  const dashboardError = useCustomerExecutiveStore((s) => s.dashboardError);
+  const ordersError = useCustomerExecutiveStore((s) => s.ordersError);
   const getDashboardStats = useCustomerExecutiveStore(
     (s) => s.getDashboardStats,
   );
   const queryOrders = useCustomerExecutiveStore((s) => s.queryOrders);
+  const orders = useCustomerExecutiveStore((s) => s.orders);
   const getRecentActivities = useCustomerExecutiveStore(
     (s) => s.getRecentActivities,
   );
@@ -75,9 +80,35 @@ export function CeDashboardPage() {
   const sendPaymentLink = useCustomerExecutiveStore((s) => s.sendPaymentLink);
   const copyPaymentLink = useCustomerExecutiveStore((s) => s.copyPaymentLink);
   const currentExecutive = useCustomerExecutiveStore((s) => s.currentExecutive);
+  const loadCurrentExecutive = useCustomerExecutiveStore(
+    (s) => s.loadCurrentExecutive,
+  );
 
   const [orderPage, setOrderPage] = useState(1);
   const [paymentDrawer, setPaymentDrawer] = useState<CePayment | null>(null);
+  const isLoading = dashboardLoading || ordersLoading;
+
+  const refreshDashboard = () => {
+    void loadDashboard();
+    void loadOrders({
+      page: orderPage,
+      limit: CE_PAGE_SIZE,
+      filters: {
+        search: "",
+        status: "ALL",
+        statusGroup: "ALL",
+        orderSource: "ALL",
+        assignment: "ALL",
+      },
+    });
+  };
+
+  useEffect(() => {
+    void loadCurrentExecutive();
+    refreshDashboard();
+    const timer = window.setInterval(refreshDashboard, 15_000);
+    return () => window.clearInterval(timer);
+  }, [loadCurrentExecutive, loadDashboard, loadOrders, orderPage]);
 
   const stats = getDashboardStats();
   const recentOrders = useMemo(
@@ -90,16 +121,27 @@ export function CeDashboardPage() {
           status: "ALL",
           statusGroup: "ALL",
           orderSource: "ALL",
+          assignment: "ALL",
         },
       }),
-    [queryOrders, orderPage],
+    [queryOrders, orderPage, orders],
   );
   const activities = getRecentActivities(8);
   const pendingPayments = getPendingPayments(5);
 
-  const handleSendLink = (payment: CePayment) => {
-    sendPaymentLink(payment.id);
-    notify.success("Payment link sent", `Link sent to ${payment.customerName}`);
+  const handleSendLink = async (payment: CePayment) => {
+    try {
+      await sendPaymentLink(payment.id);
+      notify.success(
+        "Payment link sent",
+        `Link sent to ${payment.customerName}`,
+      );
+    } catch (error) {
+      notify.error(
+        "Failed to send link",
+        error instanceof Error ? error.message : "Try again",
+      );
+    }
   };
 
   const handleCopyLink = async (payment: CePayment) => {
@@ -148,6 +190,20 @@ export function CeDashboardPage() {
         </div>
       }
     >
+      {(dashboardError || ordersError) && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p>{dashboardError ?? ordersError}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={refreshDashboard}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
       {isLoading ? (
         <CeTableSkeleton columns={4} rows={1} />
       ) : (
@@ -178,7 +234,7 @@ export function CeDashboardPage() {
             label="Pending Payments"
             value={stats.pendingPayments}
             subtext={formatCurrency(stats.pendingPaymentsAmount)}
-            icon={Wallet}
+            icon={IndianRupee}
             iconContainerClassName="bg-amber-50"
             iconClassName="text-amber-600"
             href={`${ROUTES.CUSTOMER_EXECUTIVE}/payments`}

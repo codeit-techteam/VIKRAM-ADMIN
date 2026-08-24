@@ -13,10 +13,7 @@ export const ORDERS_IN_TRANSIT_LOGISTICS_STATUSES = [
 export type OrdersInTransitLogisticsStatus =
   (typeof ORDERS_IN_TRANSIT_LOGISTICS_STATUSES)[number];
 
-/** CE mock order statuses that map to in-transit logistics progress. */
-export const CE_ORDERS_IN_TRANSIT_STATUSES: OrderStatus[] = [
-  "HUB_PROCESSING",
-  "IN_TRANSIT",
-];
+/** CE order statuses that map to dispatch / out-for-delivery progress. */
+export const CE_ORDERS_IN_TRANSIT_STATUSES: OrderStatus[] = ["IN_TRANSIT"];
 
 export const ORDERS_IN_TRANSIT_STATUS_GROUP = "IN_TRANSIT" as const;

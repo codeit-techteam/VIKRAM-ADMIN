@@ -14,7 +14,7 @@ import { ROUTES } from "@/constants/routes";
 import { CeCustomerAvatar } from "@/features/customer-executive/components/shared/CeCustomerAvatar";
 import { CePageShell } from "@/features/customer-executive/components/shared/CePageShell";
 import { CeStatusBadge } from "@/features/customer-executive/components/shared/CeStatusBadge";
-import { calculateOrderTotal } from "@/features/customer-executive/mock/queries";
+import { calculateOrderTotal } from "@/features/customer-executive/utils/order-totals";
 import type {
   CeOrderItem,
   DeliveryPriority,
@@ -32,7 +32,7 @@ const PAYMENT_OPTIONS: {
 }[] = [
   { value: "UPI", label: "UPI" },
   { value: "BANK", label: "Bank Transfer" },
-  { value: "CASH", label: "Cash" },
+  { value: "CASH", label: "Cash on Delivery" },
   { value: "CREDIT", label: "Credit", desc: "Limit: ₹5L" },
 ];
 
@@ -49,9 +49,11 @@ export function CeNewOrderPage() {
 
   const products = useCustomerExecutiveStore((s) => s.products);
   const customers = useCustomerExecutiveStore((s) => s.customers);
-  const getCustomerByPhone = useCustomerExecutiveStore(
-    (s) => s.getCustomerByPhone,
-  );
+  const loadProducts = useCustomerExecutiveStore((s) => s.loadProducts);
+  const loadCustomerById = useCustomerExecutiveStore((s) => s.loadCustomerById);
+  const lookupCustomer = useCustomerExecutiveStore((s) => s.lookupCustomer);
+  const productsLoading = useCustomerExecutiveStore((s) => s.productsLoading);
+  const productsError = useCustomerExecutiveStore((s) => s.productsError);
   const createOrder = useCustomerExecutiveStore((s) => s.createOrder);
 
   const [phoneSearch, setPhoneSearch] = useState("");
@@ -71,12 +73,14 @@ export function CeNewOrderPage() {
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
 
   useEffect(() => {
-    if (preselectedCustomerId && selectedCustomer) {
-      setDeliveryAddress(selectedCustomer.address);
-      setDeliveryPincode(selectedCustomer.pincode);
-      setPhoneSearch(selectedCustomer.phone);
+    void loadProducts();
+  }, [loadProducts]);
+
+  useEffect(() => {
+    if (preselectedCustomerId) {
+      void loadCustomerById(preselectedCustomerId);
     }
-  }, [preselectedCustomerId, selectedCustomer]);
+  }, [preselectedCustomerId, loadCustomerById]);
 
   const filteredProducts = useMemo(() => {
     if (!productSearch.trim()) return products;
@@ -89,15 +93,58 @@ export function CeNewOrderPage() {
 
   const totals = useMemo(() => calculateOrderTotal(items), [items]);
 
-  const handleSearchCustomer = () => {
-    const found = getCustomerByPhone(phoneSearch);
-    if (found) {
-      setSelectedCustomerId(found.id);
-      setDeliveryAddress(found.address);
-      setDeliveryPincode(found.pincode);
-      notify.success("Customer found", found.name);
-    } else {
-      notify.error("Customer not found", "Try registering a new customer");
+  useEffect(() => {
+    if (selectedCustomer) {
+      setDeliveryAddress(selectedCustomer.address);
+      setDeliveryPincode(selectedCustomer.pincode);
+      setPhoneSearch(selectedCustomer.phone);
+    }
+  }, [selectedCustomer]);
+
+  const handleSearchCustomer = async () => {
+    const phone = phoneSearch.trim();
+    if (!phone) {
+      notify.error("Enter a phone number", "Search by customer mobile number");
+      return;
+    }
+
+    try {
+      const result = await lookupCustomer(phone);
+      if (!result.exists) {
+        notify.error("Customer not found", "Try registering a new customer");
+        return;
+      }
+      if (result.assignedToOtherExecutive) {
+        notify.error(
+          "Customer assigned elsewhere",
+          "This customer is assigned to another executive",
+        );
+        return;
+      }
+
+      const customerId = result.customer?.id;
+      if (!customerId) {
+        notify.error("Customer not found", "Try registering a new customer");
+        return;
+      }
+
+      // Lookup returns a slim payload — load full profile for the order form.
+      const fullCustomer = await loadCustomerById(customerId);
+      if (!fullCustomer) {
+        notify.error("Customer not found", "Try registering a new customer");
+        return;
+      }
+
+      setSelectedCustomerId(fullCustomer.id);
+      setDeliveryAddress(fullCustomer.address);
+      setDeliveryPincode(fullCustomer.pincode);
+      setPhoneSearch(fullCustomer.phone);
+      notify.success("Customer found", fullCustomer.name);
+    } catch (error) {
+      notify.error(
+        "Search failed",
+        error instanceof Error ? error.message : "Try again",
+      );
     }
   };
 
@@ -142,7 +189,7 @@ export function CeNewOrderPage() {
     setItems(items.filter((i) => i.productId !== productId));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedCustomerId) {
       notify.error("Select a customer first");
       return;
@@ -158,7 +205,7 @@ export function CeNewOrderPage() {
 
     setIsSubmitting(true);
     try {
-      const order = createOrder({
+      const order = await createOrder({
         customerId: selectedCustomerId,
         items,
         deliveryAddress,
@@ -169,6 +216,11 @@ export function CeNewOrderPage() {
       });
       notify.success("Order submitted", `Order #${order.orderNumber} created`);
       router.push(`${ROUTES.CUSTOMER_EXECUTIVE}/orders`);
+    } catch (error) {
+      notify.error(
+        "Order creation failed",
+        error instanceof Error ? error.message : "Try again",
+      );
     } finally {
       setIsSubmitting(false);
     }

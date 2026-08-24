@@ -10,6 +10,7 @@ import {
   Truck,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Pagination } from "@/components/shared/Pagination";
@@ -28,6 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ROUTES } from "@/constants/routes";
 import { AssignDriverDialog } from "@/features/logistics/components/AssignDriverDialog";
 import { AssignVehicleDialog } from "@/features/logistics/components/AssignVehicleDialog";
 import { LogisticsFilterBar } from "@/features/logistics/components/LogisticsFilterBar";
@@ -37,22 +39,19 @@ import {
 } from "@/features/logistics/components/LogisticsMetricCard";
 import { LogisticsStatusBadge } from "@/features/logistics/components/LogisticsStatusBadge";
 import { WarehouseShipmentDetailDrawer } from "@/features/logistics/components/WarehouseShipmentDetailDrawer";
-import { useLogisticsLoading } from "@/features/logistics/hooks/use-logistics-loading";
+import {
+  useLogisticsFilters,
+  useWarehouseLogistics,
+} from "@/features/logistics/hooks/use-logistics";
 import {
   EMPTY_WAREHOUSE_FILTERS,
   formatLogisticsDateTime,
-  getWarehouseStats,
-  LOGISTICS_HUBS,
   LOGISTICS_PAGE_SIZE,
-  LOGISTICS_WAREHOUSES,
-  queryWarehouseShipments,
-} from "@/mock/logistics";
-import { useLogisticsStore } from "@/store/logistics-store";
+} from "@/features/logistics/utils/logistics-formatters";
 import type {
   WarehouseShipment,
   WarehouseShipmentFilters,
 } from "@/types/logistics.types";
-import { notify } from "@/utils/notify";
 
 type WarehouseStatKey =
   | "transfers-today"
@@ -72,8 +71,7 @@ const STAT_STATUS_MAP: Record<WarehouseStatKey, string> = {
 };
 
 export function WarehouseLogisticsPage() {
-  const { isLoading } = useLogisticsLoading();
-  const warehouseShipments = useLogisticsStore((s) => s.warehouseShipments);
+  const router = useRouter();
   const [filters, setFilters] = useState<WarehouseShipmentFilters>(
     EMPTY_WAREHOUSE_FILTERS,
   );
@@ -81,14 +79,39 @@ export function WarehouseLogisticsPage() {
   const [assignVehicleOpen, setAssignVehicleOpen] = useState(false);
   const [assignDriverOpen, setAssignDriverOpen] = useState(false);
   const [assignTargetId, setAssignTargetId] = useState("");
+  const [assignTargetLabel, setAssignTargetLabel] = useState("");
   const [selectedShipment, setSelectedShipment] =
     useState<WarehouseShipment | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
-  const stats = useMemo(
-    () => getWarehouseStats(warehouseShipments),
-    [warehouseShipments],
+  const { data: filterOptions } = useLogisticsFilters();
+
+  const queryParams = useMemo(
+    () => ({
+      search: filters.search || undefined,
+      warehouseId:
+        filters.warehouse !== "all" ? filters.warehouse : undefined,
+      destinationHubId:
+        filters.destinationHub !== "all" ? filters.destinationHub : undefined,
+      priority: filters.priority !== "all" ? filters.priority : undefined,
+      status: filters.status !== "all" ? filters.status : undefined,
+      page: currentPage,
+      limit: LOGISTICS_PAGE_SIZE,
+    }),
+    [filters, currentPage],
   );
+
+  const { data, isLoading, isError, refetch, isFetching } =
+    useWarehouseLogistics(queryParams);
+
+  const stats = data?.stats ?? {
+    transfersToday: 0,
+    pending: 0,
+    loading: 0,
+    inTransit: 0,
+    delayed: 0,
+    completed: 0,
+  };
 
   const kpiCards = useMemo<LogisticsMetricCardData[]>(
     () => [
@@ -135,17 +158,6 @@ export function WarehouseLogisticsPage() {
     [stats],
   );
 
-  const queryResult = useMemo(
-    () =>
-      queryWarehouseShipments(
-        warehouseShipments,
-        currentPage,
-        LOGISTICS_PAGE_SIZE,
-        filters,
-      ),
-    [warehouseShipments, currentPage, filters],
-  );
-
   const filterConfigs = [
     {
       label: "Warehouse",
@@ -153,16 +165,23 @@ export function WarehouseLogisticsPage() {
       onChange: (v: string) => setFilters((f) => ({ ...f, warehouse: v })),
       options: [
         { value: "all", label: "All Warehouses" },
-        ...LOGISTICS_WAREHOUSES.map((w) => ({ value: w, label: w })),
+        ...(filterOptions?.warehouses ?? []).map((w) => ({
+          value: w.id,
+          label: w.name,
+        })),
       ],
     },
     {
       label: "Destination Hub",
       value: filters.destinationHub,
-      onChange: (v: string) => setFilters((f) => ({ ...f, destinationHub: v })),
+      onChange: (v: string) =>
+        setFilters((f) => ({ ...f, destinationHub: v })),
       options: [
         { value: "all", label: "All Hubs" },
-        ...LOGISTICS_HUBS.map((h) => ({ value: h, label: h })),
+        ...(filterOptions?.hubs ?? []).map((h) => ({
+          value: h.id,
+          label: h.name,
+        })),
       ],
     },
     {
@@ -207,31 +226,43 @@ export function WarehouseLogisticsPage() {
     setCurrentPage(1);
   };
 
-  const openShipmentDetail = (item: WarehouseShipment) => {
-    setSelectedShipment(item);
-    setDetailOpen(true);
-  };
-
-  const handleAction = (action: string, item: WarehouseShipment) => {
-    if (action === "assign-vehicle") {
-      setAssignTargetId(item.shipmentId);
-      setAssignVehicleOpen(true);
-    } else if (action === "assign-driver") {
-      setAssignTargetId(item.shipmentId);
-      setAssignDriverOpen(true);
-    } else if (action === "track") {
-      notify.info(
-        "Tracking Shipment",
-        `Opening tracker for ${item.shipmentId}`,
-      );
-    } else if (action === "view") {
-      openShipmentDetail(item);
-    }
+  const openAssign = (
+    item: WarehouseShipment,
+    type: "vehicle" | "driver",
+  ) => {
+    setAssignTargetId(item.id);
+    setAssignTargetLabel(item.shipmentId);
+    if (type === "vehicle") setAssignVehicleOpen(true);
+    else setAssignDriverOpen(true);
   };
 
   const activeStatId = (
     Object.entries(STAT_STATUS_MAP) as [WarehouseStatKey, string][]
   ).find(([, status]) => status === filters.status)?.[0];
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-red-100 bg-white p-10 text-center">
+        <p className="text-sm font-medium">Unable to load warehouse transfers.</p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void refetch()}
+          disabled={isFetching}
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  const rows = data?.data ?? [];
+  const meta = data?.meta ?? {
+    page: 1,
+    limit: LOGISTICS_PAGE_SIZE,
+    total: 0,
+    totalPages: 1,
+  };
 
   return (
     <div className="space-y-5">
@@ -268,10 +299,10 @@ export function WarehouseLogisticsPage() {
               <div key={i} className="h-12 animate-pulse rounded bg-gray-100" />
             ))}
           </div>
-        ) : queryResult.data.length === 0 ? (
+        ) : rows.length === 0 ? (
           <div className="p-6">
             <EmptyState
-              title="No Shipments"
+              title="No warehouse transfers found."
               description="No warehouse shipments match your filters."
               icon={<Package className="size-8" />}
             />
@@ -314,7 +345,7 @@ export function WarehouseLogisticsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {queryResult.data.map((item) => (
+                {rows.map((item) => (
                   <TableRow key={item.id} className="hover:bg-gray-50/50">
                     <TableCell className="font-medium">
                       {item.shipmentId}
@@ -352,7 +383,10 @@ export function WarehouseLogisticsPage() {
                           variant="ghost"
                           className="size-8"
                           aria-label={`View ${item.shipmentId}`}
-                          onClick={() => handleAction("view", item)}
+                          onClick={() => {
+                            setSelectedShipment(item);
+                            setDetailOpen(true);
+                          }}
                         >
                           <Eye className="size-4" />
                         </Button>
@@ -370,21 +404,21 @@ export function WarehouseLogisticsPage() {
                           />
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
-                              onClick={() => handleAction("track", item)}
+                              onClick={() =>
+                                router.push(
+                                  `${ROUTES.LOGISTICS}/tracking?id=${encodeURIComponent(item.shipmentId)}`,
+                                )
+                              }
                             >
                               Track Shipment
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() =>
-                                handleAction("assign-vehicle", item)
-                              }
+                              onClick={() => openAssign(item, "vehicle")}
                             >
                               Assign Vehicle
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() =>
-                                handleAction("assign-driver", item)
-                              }
+                              onClick={() => openAssign(item, "driver")}
                             >
                               Assign Driver
                             </DropdownMenuItem>
@@ -399,12 +433,12 @@ export function WarehouseLogisticsPage() {
           </div>
         )}
 
-        {!isLoading && queryResult.meta.total > 0 ? (
+        {!isLoading && meta.total > 0 ? (
           <Pagination
             currentPage={currentPage}
-            totalPages={queryResult.meta.totalPages}
+            totalPages={meta.totalPages}
             pageSize={LOGISTICS_PAGE_SIZE}
-            totalItems={queryResult.meta.total}
+            totalItems={meta.total}
             onPageChange={setCurrentPage}
             itemLabel="shipments"
           />
@@ -415,13 +449,17 @@ export function WarehouseLogisticsPage() {
         open={assignVehicleOpen}
         onOpenChange={setAssignVehicleOpen}
         targetId={assignTargetId}
+        targetLabel={assignTargetLabel}
         targetType="warehouse"
+        onAssigned={() => void refetch()}
       />
       <AssignDriverDialog
         open={assignDriverOpen}
         onOpenChange={setAssignDriverOpen}
         targetId={assignTargetId}
+        targetLabel={assignTargetLabel}
         targetType="warehouse"
+        onAssigned={() => void refetch()}
       />
       <WarehouseShipmentDetailDrawer
         shipment={selectedShipment}
@@ -430,18 +468,20 @@ export function WarehouseLogisticsPage() {
           setDetailOpen(open);
           if (!open) setSelectedShipment(null);
         }}
-        onAssignVehicle={(shipmentId) => {
+        onAssignVehicle={() => {
+          if (!selectedShipment) return;
           setDetailOpen(false);
-          setAssignTargetId(shipmentId);
-          setAssignVehicleOpen(true);
+          openAssign(selectedShipment, "vehicle");
         }}
-        onAssignDriver={(shipmentId) => {
+        onAssignDriver={() => {
+          if (!selectedShipment) return;
           setDetailOpen(false);
-          setAssignTargetId(shipmentId);
-          setAssignDriverOpen(true);
+          openAssign(selectedShipment, "driver");
         }}
         onTrack={(shipmentId) => {
-          notify.info("Tracking Shipment", `Opening tracker for ${shipmentId}`);
+          router.push(
+            `${ROUTES.LOGISTICS}/tracking?id=${encodeURIComponent(shipmentId)}`,
+          );
         }}
       />
     </div>

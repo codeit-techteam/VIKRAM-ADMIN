@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
@@ -31,7 +32,6 @@ import {
   LICENSE_TYPE_OPTIONS,
   RELATIONSHIP_OPTIONS,
   SHIFT_OPTIONS,
-  WAREHOUSE_HUB_MAP,
 } from "@/features/logistics/constants/fleet-form.constants";
 import { ConfirmDialog } from "@/features/logistics/components/ConfirmDialog";
 import {
@@ -41,21 +41,23 @@ import {
 import { FleetFileUpload } from "@/features/logistics/components/shared/FleetFileUpload";
 import { FleetFormStepIndicator } from "@/features/logistics/components/shared/FleetFormStepIndicator";
 import {
+  useCreateDriver,
+  useUpdateDriver,
+} from "@/features/logistics/hooks/use-drivers";
+import { useVehicles } from "@/features/logistics/hooks/use-vehicles";
+import {
   DRIVER_FORM_DEFAULT_VALUES,
   driverFormSchema,
   type DriverFormSchema,
 } from "@/features/logistics/schema/driver-form.schema";
 import {
-  createDocumentMeta,
-  createFleetTimelineEvent,
   formatIndianPhoneInput,
   generateEmployeeId,
 } from "@/features/logistics/utils/fleet-formatters";
 import { INDIAN_STATES } from "@/mock/hub-onboarding";
-import { LOGISTICS_WAREHOUSES } from "@/mock/logistics";
-import { useLogisticsStore } from "@/store/logistics-store";
+import { driversService } from "@/services/drivers.service";
+import { hubsService } from "@/services/hubs.service";
 import type { LogisticsDriver } from "@/types/logistics.types";
-import { formatPhone } from "@/utils/format-phone";
 import { notify } from "@/utils/notify";
 
 interface AddDriverDialogProps {
@@ -69,6 +71,48 @@ type ReassignWarning = {
   pendingData: DriverFormSchema;
 };
 
+function mapLicenseTypeToApi(value?: string): string | undefined {
+  if (!value) return undefined;
+  return value.replace(/-/g, "_").toUpperCase();
+}
+
+function mapLicenseTypeToForm(value?: string): string {
+  if (!value) return "";
+  const upper = value.toUpperCase();
+  if (upper === "LMV_TR") return "LMV-TR";
+  if (upper === "TRANSPORT") return "Transport";
+  return upper;
+}
+
+function mapEmploymentTypeToApi(value?: string): string | undefined {
+  if (!value) return undefined;
+  const map: Record<string, string> = {
+    permanent: "PERMANENT",
+    contract: "CONTRACT",
+    temporary: "TEMPORARY",
+    "third party": "TEMPORARY",
+  };
+  return map[value.toLowerCase()] ?? value.toUpperCase();
+}
+
+function mapEmploymentTypeToForm(value?: string): string {
+  if (!value) return "Permanent";
+  const map: Record<string, string> = {
+    PERMANENT: "Permanent",
+    CONTRACT: "Contract",
+    TEMPORARY: "Temporary",
+  };
+  return map[value.toUpperCase()] ?? value;
+}
+
+function mapFormStatus(
+  status: LogisticsDriver["status"],
+): DriverFormSchema["status"] {
+  if (status === "on_leave") return "on_leave";
+  if (status === "inactive") return "inactive";
+  return "available";
+}
+
 function driverToFormValues(driver: LogisticsDriver): DriverFormSchema {
   const mobileDigits = driver.mobile.replace(/\D/g, "").slice(-10);
   return {
@@ -77,7 +121,7 @@ function driverToFormValues(driver: LogisticsDriver): DriverFormSchema {
     mobile: mobileDigits,
     alternatePhone: driver.alternatePhone?.replace(/\D/g, "").slice(-10) ?? "",
     email: driver.email ?? "",
-    gender: driver.gender ?? "",
+    gender: driver.gender?.toLowerCase() ?? "",
     dob: driver.dob?.slice(0, 10) ?? "",
     bloodGroup: driver.bloodGroup ?? "",
     emergencyContactName: driver.emergencyContactName ?? "",
@@ -91,14 +135,14 @@ function driverToFormValues(driver: LogisticsDriver): DriverFormSchema {
     licenseNumber: driver.licenseNumber,
     licenseIssueDate: driver.licenseIssueDate?.slice(0, 10) ?? "",
     licenseExpiry: driver.licenseExpiry?.slice(0, 10) ?? "",
-    licenseType: driver.licenseType ?? "",
+    licenseType: mapLicenseTypeToForm(driver.licenseType),
     licenseIssuingState: driver.licenseIssuingState ?? "",
     joiningDate: driver.joiningDate?.slice(0, 10) ?? "",
-    employmentType: driver.employmentType ?? "Permanent",
+    employmentType: mapEmploymentTypeToForm(driver.employmentType),
     assignedWarehouse: driver.assignedWarehouse,
     assignedHub: driver.assignedHub,
     assignedVehicleId: driver.assignedVehicleId ?? "",
-    status: driver.status,
+    status: mapFormStatus(driver.status),
     shift: driver.shift ?? "Morning",
     aadhaarNumber: driver.aadhaarNumber ?? "",
     panNumber: driver.panNumber ?? "",
@@ -111,17 +155,49 @@ function driverToFormValues(driver: LogisticsDriver): DriverFormSchema {
   };
 }
 
+function getApiErrorMessage(err: unknown): string {
+  const axiosMsg =
+    err && typeof err === "object" && "response" in err
+      ? (err as { response?: { data?: { message?: string } } }).response?.data
+          ?.message
+      : undefined;
+  return (
+    axiosMsg || (err instanceof Error ? err.message : "Failed to save driver")
+  );
+}
+
 export function AddDriverDialog({
   open,
   onOpenChange,
   editDriver,
 }: AddDriverDialogProps) {
-  const vehicles = useLogisticsStore((s) => s.vehicles);
-  const drivers = useLogisticsStore((s) => s.drivers);
-  const addDriver = useLogisticsStore((s) => s.addDriver);
-  const updateDriver = useLogisticsStore((s) => s.updateDriver);
-  const reassignVehicleDriver = useLogisticsStore(
-    (s) => s.reassignVehicleDriver,
+  const createDriver = useCreateDriver();
+  const updateDriverMutation = useUpdateDriver();
+
+  const hubsQuery = useQuery({
+    queryKey: ["admin-hubs-for-driver-form"],
+    queryFn: () => hubsService.list({ page: 1, limit: 200 }),
+    enabled: open,
+  });
+  const hubs = hubsQuery.data?.data ?? [];
+  const warehouseHubs = useMemo(
+    () =>
+      hubs.filter((h) =>
+        String(h.hubType ?? "")
+          .toUpperCase()
+          .includes("WAREHOUSE"),
+      ),
+    [hubs],
+  );
+  const deliveryHubs = useMemo(
+    () =>
+      hubs.filter(
+        (h) =>
+          !String(h.hubType ?? "")
+            .toUpperCase()
+            .includes("WAREHOUSE"),
+      ),
+    [hubs],
   );
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -135,16 +211,10 @@ export function AddDriverDialog({
     drivingLicense: File | null;
     aadhaar: File | null;
     pan: File | null;
-    policeVerification: File | null;
-    medicalCertificate: File | null;
-    profilePhoto: File | null;
   }>({
     drivingLicense: null,
     aadhaar: null,
     pan: null,
-    policeVerification: null,
-    medicalCertificate: null,
-    profilePhoto: null,
   });
 
   const {
@@ -161,37 +231,78 @@ export function AddDriverDialog({
   });
 
   const assignedWarehouse = watch("assignedWarehouse");
+  const assignedHub = watch("assignedHub");
+
+  const warehouseOptions = useMemo(
+    () =>
+      (warehouseHubs.length ? warehouseHubs : hubs).map((w) => ({
+        value: w.id,
+        label: w.name,
+      })),
+    [warehouseHubs, hubs],
+  );
 
   const hubOptions = useMemo(
     () =>
-      (WAREHOUSE_HUB_MAP[assignedWarehouse] ?? []).map((hub) => ({
-        value: hub,
-        label: hub,
+      (deliveryHubs.length ? deliveryHubs : hubs).map((hub) => ({
+        value: hub.id,
+        label: hub.name,
       })),
-    [assignedWarehouse],
+    [deliveryHubs, hubs],
   );
 
-  const vehicleOptions = useMemo(
-    () =>
-      vehicles.map((v) => ({
-        value: v.id,
-        label: `${v.vehicleNumber} — ${v.vehicleType}`,
-      })),
-    [vehicles],
-  );
+  const vehiclesQuery = useVehicles({
+    hubId: assignedHub || undefined,
+    limit: 100,
+    status: "AVAILABLE",
+  });
+  const hubVehicles = vehiclesQuery.data?.vehicles ?? [];
+
+  const vehicleOptions = useMemo(() => {
+    const opts = hubVehicles.map((v) => ({
+      value: v.id,
+      label: `${v.vehicleNumber} — ${v.vehicleType}`,
+    }));
+    if (
+      editDriver?.assignedVehicleId &&
+      editDriver.assignedVehicleNumber &&
+      !opts.some((o) => o.value === editDriver.assignedVehicleId)
+    ) {
+      opts.unshift({
+        value: editDriver.assignedVehicleId,
+        label: `${editDriver.assignedVehicleNumber} — Current`,
+      });
+    }
+    return opts;
+  }, [hubVehicles, editDriver]);
 
   useEffect(() => {
     if (!open) return;
     if (editDriver) {
-      reset(driverToFormValues(editDriver));
-    } else {
-      const employeeId = generateEmployeeId(drivers.map((d) => d.employeeId));
+      const warehouseMatch =
+        editDriver.warehouseHubId ||
+        hubs.find((h) => h.name === editDriver.assignedWarehouse)?.id ||
+        editDriver.assignedWarehouse;
+      const hubMatch =
+        editDriver.hubId ||
+        hubs.find((h) => h.name === editDriver.assignedHub)?.id ||
+        editDriver.assignedHub;
+      reset({
+        ...driverToFormValues(editDriver),
+        assignedWarehouse: warehouseMatch,
+        assignedHub: hubMatch,
+      });
+    } else if (warehouseOptions.length || hubOptions.length) {
       reset({
         ...DRIVER_FORM_DEFAULT_VALUES,
-        employeeId,
-        assignedWarehouse: LOGISTICS_WAREHOUSES[0] ?? "",
-        assignedHub:
-          WAREHOUSE_HUB_MAP[LOGISTICS_WAREHOUSES[0] ?? ""]?.[0] ?? "",
+        employeeId: generateEmployeeId([]),
+        assignedWarehouse: warehouseOptions[0]?.value ?? "",
+        assignedHub: hubOptions[0]?.value ?? "",
+      });
+    } else {
+      reset({
+        ...DRIVER_FORM_DEFAULT_VALUES,
+        employeeId: generateEmployeeId([]),
       });
     }
     setActiveStep(1);
@@ -200,20 +311,32 @@ export function AddDriverDialog({
       drivingLicense: null,
       aadhaar: null,
       pan: null,
-      policeVerification: null,
-      medicalCertificate: null,
-      profilePhoto: null,
     });
-  }, [open, editDriver, reset, drivers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editDriver, hubs.length]);
 
   useEffect(() => {
     if (!assignedWarehouse) return;
-    const hubs = WAREHOUSE_HUB_MAP[assignedWarehouse] ?? [];
     const currentHub = watch("assignedHub");
-    if (hubs.length > 0 && !hubs.includes(currentHub)) {
-      setValue("assignedHub", hubs[0]!);
+    if (
+      hubOptions.length > 0 &&
+      !hubOptions.some((h) => h.value === currentHub)
+    ) {
+      setValue("assignedHub", hubOptions[0]!.value);
     }
-  }, [assignedWarehouse, setValue, watch]);
+  }, [assignedWarehouse, setValue, watch, hubOptions]);
+
+  useEffect(() => {
+    const currentVehicle = watch("assignedVehicleId");
+    if (
+      currentVehicle &&
+      vehicleOptions.length > 0 &&
+      !vehicleOptions.some((v) => v.value === currentVehicle) &&
+      currentVehicle !== editDriver?.assignedVehicleId
+    ) {
+      setValue("assignedVehicleId", "");
+    }
+  }, [assignedHub, vehicleOptions, setValue, watch, editDriver]);
 
   const handleScroll = () => {
     const container = scrollRef.current;
@@ -231,132 +354,131 @@ export function AddDriverDialog({
     }
   };
 
-  const persistDriver = (data: DriverFormSchema, reassign = false) => {
-    const selectedVehicle = data.assignedVehicleId
-      ? vehicles.find((v) => v.id === data.assignedVehicleId)
-      : null;
+  const persistDriver = async (data: DriverFormSchema) => {
+    setIsSaving(true);
+    try {
+      const hubId = data.assignedHub;
+      if (!hubId) {
+        notify.error("Hub is required");
+        return;
+      }
 
-    const photoPreview = photoFile?.type.startsWith("image/")
-      ? URL.createObjectURL(photoFile)
-      : (editDriver?.photoUrl ?? null);
-
-    const driverData: LogisticsDriver = {
-      id: editDriver?.id ?? `ld-${Date.now()}`,
-      photoUrl: photoPreview,
-      name: data.name,
-      employeeId: data.employeeId,
-      mobile: formatPhone(data.mobile),
-      alternatePhone: data.alternatePhone
-        ? formatPhone(data.alternatePhone)
-        : undefined,
-      email: data.email || undefined,
-      gender: data.gender,
-      dob: data.dob,
-      bloodGroup: data.bloodGroup,
-      emergencyContactName: data.emergencyContactName,
-      emergencyContactNumber: data.emergencyContactNumber
-        ? formatPhone(data.emergencyContactNumber)
-        : undefined,
-      emergencyContactRelationship: data.emergencyContactRelationship,
-      address: data.address,
-      city: data.city,
-      state: data.state,
-      pinCode: data.pinCode,
-      licenseNumber: data.licenseNumber,
-      licenseIssueDate: data.licenseIssueDate,
-      licenseExpiry: data.licenseExpiry,
-      licenseType: data.licenseType,
-      licenseIssuingState: data.licenseIssuingState,
-      joiningDate: data.joiningDate,
-      employmentType: data.employmentType,
-      assignedHub: data.assignedHub,
-      assignedWarehouse: data.assignedWarehouse,
-      assignedVehicleId: data.assignedVehicleId || null,
-      assignedVehicleNumber: selectedVehicle?.vehicleNumber ?? null,
-      tripsToday: editDriver?.tripsToday ?? 0,
-      tripsCompleted: editDriver?.tripsCompleted ?? 0,
-      aadhaarNumber: data.aadhaarNumber,
-      panNumber: data.panNumber.toUpperCase(),
-      banking: {
-        accountHolder: data.accountHolder,
+      const payload = {
+        hubId,
+        warehouseHubId: data.assignedWarehouse || null,
+        name: data.name,
+        phone: data.mobile,
+        employeeId: data.employeeId || undefined,
+        alternatePhone: data.alternatePhone || undefined,
+        email: data.email || undefined,
+        gender: data.gender || undefined,
+        dateOfBirth: data.dob || undefined,
+        bloodGroup: data.bloodGroup || undefined,
+        emergencyContactName: data.emergencyContactName || undefined,
+        emergencyContactNumber: data.emergencyContactNumber || undefined,
+        emergencyContactRelationship:
+          data.emergencyContactRelationship || undefined,
+        address: data.address || undefined,
+        city: data.city || undefined,
+        state: data.state || undefined,
+        pinCode: data.pinCode || undefined,
+        licenseNumber: data.licenseNumber,
+        licenseIssueDate: data.licenseIssueDate || undefined,
+        licenseExpiry: data.licenseExpiry,
+        licenseType: mapLicenseTypeToApi(data.licenseType),
+        licenseIssuingState: data.licenseIssuingState || undefined,
+        joiningDate: data.joiningDate || undefined,
+        employmentType: mapEmploymentTypeToApi(data.employmentType),
+        shift: data.shift || undefined,
+        onLeave: data.status === "on_leave",
+        isActive: data.status !== "inactive",
+        aadhaarNumber: data.aadhaarNumber,
+        panNumber: data.panNumber.toUpperCase(),
+        bankAccountHolder: data.accountHolder,
         bankName: data.bankName,
-        accountNumber: data.accountNumber,
-        ifscCode: data.ifscCode.toUpperCase(),
-        upiId: data.upiId,
-      },
-      remarks: data.remarks,
-      shift: data.shift,
-      documents: {
-        drivingLicense: docFiles.drivingLicense
-          ? createDocumentMeta(docFiles.drivingLicense)
-          : editDriver?.documents?.drivingLicense,
-        aadhaar: docFiles.aadhaar
-          ? createDocumentMeta(docFiles.aadhaar)
-          : editDriver?.documents?.aadhaar,
-        pan: docFiles.pan
-          ? createDocumentMeta(docFiles.pan)
-          : editDriver?.documents?.pan,
-        policeVerification: docFiles.policeVerification
-          ? createDocumentMeta(docFiles.policeVerification)
-          : editDriver?.documents?.policeVerification,
-        medicalCertificate: docFiles.medicalCertificate
-          ? createDocumentMeta(docFiles.medicalCertificate)
-          : editDriver?.documents?.medicalCertificate,
-        profilePhoto: docFiles.profilePhoto
-          ? createDocumentMeta(docFiles.profilePhoto)
-          : editDriver?.documents?.profilePhoto,
-      },
-      timeline: editDriver?.timeline ?? [
-        createFleetTimelineEvent(
-          "Driver onboarded",
-          `Joined ${data.assignedWarehouse}`,
-          "success",
-        ),
-      ],
-      status: data.status,
-    };
+        bankAccountNumber: data.accountNumber,
+        bankIfscCode: data.ifscCode.toUpperCase(),
+        upiId: data.upiId || undefined,
+        remarks: data.remarks || undefined,
+        vehicleId: data.assignedVehicleId || null,
+      };
 
-    if (editDriver) {
-      updateDriver(editDriver.id, driverData);
-      notify.success("Driver Updated");
-    } else {
-      addDriver(driverData);
-      notify.success("Driver Added Successfully");
+      let driverId = editDriver?.id;
+      if (editDriver) {
+        await updateDriverMutation.mutateAsync({
+          id: editDriver.id,
+          payload,
+        });
+        notify.success("Driver Updated");
+      } else {
+        const created = await createDriver.mutateAsync(payload);
+        driverId = created.id;
+        notify.success("Driver Added Successfully");
+      }
+
+      if (driverId) {
+        const uploads: Array<Promise<unknown>> = [];
+        if (photoFile) {
+          uploads.push(
+            driversService.uploadDocumentFile(
+              driverId,
+              "DRIVER_PHOTO",
+              photoFile,
+            ),
+          );
+        }
+        if (docFiles.drivingLicense) {
+          uploads.push(
+            driversService.uploadDocumentFile(
+              driverId,
+              "DRIVING_LICENSE",
+              docFiles.drivingLicense,
+              data.licenseExpiry,
+            ),
+          );
+        }
+        if (docFiles.aadhaar) {
+          uploads.push(
+            driversService.uploadDocumentFile(
+              driverId,
+              "AADHAAR",
+              docFiles.aadhaar,
+            ),
+          );
+        }
+        if (docFiles.pan) {
+          uploads.push(
+            driversService.uploadDocumentFile(driverId, "PAN", docFiles.pan),
+          );
+        }
+        if (uploads.length) await Promise.allSettled(uploads);
+      }
+
+      onOpenChange(false);
+      reset(DRIVER_FORM_DEFAULT_VALUES);
+    } catch (err: unknown) {
+      notify.error("Save failed", getApiErrorMessage(err));
+    } finally {
+      setIsSaving(false);
     }
-
-    if (data.assignedVehicleId && reassign) {
-      reassignVehicleDriver(driverData.id, data.assignedVehicleId);
-    } else if (data.assignedVehicleId) {
-      reassignVehicleDriver(driverData.id, data.assignedVehicleId);
-    }
-
-    onOpenChange(false);
-    reset(DRIVER_FORM_DEFAULT_VALUES);
   };
 
   const onSubmit = (data: DriverFormSchema) => {
     if (data.assignedVehicleId) {
-      const vehicle = vehicles.find((v) => v.id === data.assignedVehicleId);
+      const vehicle = hubVehicles.find((v) => v.id === data.assignedVehicleId);
       if (
         vehicle?.assignedDriverId &&
         vehicle.assignedDriverId !== editDriver?.id
       ) {
-        const currentDriver = drivers.find(
-          (d) => d.id === vehicle.assignedDriverId,
-        );
         setReassignWarning({
-          message: `Vehicle currently assigned to ${currentDriver?.name ?? "another driver"}. Reassign vehicle?`,
+          message: `Vehicle currently assigned to ${vehicle.assignedDriverName ?? "another driver"}. Reassign vehicle?`,
           pendingData: data,
         });
         return;
       }
     }
 
-    setIsSaving(true);
-    setTimeout(() => {
-      persistDriver(data, true);
-      setIsSaving(false);
-    }, 400);
+    void persistDriver(data);
   };
 
   const handleClose = (nextOpen: boolean) => {
@@ -404,10 +526,7 @@ export function AddDriverDialog({
                       compact
                       label="Upload photo"
                       accept={{ "image/*": [] }}
-                      onFileChange={(f) => {
-                        setPhotoFile(f);
-                        setDocFiles((prev) => ({ ...prev, profilePhoto: f }));
-                      }}
+                      onFileChange={(f) => setPhotoFile(f)}
                     />
                   </FleetFormField>
 
@@ -789,13 +908,11 @@ export function AddDriverDialog({
                       control={control}
                       render={({ field }) => (
                         <Combobox
-                          options={LOGISTICS_WAREHOUSES.map((w) => ({
-                            value: w,
-                            label: w,
-                          }))}
+                          options={warehouseOptions}
                           value={field.value}
                           onValueChange={field.onChange}
                           placeholder="Select warehouse"
+                          searchPlaceholder="Search warehouse..."
                         />
                       )}
                     />
@@ -814,8 +931,13 @@ export function AddDriverDialog({
                           options={hubOptions}
                           value={field.value}
                           onValueChange={field.onChange}
-                          placeholder="Select hub"
+                          placeholder={
+                            assignedWarehouse
+                              ? "Select hub"
+                              : "Select warehouse first"
+                          }
                           disabled={!assignedWarehouse}
+                          searchPlaceholder="Search hub..."
                         />
                       )}
                     />
@@ -954,34 +1076,6 @@ export function AddDriverDialog({
                       }
                     />
                   </FleetFormField>
-
-                  <FleetFormField label="Police Verification">
-                    <FleetFileUpload
-                      compact
-                      label="Upload verification"
-                      accept={{ "application/pdf": [], "image/*": [] }}
-                      onFileChange={(f) =>
-                        setDocFiles((prev) => ({
-                          ...prev,
-                          policeVerification: f,
-                        }))
-                      }
-                    />
-                  </FleetFormField>
-
-                  <FleetFormField label="Medical Certificate">
-                    <FleetFileUpload
-                      compact
-                      label="Upload certificate"
-                      accept={{ "application/pdf": [], "image/*": [] }}
-                      onFileChange={(f) =>
-                        setDocFiles((prev) => ({
-                          ...prev,
-                          medicalCertificate: f,
-                        }))
-                      }
-                    />
-                  </FleetFormField>
                 </div>
               </FleetFormSection>
 
@@ -1096,7 +1190,7 @@ export function AddDriverDialog({
         confirmLabel="Reassign"
         onConfirm={() => {
           if (reassignWarning) {
-            persistDriver(reassignWarning.pendingData, true);
+            void persistDriver(reassignWarning.pendingData);
             setReassignWarning(null);
           }
         }}

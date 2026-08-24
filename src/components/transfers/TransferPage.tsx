@@ -1,6 +1,5 @@
 "use client";
 
-import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -32,9 +31,11 @@ import type {
 import { setActiveAllocationForTransfer } from "@/utils/allocation-transfer-bridge";
 import type { TransferRowAction } from "@/utils/transfer-actions";
 import { notify } from "@/utils/notify";
+import { warehouseService } from "@/services/warehouse";
+import { adminRequisitionsService } from "@/services/adminRequisitions";
 
 const STAT_STATUS_MAP = {
-  "pending-dispatch": "TRANSFER_CREATED",
+  "pending-dispatch": "READY_FOR_DISPATCH",
   "in-transit": "IN_TRANSIT",
   "delivered-today": "REACHED_HUB",
   "delayed-transfers": "delayed",
@@ -46,16 +47,8 @@ const STAT_STATUS_MAP = {
 export function TransferPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const transfers = useTransferListStore((state) => state.transfers);
+  const [transfers, setTransfers] = useState<TransferListItem[]>([]);
   const deleteTransfer = useTransferListStore((state) => state.deleteTransfer);
-  const assignVehicle = useTransferListStore((state) => state.assignVehicle);
-  const assignDriver = useTransferListStore((state) => state.assignDriver);
-  const startLoading = useTransferListStore((state) => state.startLoading);
-  const confirmDispatch = useTransferListStore(
-    (state) => state.confirmDispatch,
-  );
-  const markReachedHub = useTransferListStore((state) => state.markReachedHub);
-  const receiveAtHub = useTransferListStore((state) => state.receiveAtHub);
   const getAllocationById = useWarehouseErpStore(
     (state) => state.getAllocationById,
   );
@@ -73,9 +66,41 @@ export function TransferPage() {
   );
   const startCreateTransfer = useCreateTransfer();
 
+  const reloadTransfers = useCallback(async () => {
+    try {
+      const result = await warehouseService.listTransfers({
+        page: 1,
+        limit: 1000,
+      });
+      setTransfers(result.data);
+    } catch {
+      notify.error("Transfers unavailable", "Unable to load transfers.");
+    }
+  }, []);
+
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 600);
-    return () => window.clearTimeout(timer);
+    let active = true;
+    const load = async () => {
+      try {
+        const result = await warehouseService.listTransfers({
+          page: 1,
+          limit: 1000,
+        });
+        if (active) setTransfers(result.data);
+      } catch {
+        if (active) {
+          notify.error("Transfers unavailable", "Unable to load transfers.");
+        }
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    };
+    void load();
+    const interval = window.setInterval(() => void load(), 30000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -202,34 +227,56 @@ export function TransferPage() {
             setAssignDialogOpen(true);
             break;
           case "start-loading":
-            startLoading(item.transferId);
             notify.success(
               "Loading started",
               `${item.transferId} is now loading.`,
             );
             router.push(
-              `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${item.transferId}/loading`,
+              `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${item.id}/loading`,
             );
             break;
           case "complete-loading":
             router.push(
-              `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${item.transferId}/loading`,
+              `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${item.id}/loading`,
             );
             break;
           case "dispatch-now":
             router.push(
-              `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${item.transferId}/confirm`,
+              `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${item.id}/confirm`,
             );
             break;
           case "start-dispatch":
-            confirmDispatch(item.transferId);
-            notify.success(
-              "Dispatch confirmed",
-              `${item.transferId} is now in transit.`,
-            );
-            router.push(
-              `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${item.transferId}/success`,
-            );
+            void (async () => {
+              try {
+                await adminRequisitionsService.dispatch(
+                  item.requisitionId || item.id,
+                  {
+                    vehicleId: item.vehicleId,
+                    driverId: item.driverId,
+                    vehicleNumber: item.vehicleNumber,
+                    driverName: item.assignedDriver?.name,
+                    eta: item.eta,
+                    estimatedArrival: item.expectedArrival ?? item.eta,
+                    dispatchDate: item.dispatchDate,
+                  },
+                );
+                notify.success(
+                  "Dispatch confirmed",
+                  `${item.transferId} is now in transit.`,
+                );
+                await reloadTransfers();
+                router.push(
+                  `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${item.id}/success`,
+                );
+              } catch (error) {
+                notify.error(
+                  "Dispatch failed",
+                  error instanceof Error
+                    ? error.message
+                    : "Unable to confirm dispatch.",
+                );
+              }
+            })();
             break;
           case "track":
             handleView(item);
@@ -240,24 +287,16 @@ export function TransferPage() {
             handleView(item);
             break;
           case "mark-reached-hub":
-            markReachedHub(item.transferId);
-            notify.success(
-              "Reached hub",
-              `${item.transferId} is awaiting hub receipt.`,
-            );
-            break;
           case "mark-delivered":
-            markReachedHub(item.transferId);
             notify.success(
-              "Reached hub",
-              `${item.transferId} arrived at ${item.destinationHub}.`,
+              "Awaiting hub receipt",
+              `${item.transferId} must be received in the Hub Panel.`,
             );
             break;
           case "receive-at-hub":
-            receiveAtHub(item.transferId);
-            notify.success(
-              "Hub receipt confirmed",
-              `Inventory updated at ${item.destinationHub}. Transfer completed.`,
+            notify.error(
+              "Receive in Hub Panel",
+              "Central Warehouse cannot confirm hub receiving. Open Hub Panel → Transfers / Material Receiving.",
             );
             break;
           case "view-details":
@@ -272,33 +311,54 @@ export function TransferPage() {
       }
     },
     [
-      confirmDispatch,
       deleteTransfer,
       handleContinueTransfer,
       handleView,
-      markReachedHub,
-      receiveAtHub,
+      reloadTransfers,
       router,
-      startLoading,
     ],
   );
 
   const handleAssignVehicle = useCallback(
-    (vehicle: FleetVehicle) => {
+    async (vehicle: FleetVehicle) => {
       if (!selectedTransfer) return;
-      assignVehicle(selectedTransfer.transferId, vehicle);
-      notify.success("Vehicle assigned", vehicle.vehicleNumber);
+      try {
+        await adminRequisitionsService.assignLogistics(
+          selectedTransfer.requisitionId || selectedTransfer.id,
+          { vehicleId: vehicle.id },
+        );
+        notify.success("Vehicle assigned", vehicle.vehicleNumber);
+        await reloadTransfers();
+      } catch (error) {
+        notify.error(
+          "Assignment failed",
+          error instanceof Error
+            ? error.message
+            : "Unable to assign vehicle.",
+        );
+      }
     },
-    [assignVehicle, selectedTransfer],
+    [reloadTransfers, selectedTransfer],
   );
 
   const handleAssignDriver = useCallback(
-    (driver: FleetDriver) => {
+    async (driver: FleetDriver) => {
       if (!selectedTransfer) return;
-      assignDriver(selectedTransfer.transferId, driver);
-      notify.success("Driver assigned", driver.name);
+      try {
+        await adminRequisitionsService.assignLogistics(
+          selectedTransfer.requisitionId || selectedTransfer.id,
+          { driverId: driver.id },
+        );
+        notify.success("Driver assigned", driver.name);
+        await reloadTransfers();
+      } catch (error) {
+        notify.error(
+          "Assignment failed",
+          error instanceof Error ? error.message : "Unable to assign driver.",
+        );
+      }
     },
-    [assignDriver, selectedTransfer],
+    [reloadTransfers, selectedTransfer],
   );
 
   const liveTransfer = useMemo(() => {

@@ -32,37 +32,44 @@ import {
   type LogisticsMetricCardData,
 } from "@/features/logistics/components/LogisticsMetricCard";
 import { LogisticsStatusBadge } from "@/features/logistics/components/LogisticsStatusBadge";
-import { useLogisticsLoading } from "@/features/logistics/hooks/use-logistics-loading";
+import {
+  useCompleteMaintenance,
+  useMaintenanceLogistics,
+} from "@/features/logistics/hooks/use-logistics";
 import {
   EMPTY_MAINTENANCE_FILTERS,
   formatLogisticsDate,
-  getMaintenanceStats,
   LOGISTICS_PAGE_SIZE,
-  queryMaintenance,
-} from "@/mock/logistics";
-import { useLogisticsStore } from "@/store/logistics-store";
+} from "@/features/logistics/utils/logistics-formatters";
 import type { MaintenanceFilters } from "@/types/logistics.types";
 import { notify } from "@/utils/notify";
 
 export function MaintenancePage() {
-  const { isLoading } = useLogisticsLoading();
-  const maintenanceRecords = useLogisticsStore((s) => s.maintenanceRecords);
-  const updateMaintenanceStatus = useLogisticsStore(
-    (s) => s.updateMaintenanceStatus,
-  );
-  const rescheduleMaintenance = useLogisticsStore(
-    (s) => s.rescheduleMaintenance,
-  );
-
   const [filters, setFilters] = useState<MaintenanceFilters>(
     EMPTY_MAINTENANCE_FILTERS,
   );
   const [currentPage, setCurrentPage] = useState(1);
 
-  const stats = useMemo(
-    () => getMaintenanceStats(maintenanceRecords),
-    [maintenanceRecords],
+  const queryParams = useMemo(
+    () => ({
+      search: filters.search || undefined,
+      status: filters.status !== "all" ? filters.status : undefined,
+      page: currentPage,
+      limit: LOGISTICS_PAGE_SIZE,
+    }),
+    [filters, currentPage],
   );
+
+  const { data, isLoading, isError, refetch, isFetching } =
+    useMaintenanceLogistics(queryParams);
+  const completeMutation = useCompleteMaintenance();
+
+  const stats = data?.stats ?? {
+    scheduled: 0,
+    inMaintenance: 0,
+    completed: 0,
+    overdue: 0,
+  };
 
   const kpiCards = useMemo<LogisticsMetricCardData[]>(
     () => [
@@ -97,17 +104,6 @@ export function MaintenancePage() {
     [stats],
   );
 
-  const queryResult = useMemo(
-    () =>
-      queryMaintenance(
-        maintenanceRecords,
-        currentPage,
-        LOGISTICS_PAGE_SIZE,
-        filters,
-      ),
-    [maintenanceRecords, currentPage, filters],
-  );
-
   const filterConfigs = [
     {
       label: "Status",
@@ -122,6 +118,30 @@ export function MaintenancePage() {
       ],
     },
   ];
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-red-100 bg-white p-10 text-center">
+        <p className="text-sm font-medium">Unable to load maintenance records.</p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void refetch()}
+          disabled={isFetching}
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  const rows = data?.data ?? [];
+  const meta = data?.meta ?? {
+    page: 1,
+    limit: LOGISTICS_PAGE_SIZE,
+    total: 0,
+    totalPages: 1,
+  };
 
   return (
     <div className="space-y-5">
@@ -156,10 +176,10 @@ export function MaintenancePage() {
               <div key={i} className="h-12 animate-pulse rounded bg-gray-100" />
             ))}
           </div>
-        ) : queryResult.data.length === 0 ? (
+        ) : rows.length === 0 ? (
           <div className="p-6">
             <EmptyState
-              title="No Maintenance Records"
+              title="No maintenance records found."
               description="No maintenance records match your filters."
               icon={<Wrench className="size-8" />}
             />
@@ -190,7 +210,7 @@ export function MaintenancePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {queryResult.data.map((record) => (
+                {rows.map((record) => (
                   <TableRow key={record.id} className="hover:bg-gray-50/50">
                     <TableCell className="font-medium">
                       {record.vehicleNumber}
@@ -232,21 +252,30 @@ export function MaintenancePage() {
                             View
                           </DropdownMenuItem>
                           <DropdownMenuItem
+                            disabled={completeMutation.isPending}
                             onClick={() => {
-                              updateMaintenanceStatus(record.id, "completed");
-                              notify.success("Maintenance Completed");
+                              completeMutation.mutate(record.vehicleId, {
+                                onSuccess: () =>
+                                  notify.success("Maintenance Completed"),
+                                onError: (err) =>
+                                  notify.error(
+                                    "Failed",
+                                    err instanceof Error
+                                      ? err.message
+                                      : "Could not complete maintenance",
+                                  ),
+                              });
                             }}
                           >
                             Mark Complete
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => {
-                              const newDate = new Date(
-                                Date.now() + 7 * 24 * 60 * 60 * 1000,
-                              ).toISOString();
-                              rescheduleMaintenance(record.id, newDate);
-                              notify.success("Maintenance Rescheduled");
-                            }}
+                            onClick={() =>
+                              notify.info(
+                                "Reschedule",
+                                "Expected completion date can be updated via vehicle edit.",
+                              )
+                            }
                           >
                             Reschedule
                           </DropdownMenuItem>
@@ -260,12 +289,12 @@ export function MaintenancePage() {
           </div>
         )}
 
-        {!isLoading && queryResult.meta.total > 0 ? (
+        {!isLoading && meta.total > 0 ? (
           <Pagination
             currentPage={currentPage}
-            totalPages={queryResult.meta.totalPages}
+            totalPages={meta.totalPages}
             pageSize={LOGISTICS_PAGE_SIZE}
-            totalItems={queryResult.meta.total}
+            totalItems={meta.total}
             onPageChange={setCurrentPage}
             itemLabel="records"
           />

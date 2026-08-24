@@ -1,7 +1,7 @@
 "use client";
 
 import { Download } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -9,9 +9,9 @@ import {
   useState,
   useTransition,
 } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-import { HubTransferAssignDriverModal } from "@/components/sub-hub/transfers/HubTransferAssignDriverModal";
-import { HubTransferAssignVehicleModal } from "@/components/sub-hub/transfers/HubTransferAssignVehicleModal";
+import { HubContextSelector } from "@/components/sub-hub/HubContextSelector";
 import { HubTransferDetailDrawer } from "@/components/sub-hub/transfers/HubTransferDetailDrawer";
 import { HubTransferFiltersBar } from "@/components/sub-hub/transfers/HubTransferFilters";
 import {
@@ -20,114 +20,153 @@ import {
   type HubTransferStatKey,
 } from "@/components/sub-hub/transfers/HubTransferStatsCard";
 import { HubTransferTable } from "@/components/sub-hub/transfers/HubTransferTable";
-import { HubTransferUpdateStatusModal } from "@/components/sub-hub/transfers/HubTransferUpdateStatusModal";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
-import { ROUTES } from "@/constants/routes";
-import { useAuth } from "@/hooks/use-auth";
 import {
   EMPTY_HUB_TRANSFER_FILTERS,
-  fetchHubTransfers,
-  filterHubTransfers,
   formatHubTransferDateTime,
-  getAvailableDriversForHub,
-  getAvailableVehiclesForHub,
-  HUB_TRANSFER_HUB_OPTIONS,
   HUB_TRANSFER_PAGE_SIZE,
   HUB_TRANSFER_STATUS_LABELS,
-} from "@/mock/hub-transfers";
-import { useHubTransferStore } from "@/store/hub-transfer-store";
+} from "@/constants/sub-hub-ops.constants";
+import { hubsService } from "@/services/hubs.service";
+import { warehouseService } from "@/services/warehouse";
+import { useSelectedHubStore } from "@/store/selected-hub-store";
 import type {
   HubTransfer,
   HubTransferFilters,
   HubTransferStatus,
 } from "@/types/hub-transfer.types";
-import {
-  printHubTransferDispatchSlip,
-  printHubTransferInvoice,
-} from "@/utils/hub-transfer-print";
-import { notify } from "@/utils/notify";
+import type { TransferListItem } from "@/types/warehouse.types";
 
-const MVP_STATUSES = new Set<HubTransferStatus>([
-  "PENDING_DISPATCH",
-  "ASSIGNED",
-  "DISPATCHED",
-  "DELIVERED",
-  "CANCELLED",
-]);
-
-function parseStatusParam(
-  value: string | null,
-): HubTransferFilters["status"] | undefined {
-  if (!value) return undefined;
-  const upper = value.toUpperCase();
-  const lower = value.toLowerCase();
-
-  if (lower === "delayed") return "delayed";
-
-  // Legacy granular statuses → MVP
+function mapTransferStatus(status: string): HubTransferStatus {
+  const upper = status.toUpperCase();
   if (
-    upper === "VEHICLE_ASSIGNED" ||
-    upper === "DRIVER_ASSIGNED" ||
-    upper === "PACKED" ||
-    upper === "LOADED"
+    upper === "ALLOCATED" ||
+    upper === "PENDING_DISPATCH" ||
+    upper === "READY_TO_DISPATCH" ||
+    upper === "TRANSFER_CREATED"
   ) {
-    return "ASSIGNED";
+    return "PENDING_DISPATCH";
   }
-  if (upper === "REACHED_CUSTOMER_AREA") return "DISPATCHED";
-  if (upper === "COMPLETED") return "DELIVERED";
-
-  if (MVP_STATUSES.has(upper as HubTransferStatus)) {
-    return upper as HubTransferStatus;
+  if (upper === "DISPATCHED" || upper === "IN_TRANSIT") return "DISPATCHED";
+  if (
+    upper === "REACHED_HUB" ||
+    upper === "RECEIVED" ||
+    upper === "DELIVERED" ||
+    upper === "COMPLETED"
+  ) {
+    return "DELIVERED";
   }
-
-  return undefined;
+  if (upper === "CANCELLED") return "CANCELLED";
+  return "ASSIGNED";
 }
 
-const STAT_FILTER_MAP: Partial<
-  Record<HubTransferStatKey, Partial<HubTransferFilters>>
-> = {
-  "pending-vehicle": { status: "PENDING_DISPATCH" },
-  "in-transit": { status: "DISPATCHED" },
-  "delivered-today": { status: "DELIVERED" },
-  delayed: { status: "delayed" },
-};
+function mapWarehouseTransfer(
+  item: TransferListItem,
+  hubManager = "Hub Manager",
+): HubTransfer {
+  const status = mapTransferStatus(item.status);
+  const isDelayed = Boolean(
+    item.isDelayed ||
+      (item.eta &&
+        status === "DISPATCHED" &&
+        new Date(item.eta).getTime() < Date.now()),
+  );
+
+  return {
+    id: item.id,
+    transferId: item.transferId,
+    orderId: item.requisitionId || item.allocationId || item.id,
+    customerId: item.sourceWarehouseId,
+    customerName: item.material || item.materials?.[0] || "Material",
+    customerMobile: item.sku || "—",
+    deliveryAddress: item.sourceWarehouse || "Central Warehouse",
+    pincode: "",
+    orderValue: 0,
+    orderDate: item.createdAt,
+    hubId: item.destinationHubId,
+    hubName: item.destinationHub,
+    hubManager,
+    dispatchCounter: item.quantity
+      ? `${item.quantity} ${item.quantityUnit || "units"}`
+      : "—",
+    reservedInventoryLabel: item.quantity
+      ? `${item.quantity} ${item.quantityUnit || "units"}`
+      : "—",
+    vehicleId: item.vehicleId ?? null,
+    vehicleNumber: item.vehicleNumber ?? null,
+    vehicleType: null,
+    vehicleCapacityKg: null,
+    driverId: item.driverId ?? null,
+    driverName: item.assignedDriver?.name ?? null,
+    driverMobile: null,
+    licenseStatus: null,
+    dispatchTime: item.dispatchDate ?? item.dispatchAt ?? null,
+    expectedDelivery: item.eta || item.expectedArrival || item.createdAt,
+    estimatedArrival: item.eta || item.expectedArrival || null,
+    status,
+    priority: "medium",
+    isDelayed,
+    products: [
+      {
+        productId: item.sku || item.id,
+        name: item.material || "Material",
+        sku: item.sku || "—",
+        quantity: item.quantity ?? 0,
+        reservedQuantity: item.quantity ?? 0,
+        weightKg: 0,
+        unitPrice: 0,
+        amount: 0,
+      },
+    ],
+    totalWeightKg: 0,
+    totalAmount: 0,
+    timeline: (item.timeline ?? []).map((event, index) => ({
+      id: event.id || `evt-${index}`,
+      key: "DISPATCHED" as const,
+      title: event.label || event.type,
+      updatedBy: "System",
+      timestamp: event.timestamp,
+      remarks: event.description,
+      completed: true,
+    })),
+    createdAt: item.createdAt,
+  };
+}
 
 function downloadCsv(items: HubTransfer[]) {
   const header = [
     "Transfer ID",
-    "Order ID",
-    "Customer",
-    "Mobile",
-    "Address",
-    "Hub",
-    "Driver",
+    "Requisition ID",
+    "Source Warehouse",
+    "Destination Hub",
+    "Material",
+    "SKU",
+    "Quantity",
     "Vehicle",
-    "Dispatch Time",
-    "Expected Delivery",
+    "Driver",
+    "Dispatch Date",
+    "ETA",
     "Status",
-    "Priority",
   ];
 
   const lines = items.map((item) =>
     [
       item.transferId,
       item.orderId,
-      item.customerName,
-      item.customerMobile,
       item.deliveryAddress,
       item.hubName,
-      item.driverName ?? "",
+      item.customerName,
+      item.customerMobile,
+      item.dispatchCounter,
       item.vehicleNumber ?? "",
+      item.driverName ?? "",
       item.dispatchTime ? formatHubTransferDateTime(item.dispatchTime) : "",
       formatHubTransferDateTime(item.expectedDelivery),
-      item.isDelayed &&
-      item.status !== "DELIVERED" &&
-      item.status !== "CANCELLED"
+      item.isDelayed && item.status !== "DELIVERED"
         ? "Delayed"
         : HUB_TRANSFER_STATUS_LABELS[item.status],
-      item.priority,
     ]
       .map((cell) => `"${String(cell).replaceAll('"', '""')}"`)
       .join(","),
@@ -145,19 +184,11 @@ function downloadCsv(items: HubTransfer[]) {
 }
 
 export function HubTransfersPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const selectedHubId = useSelectedHubStore((s) => s.selectedHubId);
+  const selectedHubName = useSelectedHubStore((s) => s.selectedHubName);
+  const setSelectedHub = useSelectedHubStore((s) => s.setSelectedHub);
 
-  const transfers = useHubTransferStore((state) => state.transfers);
-  const vehicles = useHubTransferStore((state) => state.vehicles);
-  const drivers = useHubTransferStore((state) => state.drivers);
-  const assignVehicle = useHubTransferStore((state) => state.assignVehicle);
-  const assignDriver = useHubTransferStore((state) => state.assignDriver);
-  const updateStatus = useHubTransferStore((state) => state.updateStatus);
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [filters, setFilters] = useState<HubTransferFilters>(
     EMPTY_HUB_TRANSFER_FILTERS,
   );
@@ -167,328 +198,211 @@ export function HubTransfersPage() {
     null,
   );
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
-  const [driverModalOpen, setDriverModalOpen] = useState(false);
-  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const [, startTransition] = useTransition();
 
-  const adminName = user?.name ?? "Super Admin";
+  const hubsQuery = useQuery({
+    queryKey: ["admin-hubs", "transfers-page"],
+    queryFn: () => hubsService.list({ page: 1, limit: 100 }),
+  });
+  const hubs = hubsQuery.data?.data ?? [];
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 600);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    const hubParam = searchParams.get("hub");
-    const statusParam = searchParams.get("status");
-    const orderParam = searchParams.get("order");
-    const parsedStatus = parseStatusParam(statusParam);
-
-    setFilters((current) => ({
-      ...current,
-      ...(hubParam ? { hubId: hubParam } : {}),
-      ...(parsedStatus ? { status: parsedStatus } : {}),
-      ...(orderParam ? { orderId: orderParam } : {}),
-    }));
-    if (parsedStatus === "delayed") {
-      setActiveStat("delayed");
+    const hubParam = searchParams.get("hubId") || searchParams.get("hub");
+    const nextHubId = hubParam || selectedHubId || "all";
+    setFilters((prev) =>
+      prev.hubId === nextHubId ? prev : { ...prev, hubId: nextHubId },
+    );
+    if (hubParam) {
+      const match = hubs.find((h) => h.id === hubParam);
+      setSelectedHub(hubParam, match?.name ?? null);
     }
-    setCurrentPage(1);
-  }, [searchParams]);
+  }, [searchParams, selectedHubId, hubs, setSelectedHub]);
 
-  const queryFilters = useMemo(() => {
-    const statFilters = activeStat ? STAT_FILTER_MAP[activeStat] : undefined;
-    return { ...filters, ...statFilters };
-  }, [filters, activeStat]);
+  const scopedHubId =
+    filters.hubId !== "all" ? filters.hubId : undefined;
 
-  const queryResult = useMemo(() => {
-    const filtered = filterHubTransfers(transfers, {
-      filters: queryFilters,
-    });
+  const transfersQuery = useQuery({
+    queryKey: [
+      "hub-transfers",
+      scopedHubId ?? "all",
+      filters.status,
+      search,
+      currentPage,
+    ],
+    queryFn: () =>
+      warehouseService.listTransfers({
+        page: currentPage,
+        limit: HUB_TRANSFER_PAGE_SIZE,
+        destinationHubId: scopedHubId,
+        hubId: scopedHubId,
+        search: search || undefined,
+        status:
+          filters.status === "all" || filters.status === "delayed"
+            ? undefined
+            : String(filters.status),
+      }),
+    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  });
 
-    const paginated = fetchHubTransfers(filtered, {
-      page: currentPage,
-      limit: HUB_TRANSFER_PAGE_SIZE,
-    });
-
-    return {
-      ...paginated,
-      stats: fetchHubTransfers(transfers).stats,
-    };
-  }, [transfers, queryFilters, currentPage]);
-
-  const allFilteredForExport = useMemo(() => {
-    return filterHubTransfers(transfers, { filters: queryFilters });
-  }, [transfers, queryFilters]);
-
-  const statCards = useMemo(
-    () => buildHubTransferStatCards(queryResult.stats),
-    [queryResult.stats],
+  const items = useMemo(
+    () =>
+      (transfersQuery.data?.data ?? []).map((row) =>
+        mapWarehouseTransfer(row, selectedHubName || "Hub Manager"),
+      ),
+    [transfersQuery.data, selectedHubName],
   );
 
-  const selectedLive = useMemo(() => {
-    if (!selectedTransfer) return null;
-    return (
-      transfers.find((item) => item.id === selectedTransfer.id) ??
-      selectedTransfer
-    );
-  }, [transfers, selectedTransfer]);
-
-  const availableVehicles = useMemo(() => {
-    if (!selectedLive) return [];
-    return getAvailableVehiclesForHub(vehicles, selectedLive.hubName);
-  }, [vehicles, selectedLive]);
-
-  const availableDrivers = useMemo(() => {
-    if (!selectedLive) return [];
-    return getAvailableDriversForHub(drivers, selectedLive.hubName);
-  }, [drivers, selectedLive]);
-
-  useEffect(() => {
-    if (
-      queryResult.meta.total > 0 &&
-      currentPage > queryResult.meta.totalPages
-    ) {
-      setCurrentPage(queryResult.meta.totalPages);
+  const filteredItems = useMemo(() => {
+    if (filters.status === "delayed" || activeStat === "delayed") {
+      return items.filter((item) => item.isDelayed);
     }
-  }, [currentPage, queryResult.meta.total, queryResult.meta.totalPages]);
+    return items;
+  }, [items, filters.status, activeStat]);
 
-  const handleFilterChange = (next: Partial<HubTransferFilters>) => {
-    startTransition(() => {
-      setFilters((prev) => ({ ...prev, ...next }));
-      setActiveStat(next.status === "delayed" ? "delayed" : null);
-      setCurrentPage(1);
-    });
-  };
+  const stats = transfersQuery.data?.stats ?? {};
+  const statCards = buildHubTransferStatCards({
+    todaysDispatches: Number(stats.dispatchedToday ?? 0),
+    pendingVehicleAssignment: Number(stats.pendingDispatch ?? 0),
+    inTransit: Number(stats.inTransit ?? 0),
+    deliveredToday: Number(stats.deliveredToday ?? 0),
+    delayedDeliveries: Number(stats.delayedTransfers ?? 0),
+  });
 
-  const handleClearFilters = () => {
-    setFilters(EMPTY_HUB_TRANSFER_FILTERS);
-    setActiveStat(null);
-    setCurrentPage(1);
-  };
+  const hubLabel =
+    scopedHubId == null
+      ? "all hubs"
+      : selectedHubName ||
+        hubs.find((h) => h.id === scopedHubId)?.name ||
+        "this hub";
 
-  const handleStatClick = (statId: HubTransferStatKey) => {
-    setActiveStat((current) => {
-      const next = current === statId ? null : statId;
-      const mapped = next ? STAT_FILTER_MAP[next] : undefined;
-      if (mapped?.status) {
-        setFilters((prev) => ({ ...prev, status: mapped.status! }));
-      } else if (current === statId) {
-        setFilters((prev) => ({ ...prev, status: "all" }));
-      }
-      return next;
-    });
-    setCurrentPage(1);
-  };
-
-  const openDrawer = useCallback((item: HubTransfer) => {
-    setSelectedTransfer(item);
-    setDrawerOpen(true);
-  }, []);
-
-  const handleDrawerOpenChange = useCallback((open: boolean) => {
-    setDrawerOpen(open);
-    if (!open) setSelectedTransfer(null);
-  }, []);
-
-  const handleAssignVehicle = useCallback(
-    (vehicleId: string) => {
-      if (!selectedLive) return;
-      assignVehicle(selectedLive.id, vehicleId, adminName);
-      setVehicleModalOpen(false);
-      notify.success(
-        "Vehicle assigned",
-        `${selectedLive.transferId} updated successfully.`,
-      );
+  const handleFilterChange = useCallback(
+    (next: Partial<HubTransferFilters>) => {
+      startTransition(() => {
+        setFilters((prev) => ({ ...prev, ...next }));
+        if (next.hubId !== undefined) {
+          if (next.hubId === "all") {
+            setSelectedHub(null, null);
+          } else {
+            const match = hubs.find((h) => h.id === next.hubId);
+            setSelectedHub(next.hubId, match?.name ?? null);
+          }
+        }
+        setCurrentPage(1);
+      });
     },
-    [selectedLive, assignVehicle, adminName],
+    [hubs, setSelectedHub],
   );
-
-  const handleAssignDriver = useCallback(
-    (driverId: string) => {
-      if (!selectedLive) return;
-      assignDriver(selectedLive.id, driverId, adminName);
-      setDriverModalOpen(false);
-      notify.success(
-        "Driver assigned",
-        `${selectedLive.transferId} updated successfully.`,
-      );
-    },
-    [selectedLive, assignDriver, adminName],
-  );
-
-  const handleStatusSave = useCallback(
-    (payload: Parameters<typeof updateStatus>[1]) => {
-      if (!selectedLive) return;
-      updateStatus(selectedLive.id, payload);
-      notify.success("Status updated", `${selectedLive.transferId} saved.`);
-    },
-    [selectedLive, updateStatus],
-  );
-
-  const handleCallDriver = useCallback(
-    (item?: HubTransfer) => {
-      const target = item ?? selectedLive;
-      if (!target?.driverMobile) {
-        notify.error("No driver assigned", "Assign a driver before calling.");
-        return;
-      }
-      window.open(`tel:${target.driverMobile.replace(/\s/g, "")}`, "_self");
-      notify.info("Calling driver", target.driverMobile);
-    },
-    [selectedLive],
-  );
-
-  const handleViewCustomer = useCallback(() => {
-    if (!selectedLive) return;
-    router.push(
-      `${ROUTES.USER_MANAGEMENT_CUSTOMERS}?search=${encodeURIComponent(selectedLive.customerName)}`,
-    );
-  }, [selectedLive, router]);
-
-  const handleViewOrder = useCallback(() => {
-    if (!selectedLive) return;
-    router.push(
-      `${ROUTES.CUSTOMER_EXECUTIVE_ORDERS}?order=${encodeURIComponent(selectedLive.orderId)}`,
-    );
-  }, [selectedLive, router]);
-
-  const handlePrint = useCallback(
-    (item?: HubTransfer) => {
-      const target = item ?? selectedLive;
-      if (!target) return;
-      printHubTransferDispatchSlip(target);
-      notify.success("Dispatch slip opened", target.transferId);
-    },
-    [selectedLive],
-  );
-
-  const handleGenerateInvoice = useCallback(() => {
-    if (!selectedLive) return;
-    printHubTransferInvoice(selectedLive);
-    notify.success("Invoice generated", selectedLive.orderId);
-  }, [selectedLive]);
-
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    window.setTimeout(() => setIsRefreshing(false), 700);
-  };
-
-  const openVehicleModal = (item?: HubTransfer) => {
-    if (item) setSelectedTransfer(item);
-    setVehicleModalOpen(true);
-  };
-
-  const openDriverModal = (item?: HubTransfer) => {
-    if (item) setSelectedTransfer(item);
-    setDriverModalOpen(true);
-  };
-
-  const openStatusModal = (item?: HubTransfer) => {
-    if (item) setSelectedTransfer(item);
-    setStatusModalOpen(true);
-  };
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Hub Transfers"
-        subtitle="Operational dispatch tracking for customer deliveries fulfilled from sub-hubs."
+        subtitle={
+          scopedHubId
+            ? `Central Warehouse → ${hubLabel} stock transfers.`
+            : "Central Warehouse → Hub stock transfers."
+        }
         breadcrumbs={getNavBreadcrumbsFromPath("/sub-hub-network/transfers")}
         actions={
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 gap-2 px-4"
-            onClick={() => downloadCsv(allFilteredForExport)}
-            disabled={allFilteredForExport.length === 0}
-          >
-            <Download className="size-4" />
-            Export CSV
-          </Button>
+          <>
+            <HubContextSelector className="mr-2" allowAll allLabel="All Hubs" />
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 gap-2 px-4"
+              onClick={() => downloadCsv(filteredItems)}
+              disabled={filteredItems.length === 0}
+            >
+              <Download className="size-4" />
+              Export CSV
+            </Button>
+          </>
         }
       />
 
-      <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      {transfersQuery.isError ? (
+        <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+          Unable to load transfers
+          {scopedHubId ? ` for ${hubLabel}` : ""}.{" "}
+          <button
+            type="button"
+            className="font-semibold underline"
+            onClick={() => void transfersQuery.refetch()}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {statCards.map((stat, index) => (
           <HubTransferStatsCard
             key={stat.id}
             stat={stat}
-            isLoading={isLoading}
             index={index}
+            isLoading={transfersQuery.isLoading}
             isActive={activeStat === stat.id}
-            onClick={() => handleStatClick(stat.id)}
+            onClick={() => {
+              setActiveStat((curr) => (curr === stat.id ? null : stat.id));
+              if (stat.id === "delayed") {
+                handleFilterChange({
+                  status: activeStat === "delayed" ? "all" : "delayed",
+                });
+              }
+            }}
           />
         ))}
       </div>
 
       <HubTransferFiltersBar
         filters={filters}
-        hubs={HUB_TRANSFER_HUB_OPTIONS}
+        hubs={hubs.map((h) => ({
+          id: h.id,
+          name: h.name,
+        }))}
         onChange={handleFilterChange}
-        onClear={handleClearFilters}
+        onClear={() => {
+          setFilters({ ...EMPTY_HUB_TRANSFER_FILTERS });
+          setSelectedHub(null, null);
+          setSearch("");
+          setActiveStat(null);
+          setCurrentPage(1);
+        }}
       />
 
       <HubTransferTable
-        items={queryResult.data}
-        isLoading={isLoading}
-        isRefreshing={isRefreshing}
-        currentPage={queryResult.meta.page}
-        totalItems={queryResult.meta.total}
+        items={filteredItems}
+        isLoading={transfersQuery.isLoading}
+        isRefreshing={transfersQuery.isFetching && !transfersQuery.isLoading}
+        currentPage={currentPage}
+        totalItems={transfersQuery.data?.meta.total ?? filteredItems.length}
         pageSize={HUB_TRANSFER_PAGE_SIZE}
         onPageChange={setCurrentPage}
-        onRefresh={handleRefresh}
-        onRowSelect={openDrawer}
-        onAssignVehicle={openVehicleModal}
-        onAssignDriver={openDriverModal}
-        onUpdateStatus={openStatusModal}
-        onPrint={handlePrint}
-        onCallDriver={handleCallDriver}
+        onRefresh={() => void transfersQuery.refetch()}
+        onRowSelect={(item) => {
+          setSelectedTransfer(item);
+          setDrawerOpen(true);
+        }}
       />
+
+      {!transfersQuery.isLoading &&
+      !transfersQuery.isError &&
+      filteredItems.length === 0 ? (
+        <p className="text-center text-sm text-[#64748B]">
+          {scopedHubId
+            ? `No transfers found for ${hubLabel}.`
+            : "No transfers found."}
+        </p>
+      ) : null}
 
       <HubTransferDetailDrawer
         open={drawerOpen}
-        onOpenChange={handleDrawerOpenChange}
-        transfer={selectedLive}
-        onAssignVehicle={() => setVehicleModalOpen(true)}
-        onAssignDriver={() => setDriverModalOpen(true)}
-        onUpdateStatus={() => setStatusModalOpen(true)}
-        onCallDriver={() => handleCallDriver()}
-        onViewCustomer={handleViewCustomer}
-        onViewOrder={handleViewOrder}
-        onPrint={() => handlePrint()}
-        onGenerateInvoice={handleGenerateInvoice}
+        onOpenChange={setDrawerOpen}
+        transfer={selectedTransfer}
       />
-
-      <HubTransferAssignVehicleModal
-        open={vehicleModalOpen}
-        onOpenChange={setVehicleModalOpen}
-        transferLabel={selectedLive?.transferId ?? ""}
-        hubName={selectedLive?.hubName ?? ""}
-        vehicles={availableVehicles}
-        onAssign={handleAssignVehicle}
-      />
-
-      <HubTransferAssignDriverModal
-        open={driverModalOpen}
-        onOpenChange={setDriverModalOpen}
-        transferLabel={selectedLive?.transferId ?? ""}
-        hubName={selectedLive?.hubName ?? ""}
-        drivers={availableDrivers}
-        onAssign={handleAssignDriver}
-      />
-
-      {selectedLive ? (
-        <HubTransferUpdateStatusModal
-          open={statusModalOpen}
-          onOpenChange={setStatusModalOpen}
-          currentStatus={selectedLive.status}
-          transferLabel={selectedLive.transferId}
-          updatedBy={adminName}
-          onSave={handleStatusSave}
-        />
-      ) : null}
     </div>
   );
 }

@@ -131,7 +131,7 @@ export function CeCreatePaymentLinkDialog({
           ? Number(customAmount)
           : undefined;
 
-      const payment = generatePaymentLinkForCustomer({
+      const payment = await generatePaymentLinkForCustomer({
         customerId: selectedCustomerId,
         orderId: selectedOrderId || undefined,
         amount,

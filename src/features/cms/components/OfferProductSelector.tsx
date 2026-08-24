@@ -2,17 +2,16 @@
 
 import Image from "next/image";
 import { Search, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  formatOfferPrice,
-  OFFER_PRODUCT_CATALOG,
-} from "@/features/cms/constants/offer.mock";
+import { formatOfferPrice } from "@/features/cms/constants/offer.mock";
+import { getOfferProductsCatalog } from "@/features/cms/services/offer.mock-api";
 import type { OfferProduct } from "@/features/cms/types/offer.types";
 import { cn } from "@/lib/utils";
+import { notify } from "@/utils/notify";
 
 const fieldLabelClassName =
   "text-[11px] font-semibold tracking-wider text-gray-400 uppercase";
@@ -29,26 +28,52 @@ export function OfferProductSelector({
   error,
 }: OfferProductSelectorProps) {
   const [search, setSearch] = useState("");
+  const [catalog, setCatalog] = useState<OfferProduct[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setIsLoading(true);
+      try {
+        const products = await getOfferProductsCatalog();
+        if (!cancelled) setCatalog(products);
+      } catch (err) {
+        if (!cancelled) {
+          notify.error(
+            err instanceof Error
+              ? err.message
+              : "Failed to load product catalog",
+          );
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const selectedProducts = useMemo(
     () =>
       selectedIds
-        .map((id) => OFFER_PRODUCT_CATALOG.find((product) => product.id === id))
+        .map((id) => catalog.find((product) => product.id === id))
         .filter((product): product is OfferProduct => Boolean(product)),
-    [selectedIds],
+    [selectedIds, catalog],
   );
 
   const filteredCatalog = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return OFFER_PRODUCT_CATALOG;
-    return OFFER_PRODUCT_CATALOG.filter(
+    if (!query) return catalog;
+    return catalog.filter(
       (product) =>
         product.name.toLowerCase().includes(query) ||
         product.sku.toLowerCase().includes(query) ||
         product.brand.toLowerCase().includes(query) ||
         product.category.toLowerCase().includes(query),
     );
-  }, [search]);
+  }, [search, catalog]);
 
   const toggleProduct = (productId: string) => {
     if (selectedIds.includes(productId)) {
@@ -117,7 +142,11 @@ export function OfferProductSelector({
       ) : null}
 
       <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-100">
-        {filteredCatalog.length === 0 ? (
+        {isLoading ? (
+          <p className="px-4 py-8 text-center text-sm text-[#64748B]">
+            Loading products...
+          </p>
+        ) : filteredCatalog.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-[#64748B]">
             No products match your search.
           </p>

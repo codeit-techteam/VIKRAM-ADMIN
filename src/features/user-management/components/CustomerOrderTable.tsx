@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/table";
 import { OrderSourceBadge } from "@/features/user-management/components/OrderSourceBadge";
 import type { CustomerOrder } from "@/features/user-management/types/customer.types";
-import { CUSTOMER_HUBS } from "@/mock/customers";
 import { formatDate } from "@/utils/format-date";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +39,8 @@ function formatAmount(amount: number): string {
 }
 
 function getHubName(hubId: string): string {
-  return CUSTOMER_HUBS.find((hub) => hub.id === hubId)?.name ?? hubId;
+  if (!hubId) return "Not available";
+  return hubId;
 }
 
 const ORDER_STATUS_STYLES: Record<

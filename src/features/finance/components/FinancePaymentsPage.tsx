@@ -11,9 +11,9 @@ import { FinanceFilterBar } from "@/features/finance/components/FinanceFilterBar
 import { FinanceStatusBadge } from "@/features/finance/components/FinanceStatusBadge";
 import { PaymentDetailDrawer } from "@/features/finance/components/PaymentDetailDrawer";
 import {
-  downloadInvoicePdf,
-  viewInvoicePdf,
-} from "@/features/finance/utils/invoice-pdf";
+  adminOrdersService,
+  downloadAdminOrderInvoicePdf,
+} from "@/services/adminOrders";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Pagination } from "@/components/shared/Pagination";
@@ -185,13 +185,24 @@ export function FinancePaymentsPage() {
     );
   };
 
-  const handleDownloadInvoice = (invoice: FinanceInvoice) => {
-    downloadInvoicePdf(invoice);
-    notify.success("Invoice downloaded", `${invoice.invoiceNumber}.pdf`);
+  const handleDownloadInvoice = async (invoice: FinanceInvoice) => {
+    try {
+      await downloadAdminOrderInvoicePdf(invoice.orderId);
+      notify.success("Invoice downloaded", `${invoice.invoiceNumber}.pdf`);
+    } catch {
+      notify.error("Invoice unavailable", "Could not download order invoice");
+    }
   };
 
-  const handleViewInvoice = (invoice: FinanceInvoice) => {
-    viewInvoicePdf(invoice);
+  const handleViewInvoice = async (invoice: FinanceInvoice) => {
+    try {
+      const { blob } = await adminOrdersService.invoicePdf(invoice.orderId);
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      notify.error("Invoice unavailable", "Could not open order invoice");
+    }
   };
 
   return (

@@ -1,24 +1,12 @@
-import {
-  CATEGORY_MOCK_ROWS,
-  computeCategoryStats,
-} from "@/features/cms/constants/category.mock";
 import type { CategoryFormSchema } from "@/features/cms/schema/category-form.schema";
 import type {
   Category,
   CategoryStats,
 } from "@/features/cms/types/category.types";
+import { catalogService } from "@/services/catalog.service";
 
-/** In-memory mock store — frontend only. Replace with real API later. */
-let categoriesStore: Category[] = structuredClone(CATEGORY_MOCK_ROWS);
-let nextId = CATEGORY_MOCK_ROWS.length + 1;
-
-function delay(ms = 120): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-function formatLastUpdated(date = new Date()): string {
+function formatLastUpdated(iso?: string): string {
+  const date = iso ? new Date(iso) : new Date();
   const day = date.getDate();
   const month = date.toLocaleString("en-GB", { month: "short" });
   const year = date.getFullYear();
@@ -33,76 +21,106 @@ function slugify(name: string): string {
     .replace(/^-|-$/g, "");
 }
 
-function formToCategory(
-  data: CategoryFormSchema,
-  id: string,
-  existing?: Category,
-): Category {
-  const slug = slugify(data.name) || id;
-
+function mapCategory(row: {
+  id: string;
+  name: string;
+  imageUrl?: string | null;
+  iconUrl?: string | null;
+  displayOrder?: number;
+  isVisible?: boolean;
+  status?: string;
+  updatedAt?: string;
+  _count?: { products?: number };
+}): Category {
   return {
-    id,
-    name: data.name.trim(),
-    displayOrder: data.displayOrder,
-    productCount: existing?.productCount ?? 0,
-    isVisible: data.isVisible,
-    thumbnailUrl:
-      existing?.thumbnailUrl ??
-      `https://picsum.photos/seed/${slug}-category/80/80`,
-    lastUpdated: formatLastUpdated(),
+    id: row.id,
+    name: row.name,
+    displayOrder: row.displayOrder ?? 0,
+    productCount: row._count?.products ?? 0,
+    isVisible: row.isVisible !== false && row.status !== "INACTIVE",
+    thumbnailUrl: row.iconUrl || row.imageUrl || "",
+    lastUpdated: formatLastUpdated(row.updatedAt),
+  };
+}
+
+export function computeCategoryStats(categories: Category[]): CategoryStats {
+  return {
+    totalCategories: categories.length,
+    empty: categories.filter((c) => c.productCount === 0).length,
+    visible: categories.filter((c) => c.isVisible).length,
+    notVisible: categories.filter((c) => !c.isVisible).length,
   };
 }
 
 export async function getCategories(): Promise<Category[]> {
-  await delay();
-  return structuredClone(categoriesStore);
+  const rows = await catalogService.listCategories();
+  return rows.map(mapCategory);
 }
 
 export async function getCategoryById(id: string): Promise<Category | null> {
-  await delay();
-  const category = categoriesStore.find((item) => item.id === id);
-  return category ? structuredClone(category) : null;
+  try {
+    const row = await catalogService.getCategory(id);
+    return mapCategory(row);
+  } catch {
+    return null;
+  }
 }
 
 export async function getCategoryStats(): Promise<CategoryStats> {
-  await delay();
-  return computeCategoryStats(categoriesStore);
+  const categories = await getCategories();
+  return computeCategoryStats(categories);
 }
 
 export async function createCategory(
-  data: CategoryFormSchema,
+  data: CategoryFormSchema & { iconUrl?: string; imageUrl?: string },
 ): Promise<Category> {
-  await delay();
-  const id = `cat-${String(nextId).padStart(3, "0")}`;
-  nextId += 1;
-  const category = formToCategory(data, id);
-  categoriesStore = [...categoriesStore, category].sort(
-    (a, b) => a.displayOrder - b.displayOrder,
-  );
-  return structuredClone(category);
+  const created = await catalogService.createCategory({
+    name: data.name.trim(),
+    slug: slugify(data.name),
+    displayOrder: data.displayOrder,
+    status: data.isVisible ? "ACTIVE" : "INACTIVE",
+    imageUrl: data.imageUrl,
+    iconUrl: data.iconUrl,
+  });
+  if (!data.isVisible) {
+    await catalogService.updateCategory(created.id, {
+      isVisible: false,
+      status: "INACTIVE",
+    });
+  }
+  return mapCategory({
+    ...created,
+    isVisible: data.isVisible,
+    _count: { products: 0 },
+  });
 }
 
 export async function updateCategory(
   id: string,
-  data: CategoryFormSchema,
+  data: CategoryFormSchema & { iconUrl?: string; imageUrl?: string },
 ): Promise<Category | null> {
-  await delay();
-  const index = categoriesStore.findIndex((item) => item.id === id);
-  if (index === -1) return null;
-
-  const updated = formToCategory(data, id, categoriesStore[index]);
-  categoriesStore = [
-    ...categoriesStore.slice(0, index),
-    updated,
-    ...categoriesStore.slice(index + 1),
-  ].sort((a, b) => a.displayOrder - b.displayOrder);
-
-  return structuredClone(updated);
+  const updated = await catalogService.updateCategory(id, {
+    name: data.name.trim(),
+    displayOrder: data.displayOrder,
+    isVisible: data.isVisible,
+    status: data.isVisible ? "ACTIVE" : "INACTIVE",
+    ...(data.imageUrl ? { imageUrl: data.imageUrl } : {}),
+    ...(data.iconUrl ? { iconUrl: data.iconUrl } : {}),
+  });
+  return mapCategory({
+    ...updated,
+    isVisible: data.isVisible,
+  });
 }
 
 export async function deleteCategory(id: string): Promise<boolean> {
-  await delay();
-  const before = categoriesStore.length;
-  categoriesStore = categoriesStore.filter((item) => item.id !== id);
-  return categoriesStore.length < before;
+  await catalogService.deleteCategory(id);
+  return true;
+}
+
+export async function toggleCategoryVisibility(
+  id: string,
+): Promise<Category | null> {
+  const updated = await catalogService.toggleCategory(id);
+  return mapCategory(updated);
 }

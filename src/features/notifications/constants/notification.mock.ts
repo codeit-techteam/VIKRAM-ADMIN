@@ -1,52 +1,4 @@
-import type {
-  PushNotification,
-  PushNotificationStats,
-} from "@/features/notifications/types/notification.types";
-
-export const PUSH_NOTIFICATION_STATS: PushNotificationStats = {
-  totalSentThisMonth: 47,
-  avgOpenRatePercent: 31,
-  activeSubscribers: 128400,
-  scheduledCount: 3,
-};
-
-export const PUSH_NOTIFICATION_HISTORY: PushNotification[] = [
-  {
-    id: "pn-001",
-    title: "🔥 Monsoon Sale is Live!",
-    message:
-      "Up to 40% off on cement, steel & plumbing. Shop now before stocks run out!",
-    imageUrl: "https://picsum.photos/seed/monsoon-sale/80/80",
-    audienceType: "all",
-    audienceLabel: "All Users",
-    deepLinkTarget: "offer",
-    status: "SENT",
-    sentOrScheduledAt: "Jul 1, 2026 · 10:30 AM",
-    sentCount: 12400,
-    openRatePercent: 34,
-  },
-  {
-    id: "pn-002",
-    title: "New Machinery Arrivals",
-    message:
-      "Excavators, mixers & power tools just landed at Ahmedabad & Surat hubs.",
-    audienceType: "city_hub",
-    audienceLabel: "Pan-Gujarat",
-    deepLinkTarget: "category",
-    status: "SCHEDULED",
-    sentOrScheduledAt: "Jul 5, 2026 · 9:00 AM",
-  },
-  {
-    id: "pn-003",
-    title: "Weekend Cement Offer Draft",
-    message: "Flat ₹40/bag discount on ACC & Ambuja cement this weekend only.",
-    audienceType: "all",
-    audienceLabel: "All Users",
-    deepLinkTarget: "home",
-    status: "DRAFT",
-    sentOrScheduledAt: "—",
-  },
-];
+/** Select-option constants only — history/stats come from the live API. */
 
 export const AUDIENCE_CITY_HUB_OPTIONS = [
   { value: "ahmedabad", label: "Ahmedabad Hub" },
@@ -83,6 +35,7 @@ export const DEEP_LINK_OFFER_OPTIONS = [
 
 export const DEEP_LINK_CATEGORY_OPTIONS = [
   { value: "cement", label: "Cement" },
-  { value: "steel", label: "Steel & TMT" },
+  { value: "rmc", label: "RMC" },
+  { value: "bricks", label: "Bricks" },
   { value: "machinery", label: "Machinery" },
 ] as const;

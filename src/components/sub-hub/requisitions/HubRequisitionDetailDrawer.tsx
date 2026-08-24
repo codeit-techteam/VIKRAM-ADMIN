@@ -23,9 +23,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import type { HubRequisitionDetailView } from "@/mock/hub-requisitions";
-import { formatHubRequisitionDate } from "@/mock/hub-requisitions";
-import { formatRequisitionQuantity } from "@/mock/requisitions";
+import type { HubRequisitionDetailView } from "@/constants/sub-hub-ops.constants";
+import { formatHubRequisitionDate } from "@/constants/sub-hub-ops.constants";
+import { formatRequisitionQuantity } from "@/constants/sub-hub-ops.constants";
 import type { RequisitionListItem } from "@/types/warehouse.types";
 import { cn } from "@/lib/utils";
 

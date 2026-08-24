@@ -11,14 +11,57 @@ import {
   BOTTOM_NAV_ITEMS,
   findActiveNavParent,
   NAV_SECTIONS,
+  type NavItem,
+  type NavSection,
 } from "@/constants/navigation.constants";
+import {
+  NAV_ITEM_PERMISSIONS,
+  getDefaultRouteForRole,
+} from "@/constants/route-access";
+import { useAuth, usePermissions } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/store/auth-store";
 import { useSidebarStore } from "@/store/sidebar-store";
+
+function filterNavItem(
+  item: NavItem,
+  can: (permission: string) => boolean,
+): NavItem | null {
+  const required = NAV_ITEM_PERMISSIONS[item.href];
+  if (required && !can(required)) return null;
+  return item;
+}
+
+function filterNavSections(
+  sections: NavSection[],
+  can: (permission: string) => boolean,
+): NavSection[] {
+  return sections
+    .map((section) => ({
+      ...section,
+      items: section.items
+        .map((item) => filterNavItem(item, can))
+        .filter((item): item is NavItem => item !== null),
+    }))
+    .filter((section) => section.items.length > 0);
+}
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const isCollapsed = useSidebarStore((state) => state.isCollapsed);
+  const { can } = usePermissions();
+  const { role } = useAuth();
+  const homeHref = role ? getDefaultRouteForRole(role) : "/dashboard";
+  const authHydrated = useAuthStore((state) => state.hasHydrated);
+  const persistedCollapsed = useSidebarStore((state) => state.isCollapsed);
+  const sidebarHydrated = useSidebarStore((state) => state.hasHydrated);
   const setCollapsed = useSidebarStore((state) => state.setCollapsed);
+  // Until auth rehydrates, render the full nav skeleton so Base UI useId slots
+  // match between server HTML and the client's first paint.
+  const visibleSections = filterNavSections(NAV_SECTIONS, (permission) =>
+    authHydrated ? can(permission as Parameters<typeof can>[0]) : true,
+  );
+  // Keep SSR + hydration on the default expanded tree; apply persist after mount.
+  const isCollapsed = sidebarHydrated ? persistedCollapsed : false;
   const [expandedHref, setExpandedHref] = useState<string | null>(
     () => findActiveNavParent(pathname)?.href ?? null,
   );
@@ -55,7 +98,7 @@ export function AppSidebar() {
     >
       <div className="border-b border-gray-100 px-4 py-5">
         <Link
-          href="/dashboard"
+          href={homeHref}
           className={cn(
             "flex items-center gap-3",
             isCollapsed && "justify-center",
@@ -81,7 +124,7 @@ export function AppSidebar() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-5">
-        {NAV_SECTIONS.map((section, index) => (
+        {visibleSections.map((section, index) => (
           <SidebarSection
             key={section.label ?? `section-${index}`}
             label={section.label}

@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CeCustomerAvatar } from "@/features/customer-executive/components/shared/CeCustomerAvatar";
 import { CeStatusBadge } from "@/features/customer-executive/components/shared/CeStatusBadge";
-import { CE_ISSUE_TYPES } from "@/features/customer-executive/mock/seed";
+import { CE_ISSUE_TYPES } from "@/features/customer-executive/constants/issue-types";
 import type {
   CeComplaint,
   ComplaintPriority,
@@ -127,7 +127,7 @@ export function CeRaiseComplaintDialog({
 
     setIsSubmitting(true);
     try {
-      const complaint = createComplaint({
+      const complaint = await createComplaint({
         customerId: selectedCustomerId,
         orderId: selectedOrderId || undefined,
         issue: issue.trim(),
@@ -140,6 +140,11 @@ export function CeRaiseComplaintDialog({
       );
       onOpenChange(false);
       onCreated?.(complaint);
+    } catch (error) {
+      notify.error(
+        "Failed to raise complaint",
+        error instanceof Error ? error.message : "Try again",
+      );
     } finally {
       setIsSubmitting(false);
     }

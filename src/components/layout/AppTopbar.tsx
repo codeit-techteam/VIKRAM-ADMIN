@@ -1,6 +1,7 @@
 "use client";
 
 import { Calendar } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { EnterpriseGlobalSearch } from "@/components/layout/global-search";
 import { NotificationBell } from "@/features/notification-center";
@@ -36,6 +37,11 @@ export function AppTopbar({
 }: AppTopbarProps) {
   const { user } = useAuth();
   const isMinimal = variant === "minimal";
+  const [todayLabel, setTodayLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTodayLabel(formatTopbarDate(new Date()));
+  }, []);
 
   const initials =
     user?.name
@@ -98,7 +104,7 @@ export function AppTopbar({
         <div className="ml-auto flex shrink-0 items-center gap-3 sm:gap-4">
           <div className="hidden items-center gap-2 text-sm text-[#64748B] md:flex">
             <Calendar className="size-4 text-gray-400" aria-hidden="true" />
-            <span>{formatTopbarDate(new Date())}</span>
+            <span suppressHydrationWarning>{todayLabel ?? "\u00A0"}</span>
           </div>
 
           <NotificationBell />

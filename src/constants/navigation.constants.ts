@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  IndianRupee,
   LayoutDashboard,
   LogOut,
   Network,
@@ -7,11 +8,11 @@ import {
   Truck,
   UserCog,
   Users,
-  Wallet,
   Warehouse,
 } from "lucide-react";
 
 import { CUSTOMER_EXECUTIVE_NAV_GROUPS } from "@/constants/customer-executive-navigation.constants";
+import { FINANCE_NAV_GROUPS } from "@/constants/finance-navigation.constants";
 import { LOGISTICS_NAV_GROUPS } from "@/constants/logistics-navigation.constants";
 import { CENTRAL_WAREHOUSE_NAV_GROUPS } from "@/constants/warehouse-navigation.constants";
 import { SUB_HUB_NETWORK_NAV_GROUPS } from "@/constants/sub-hub-navigation.constants";
@@ -94,9 +95,14 @@ export const NAV_SECTIONS: NavSection[] = [
           {
             label: "Content Management",
             items: [
-              { label: "Banner Management", href: "/customer-app-cms/banners" },
+              { label: "Promotional Banners", href: "/customer-app-cms/banners" },
+              { label: "Delivery Promotion", href: "/customer-app-cms/delivery-promotion" },
               { label: "Offer Management", href: "/customer-app-cms/offers" },
               { label: "Video Management", href: "/customer-app-cms/videos" },
+              {
+                label: "Homepage Layout",
+                href: "/customer-app-cms/homepage-layout",
+              },
               {
                 label: "Push Notifications",
                 href: "/customer-app-cms/push-notifications",
@@ -106,8 +112,20 @@ export const NAV_SECTIONS: NavSection[] = [
           {
             label: "Catalog Management",
             items: [
-              { label: "Product Catalog", href: "/customer-app-cms/catalog" },
+              {
+                label: "Product Categories",
+                href: "/customer-app-cms/catalog",
+              },
               { label: "Categories", href: "/customer-app-cms/categories" },
+            ],
+          },
+          {
+            label: "Engagement",
+            items: [
+              {
+                label: "Customer Testimonials",
+                href: "/customer-app-cms/testimonials",
+              },
             ],
           },
         ],
@@ -141,7 +159,9 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         label: "Finance & Payments",
         href: "/finance-payments",
-        icon: Wallet,
+        icon: IndianRupee,
+        hasSubmenu: true,
+        childGroups: FINANCE_NAV_GROUPS,
       },
     ],
   },

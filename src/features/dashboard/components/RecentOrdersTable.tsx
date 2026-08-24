@@ -119,6 +119,8 @@ export function RecentOrdersTable({
         header: "Payment",
         cell: (info) => {
           const status = info.getValue();
+          const isSettled = status === "PAID" || status === "COLLECTED";
+          const isFailed = status === "FAILED";
           const filterHref =
             status === "PENDING"
               ? NAV_FILTER_PRESETS.paymentsPending()
@@ -128,7 +130,13 @@ export function RecentOrdersTable({
             <span
               className={cn(
                 "text-xs font-semibold tracking-wide uppercase",
-                status === "PAID" ? "text-green-600" : "text-red-600",
+                isSettled
+                  ? "text-green-600"
+                  : isFailed
+                    ? "text-red-600"
+                    : status === "REFUNDED"
+                      ? "text-slate-600"
+                      : "text-red-600",
                 filterHref && "hover:underline",
               )}
             >
@@ -155,10 +163,10 @@ export function RecentOrdersTable({
         cell: (info) => {
           const status = info.getValue();
           const statusMap: Record<string, string> = {
-            PROCESSING: "ACTIVE",
+            PROCESSING: "HUB_PROCESSING",
             DISPATCHED: "IN_TRANSIT",
             DELIVERED: "DELIVERED",
-            "AWAITING HUB": "HUB_PROCESSING",
+            "AWAITING HUB": "ACTIVE",
           };
           const filterHref = NAV_FILTER_PRESETS.ordersByStatus(
             statusMap[status] ?? "ALL",

@@ -48,6 +48,7 @@ import type {
   OfferType,
 } from "@/features/cms/types/offer.types";
 import { cn } from "@/lib/utils";
+import { notify } from "@/utils/notify";
 
 const PAGE_SIZE = 5;
 
@@ -80,17 +81,28 @@ export function OffersPageContent() {
   const [filters, setFilters] = useState<OfferListFilters>(DEFAULT_FILTERS);
   const [isLoading, setIsLoading] = useState(true);
   const [offerToDelete, setOfferToDelete] = useState<Offer | null>(null);
+  const [offerToUnpublish, setOfferToUnpublish] = useState<Offer | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
-    const [nextOffers, nextStats] = await Promise.all([
-      getOffers(),
-      getOfferStats(),
-    ]);
-    setOffers(nextOffers);
-    setStats(nextStats);
-    setIsLoading(false);
+    try {
+      const [nextOffers, nextStats] = await Promise.all([
+        getOffers(),
+        getOfferStats(),
+      ]);
+      setOffers(nextOffers ?? []);
+      setStats(nextStats ?? { total: 0, active: 0, scheduled: 0, expired: 0 });
+    } catch (error) {
+      setOffers([]);
+      setStats({ total: 0, active: 0, scheduled: 0, expired: 0 });
+      notify.error(
+        "Could not load offers",
+        error instanceof Error ? error.message : "Please try again",
+      );
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -126,12 +138,12 @@ export function OffersPageContent() {
 
   const handlePublish = async (offer: Offer) => {
     await publishOffer(offer.id);
+    notify.success("Offer published successfully");
     await refresh();
   };
 
   const handleUnpublish = async (offer: Offer) => {
-    await unpublishOffer(offer.id);
-    await refresh();
+    setOfferToUnpublish(offer);
   };
 
   const handleDuplicate = async (offer: Offer) => {
@@ -340,6 +352,26 @@ export function OffersPageContent() {
         confirmLabel="Delete Offer"
         isSubmitting={isDeleting}
         onConfirm={handleConfirmDelete}
+      />
+      <ConfirmationDialog
+        open={Boolean(offerToUnpublish)}
+        onOpenChange={(open) => {
+          if (!open) setOfferToUnpublish(null);
+        }}
+        title="Deactivate this offer?"
+        message={
+          offerToUnpublish
+            ? `"${offerToUnpublish.name}" will disappear from the customer app until you activate it again.`
+            : undefined
+        }
+        confirmLabel="Deactivate"
+        onConfirm={async () => {
+          if (!offerToUnpublish) return;
+          await unpublishOffer(offerToUnpublish.id);
+          setOfferToUnpublish(null);
+          notify.success("Offer deactivated");
+          await refresh();
+        }}
       />
     </div>
   );

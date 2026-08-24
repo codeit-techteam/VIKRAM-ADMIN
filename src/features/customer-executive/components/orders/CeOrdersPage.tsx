@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   CE_ORDERS_IN_TRANSIT_STATUSES,
@@ -42,7 +42,6 @@ import { CeSearchFilter } from "@/features/customer-executive/components/shared/
 import { CeStatusBadge } from "@/features/customer-executive/components/shared/CeStatusBadge";
 import { CeTableSkeleton } from "@/features/customer-executive/components/shared/CeTableSkeleton";
 import { HighlightText } from "@/features/customer-executive/utils/highlight";
-import { useCeLoading } from "@/features/customer-executive/hooks/use-ce-loading";
 import {
   CE_PAGE_SIZE,
   EMPTY_ORDER_FILTERS,
@@ -55,10 +54,12 @@ import { notify } from "@/utils/notify";
 export function CeOrdersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isLoading } = useCeLoading();
+  const loadOrders = useCustomerExecutiveStore((s) => s.loadOrders);
   const queryOrders = useCustomerExecutiveStore((s) => s.queryOrders);
   const orders = useCustomerExecutiveStore((s) => s.orders);
   const getOrder = useCustomerExecutiveStore((s) => s.getOrder);
+  const ordersLoading = useCustomerExecutiveStore((s) => s.ordersLoading);
+  const ordersError = useCustomerExecutiveStore((s) => s.ordersError);
 
   const [draftFilters, setDraftFilters] =
     useState<CeOrderFilters>(EMPTY_ORDER_FILTERS);
@@ -68,9 +69,23 @@ export function CeOrdersPage() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
+  const fetchOrders = useCallback(() => {
+    void loadOrders({
+      page: currentPage,
+      limit: CE_PAGE_SIZE,
+      filters: appliedFilters,
+    });
+  }, [loadOrders, currentPage, appliedFilters]);
+
+  useEffect(() => {
+    fetchOrders();
+    const timer = window.setInterval(fetchOrders, 10_000);
+    return () => window.clearInterval(timer);
+  }, [fetchOrders]);
+
   const selectedOrder = useMemo(
     () => (selectedOrderId ? (getOrder(selectedOrderId) ?? null) : null),
-    [selectedOrderId, getOrder],
+    [selectedOrderId, getOrder, orders],
   );
 
   const openOrderDetail = (orderId: string) => {
@@ -181,25 +196,25 @@ export function CeOrdersPage() {
         <CeMetricCard
           label="Active Orders"
           value={stats.active}
-          isLoading={isLoading}
+          isLoading={ordersLoading}
           href={NAV_FILTER_PRESETS.ordersByStatus("ACTIVE")}
         />
         <CeMetricCard
           label="In Transit"
           value={stats.inTransit}
-          isLoading={isLoading}
+          isLoading={ordersLoading}
           href={NAV_FILTER_PRESETS.ordersInTransit()}
         />
         <CeMetricCard
           label="Delivered"
           value={stats.delivered}
-          isLoading={isLoading}
+          isLoading={ordersLoading}
           href={NAV_FILTER_PRESETS.ordersByStatus("DELIVERED")}
         />
         <CeMetricCard
           label="Cancelled"
           value={stats.cancelled}
-          isLoading={isLoading}
+          isLoading={ordersLoading}
           href={NAV_FILTER_PRESETS.ordersByStatus("CANCELLED")}
         />
       </div>
@@ -244,6 +259,20 @@ export function CeOrdersPage() {
               { label: "Executive", value: "EXECUTIVE" },
             ],
           },
+          {
+            key: "assignment",
+            label: "Hub assignment",
+            value: draftFilters.assignment,
+            onChange: (v) =>
+              setDraftFilters((f) => ({
+                ...f,
+                assignment: v as CeOrderFilters["assignment"],
+              })),
+            options: [
+              { label: "All orders", value: "ALL" },
+              { label: "Needs assignment", value: "UNASSIGNED" },
+            ],
+          },
         ]}
         onClear={() => {
           setDraftFilters(EMPTY_ORDER_FILTERS);
@@ -262,9 +291,23 @@ export function CeOrdersPage() {
         Apply Filters
       </Button>
 
-      {isLoading ? (
-        <CeTableSkeleton columns={7} />
-      ) : queryResult.items.length === 0 ? (
+      {ordersError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p>{ordersError}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={fetchOrders}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
+      {ordersLoading ? (
+        <CeTableSkeleton columns={9} />
+      ) : queryResult.total === 0 ? (
         <EmptyState title="No orders found" />
       ) : (
         <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
@@ -273,10 +316,12 @@ export function CeOrdersPage() {
               <TableRow className="bg-orange-50/50 hover:bg-orange-50/50">
                 <TableHead>Order ID</TableHead>
                 <TableHead>Customer</TableHead>
+                <TableHead>Hub</TableHead>
+                <TableHead>Manager</TableHead>
+                <TableHead>Payment</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Source</TableHead>
-                <TableHead>ETA</TableHead>
+                <TableHead>Date</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -288,30 +333,38 @@ export function CeOrdersPage() {
                   onClick={() => openOrderDetail(order.id)}
                 >
                   <TableCell className="text-primary font-medium">
-                    #
                     <HighlightText
                       text={order.orderNumber}
                       query={appliedFilters.search}
                     />
                   </TableCell>
                   <TableCell>
-                    <p className="font-medium">{order.company}</p>
-                    <p className="text-xs text-[#64748B]">
-                      <HighlightText
-                        text={order.customerName}
-                        query={appliedFilters.search}
-                      />
-                    </p>
+                    <HighlightText
+                      text={order.customerName}
+                      query={appliedFilters.search}
+                    />
                   </TableCell>
+                  <TableCell>
+                    {order.routing?.assignmentStatus === "UNASSIGNED"
+                      ? "Not Assigned"
+                      : order.hubName || order.hubCode || "—"}
+                  </TableCell>
+                  <TableCell>{order.managerName || "—"}</TableCell>
+                  <TableCell>{order.paymentMethod}</TableCell>
                   <TableCell>{formatCurrency(order.amount)}</TableCell>
                   <TableCell>
-                    <CeStatusBadge status={order.status} />
+                    <CeStatusBadge
+                      status={order.status}
+                      label={order.statusLabel}
+                    />
                   </TableCell>
                   <TableCell>
-                    <CeStatusBadge status={order.orderSource} />
-                  </TableCell>
-                  <TableCell className="text-sm text-[#64748B]">
-                    {order.eta ?? "—"}
+                    {new Date(order.createdAt).toLocaleString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </TableCell>
                   <TableCell onClick={(event) => event.stopPropagation()}>
                     <DropdownMenu>

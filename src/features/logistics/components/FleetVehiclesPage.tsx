@@ -3,6 +3,7 @@
 import { MoreVertical, Plus, Truck } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Pagination } from "@/components/shared/Pagination";
@@ -34,22 +35,27 @@ import {
   type LogisticsMetricCardData,
 } from "@/features/logistics/components/LogisticsMetricCard";
 import { LogisticsStatusBadge } from "@/features/logistics/components/LogisticsStatusBadge";
-import { useLogisticsLoading } from "@/features/logistics/hooks/use-logistics-loading";
+import { useStartMaintenance } from "@/features/logistics/hooks/use-logistics";
 import {
-  EMPTY_VEHICLE_FILTERS,
+  useDeleteVehicle,
+  useVehicleStats,
+  useVehicles,
+} from "@/features/logistics/hooks/use-vehicles";
+import { mapUiStatusFilterToApi } from "@/features/logistics/utils/vehicle-api.mapper";
+import {
   formatLogisticsDate,
-  getVehicleStats,
-  LOGISTICS_HUBS,
   LOGISTICS_PAGE_SIZE,
-  LOGISTICS_WAREHOUSES,
-  queryVehicles,
-} from "@/mock/logistics";
-import { useLogisticsStore } from "@/store/logistics-store";
+} from "@/features/logistics/utils/logistics-formatters";
+import { hubsService } from "@/services/hubs.service";
 import type { LogisticsVehicle, VehicleFilters } from "@/types/logistics.types";
 import { notify } from "@/utils/notify";
 
 type VehicleStatKey =
-  "total" | "running" | "available" | "maintenance" | "inactive";
+  | "total"
+  | "running"
+  | "available"
+  | "maintenance"
+  | "inactive";
 
 const STAT_STATUS_MAP: Record<VehicleStatKey, string> = {
   total: "all",
@@ -59,14 +65,16 @@ const STAT_STATUS_MAP: Record<VehicleStatKey, string> = {
   inactive: "inactive",
 };
 
+const EMPTY_FILTERS: VehicleFilters = {
+  search: "",
+  status: "all",
+  warehouse: "all",
+  hub: "all",
+};
+
 export function FleetVehiclesPage() {
   const searchParams = useSearchParams();
-  const { isLoading } = useLogisticsLoading();
-  const vehicles = useLogisticsStore((s) => s.vehicles);
-  const deleteVehicle = useLogisticsStore((s) => s.deleteVehicle);
-  const updateVehicle = useLogisticsStore((s) => s.updateVehicle);
-
-  const [filters, setFilters] = useState<VehicleFilters>(EMPTY_VEHICLE_FILTERS);
+  const [filters, setFilters] = useState<VehicleFilters>(EMPTY_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editVehicle, setEditVehicle] = useState<LogisticsVehicle | null>(null);
@@ -76,6 +84,63 @@ export function FleetVehiclesPage() {
   const [detailVehicle, setDetailVehicle] = useState<LogisticsVehicle | null>(
     null,
   );
+
+  const hubsQuery = useQuery({
+    queryKey: ["admin-hubs-for-fleet"],
+    queryFn: () => hubsService.list({ page: 1, limit: 200 }),
+  });
+
+  const hubs = hubsQuery.data?.data ?? [];
+  const warehouseHubs = useMemo(
+    () =>
+      hubs.filter(
+        (h) =>
+          String(h.hubType ?? "")
+            .toUpperCase()
+            .includes("WAREHOUSE") ||
+          String(h.code ?? "")
+            .toUpperCase()
+            .includes("WAREHOUSE"),
+      ),
+    [hubs],
+  );
+  const deliveryHubs = useMemo(
+    () =>
+      hubs.filter(
+        (h) =>
+          !String(h.hubType ?? "")
+            .toUpperCase()
+            .includes("WAREHOUSE"),
+      ),
+    [hubs],
+  );
+
+  const listParams = useMemo(
+    () => ({
+      page: currentPage,
+      limit: LOGISTICS_PAGE_SIZE,
+      search: filters.search || undefined,
+      status: mapUiStatusFilterToApi(filters.status),
+      hubId: filters.hub !== "all" ? filters.hub : undefined,
+      warehouseHubId:
+        filters.warehouse !== "all" ? filters.warehouse : undefined,
+    }),
+    [currentPage, filters],
+  );
+
+  const vehiclesQuery = useVehicles(listParams);
+  const statsQuery = useVehicleStats();
+  const deleteMutation = useDeleteVehicle();
+  const startMaintenance = useStartMaintenance();
+
+  const vehicles = vehiclesQuery.data?.vehicles ?? [];
+  const meta = vehiclesQuery.data?.meta ?? {
+    page: 1,
+    limit: LOGISTICS_PAGE_SIZE,
+    total: 0,
+    totalPages: 0,
+  };
+  const isLoading = vehiclesQuery.isLoading || statsQuery.isLoading;
 
   useEffect(() => {
     const idParam = searchParams.get("id");
@@ -90,7 +155,13 @@ export function FleetVehiclesPage() {
     }
   }, [searchParams, vehicles]);
 
-  const stats = useMemo(() => getVehicleStats(vehicles), [vehicles]);
+  const stats = statsQuery.data ?? {
+    total: 0,
+    running: 0,
+    available: 0,
+    maintenance: 0,
+    inactive: 0,
+  };
 
   const kpiCards = useMemo<LogisticsMetricCardData[]>(
     () => [
@@ -131,11 +202,6 @@ export function FleetVehiclesPage() {
     Object.entries(STAT_STATUS_MAP) as [VehicleStatKey, string][]
   ).find(([, status]) => status === filters.status)?.[0];
 
-  const queryResult = useMemo(
-    () => queryVehicles(vehicles, currentPage, LOGISTICS_PAGE_SIZE, filters),
-    [vehicles, currentPage, filters],
-  );
-
   const filterConfigs = [
     {
       label: "Status",
@@ -163,7 +229,7 @@ export function FleetVehiclesPage() {
       },
       options: [
         { value: "all", label: "All" },
-        ...LOGISTICS_WAREHOUSES.map((w) => ({ value: w, label: w })),
+        ...warehouseHubs.map((w) => ({ value: w.id, label: w.name })),
       ],
     },
     {
@@ -175,7 +241,7 @@ export function FleetVehiclesPage() {
       },
       options: [
         { value: "all", label: "All" },
-        ...LOGISTICS_HUBS.map((h) => ({ value: h, label: h })),
+        ...deliveryHubs.map((h) => ({ value: h.id, label: h.name })),
       ],
     },
   ];
@@ -222,7 +288,7 @@ export function FleetVehiclesPage() {
         }}
         filters={filterConfigs}
         onReset={() => {
-          setFilters(EMPTY_VEHICLE_FILTERS);
+          setFilters(EMPTY_FILTERS);
           setCurrentPage(1);
         }}
       />
@@ -234,7 +300,7 @@ export function FleetVehiclesPage() {
               <div key={i} className="h-12 animate-pulse rounded bg-gray-100" />
             ))}
           </div>
-        ) : queryResult.data.length === 0 ? (
+        ) : vehicles.length === 0 ? (
           <div className="p-6">
             <EmptyState
               title="No Vehicles Found"
@@ -283,7 +349,7 @@ export function FleetVehiclesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {queryResult.data.map((vehicle) => (
+                {vehicles.map((vehicle) => (
                   <TableRow
                     key={vehicle.id}
                     className="cursor-pointer hover:bg-gray-50/50"
@@ -296,13 +362,14 @@ export function FleetVehiclesPage() {
                       {vehicle.vehicleType}
                     </TableCell>
                     <TableCell className="text-sm">
-                      {(vehicle.capacityKg / 1000).toFixed(1)}T
+                      {vehicle.capacityLabel ??
+                        `${(vehicle.capacityKg / 1000).toFixed(1)}T`}
                     </TableCell>
                     <TableCell className="max-w-[120px] truncate text-sm text-[#64748B]">
-                      {vehicle.assignedWarehouse}
+                      {vehicle.assignedWarehouse || "—"}
                     </TableCell>
                     <TableCell className="max-w-[120px] truncate text-sm text-[#64748B]">
-                      {vehicle.assignedHub}
+                      {vehicle.assignedHub || "—"}
                     </TableCell>
                     <TableCell className="text-sm">
                       {vehicle.assignedDriverName ?? "—"}
@@ -345,21 +412,21 @@ export function FleetVehiclesPage() {
                             Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() =>
-                              notify.success(
-                                "Vehicle Transferred",
-                                `${vehicle.vehicleNumber} transfer initiated.`,
-                              )
-                            }
-                          >
-                            Transfer Vehicle
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
                             onClick={() => {
-                              updateVehicle(vehicle.id, {
-                                status: "maintenance",
-                              });
-                              notify.success("Maintenance Scheduled");
+                              startMaintenance.mutate(
+                                { vehicleId: vehicle.id },
+                                {
+                                  onSuccess: () =>
+                                    notify.success("Maintenance Scheduled"),
+                                  onError: (err) =>
+                                    notify.error(
+                                      "Failed",
+                                      err instanceof Error
+                                        ? err.message
+                                        : "Could not update vehicle",
+                                    ),
+                                },
+                              );
                             }}
                           >
                             Maintenance
@@ -381,12 +448,12 @@ export function FleetVehiclesPage() {
           </div>
         )}
 
-        {!isLoading && queryResult.meta.total > 0 ? (
+        {!isLoading && meta.total > 0 ? (
           <Pagination
             currentPage={currentPage}
-            totalPages={queryResult.meta.totalPages}
+            totalPages={meta.totalPages}
             pageSize={LOGISTICS_PAGE_SIZE}
-            totalItems={queryResult.meta.total}
+            totalItems={meta.total}
             onPageChange={setCurrentPage}
             itemLabel="vehicles"
           />
@@ -409,12 +476,19 @@ export function FleetVehiclesPage() {
         title="Delete Vehicle"
         description={`Are you sure you want to delete ${deleteTarget?.vehicleNumber}?`}
         confirmLabel="Delete"
-        variant="destructive"
         onConfirm={() => {
-          if (deleteTarget) {
-            deleteVehicle(deleteTarget.id);
-            notify.success("Vehicle Deleted");
-          }
+          if (!deleteTarget) return;
+          deleteMutation.mutate(deleteTarget.id, {
+            onSuccess: () => {
+              notify.success("Vehicle deactivated");
+              setDeleteTarget(null);
+            },
+            onError: (err) =>
+              notify.error(
+                "Failed",
+                err instanceof Error ? err.message : "Could not delete vehicle",
+              ),
+          });
         }}
       />
     </div>

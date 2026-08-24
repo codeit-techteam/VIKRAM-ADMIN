@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const PRODUCT_CATEGORY_OPTIONS = [
   { value: "Cement", label: "Cement" },
-  { value: "Steel", label: "Steel" },
+  { value: "RMC", label: "RMC" },
   { value: "Aggregates", label: "Aggregates" },
   { value: "Bricks & Blocks", label: "Bricks & Blocks" },
 ] as const;
@@ -28,7 +28,7 @@ export const productFormSchema = z.object({
       /^[A-Za-z0-9-]+$/,
       "SKU can only contain letters, numbers, and hyphens",
     ),
-  category: z.enum(["Cement", "Steel", "Aggregates", "Bricks & Blocks"]),
+  category: z.enum(["Cement", "RMC", "Aggregates", "Bricks & Blocks"]),
   brand: z.string().min(1, "Brand is required"),
   unit: z.enum(["Bags", "Tons", "Units"]),
   stockUnits: z.coerce

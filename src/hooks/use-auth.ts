@@ -2,12 +2,9 @@
 
 import { useAuthStore } from "@/store/auth-store";
 import type { Role } from "@/constants/roles";
+import { ROLES } from "@/constants/roles";
 import type { Permission } from "@/constants/permissions";
-import {
-  hasAllPermissions,
-  hasAnyPermission,
-  hasPermission,
-} from "@/constants/permissions";
+import { resolveUserPermissions } from "@/constants/permissions";
 
 export function useAuth() {
   const { user, isAuthenticated, isLoading, login, logout } = useAuthStore();
@@ -19,25 +16,35 @@ export function useAuth() {
     login,
     logout,
     role: user?.role ?? null,
+    permissions: user?.permissions ?? [],
+    sidebar: user?.sidebar ?? [],
   };
 }
 
 export function usePermissions() {
-  const role = useAuthStore((state) => state.user?.role);
+  const user = useAuthStore((state) => state.user);
+  const role = user?.role;
+  const userPermissions = resolveUserPermissions(
+    role ?? ROLES.SUPER_ADMIN,
+    user?.permissions,
+  );
 
   const can = (permission: Permission): boolean => {
     if (!role) return false;
-    return hasPermission(role, permission);
+    if (role === ROLES.SUPER_ADMIN) return true;
+    return userPermissions.includes(permission);
   };
 
   const canAny = (permissions: Permission[]): boolean => {
     if (!role) return false;
-    return hasAnyPermission(role, permissions);
+    if (role === ROLES.SUPER_ADMIN) return true;
+    return permissions.some((p) => userPermissions.includes(p));
   };
 
   const canAll = (permissions: Permission[]): boolean => {
     if (!role) return false;
-    return hasAllPermissions(role, permissions);
+    if (role === ROLES.SUPER_ADMIN) return true;
+    return permissions.every((p) => userPermissions.includes(p));
   };
 
   const hasRole = (roles: Role | Role[]): boolean => {
@@ -46,5 +53,5 @@ export function usePermissions() {
     return roleList.includes(role);
   };
 
-  return { can, canAny, canAll, hasRole, role };
+  return { can, canAny, canAll, hasRole, role, permissions: userPermissions };
 }

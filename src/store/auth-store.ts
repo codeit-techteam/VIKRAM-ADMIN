@@ -11,9 +11,12 @@ interface AuthState {
   refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  /** False until localStorage rehydration finishes — avoids SSR/client tree drift. */
+  hasHydrated: boolean;
   setUser: (user: User | null) => void;
   setTokens: (accessToken: string, refreshToken: string) => void;
   setLoading: (isLoading: boolean) => void;
+  setHasHydrated: (hasHydrated: boolean) => void;
   login: (user: User, accessToken: string, refreshToken: string) => void;
   logout: () => void;
 }
@@ -26,13 +29,15 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: null,
       isAuthenticated: false,
       isLoading: true,
+      hasHydrated: false,
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       setTokens: (accessToken, refreshToken) =>
         set({ accessToken, refreshToken }),
       setLoading: (isLoading) => set({ isLoading }),
+      setHasHydrated: (hasHydrated) => set({ hasHydrated }),
       login: (user, accessToken, refreshToken) => {
         setStoredTokens(accessToken, refreshToken);
-        setAuthCookies(accessToken, refreshToken);
+        setAuthCookies(accessToken, refreshToken, user.role);
         set({
           user,
           accessToken,
@@ -55,6 +60,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "bq-auth-storage",
+      skipHydration: true,
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,
@@ -63,6 +69,7 @@ export const useAuthStore = create<AuthState>()(
       }),
       onRehydrateStorage: () => (state) => {
         state?.setLoading(false);
+        state?.setHasHydrated(true);
       },
     },
   ),

@@ -160,7 +160,7 @@ export const CE_PRODUCTS: CeProduct[] = [
     name: "TMT Steel Bars 12mm",
     unit: "Ton",
     unitPrice: 62000,
-    category: "Steel",
+    category: "RMC",
   },
   {
     id: "prod-3",

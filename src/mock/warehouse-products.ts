@@ -7,12 +7,13 @@ export interface WarehouseProduct {
   unit: string;
   stockUnits: number;
   status: "ACTIVE" | "INACTIVE" | "LOW_STOCK";
+  imageUrl?: string;
 }
 
 export const WAREHOUSE_PRODUCT_CATEGORIES = [
   { value: "all", label: "All Categories" },
   { value: "cement", label: "Cement" },
-  { value: "steel", label: "Steel" },
+  { value: "rmc", label: "RMC" },
   { value: "aggregates", label: "Aggregates" },
   { value: "bricks-blocks", label: "Bricks & Blocks" },
 ] as const;
@@ -32,7 +33,7 @@ export const WAREHOUSE_PRODUCTS: WarehouseProduct[] = [
     id: "wp-002",
     name: "TATA Tiscon TMT 12mm",
     sku: "TT-TMT-12",
-    category: "Steel",
+    category: "RMC",
     brand: "TATA Tiscon",
     unit: "Tons",
     stockUnits: 18,
@@ -72,7 +73,7 @@ export const WAREHOUSE_PRODUCTS: WarehouseProduct[] = [
     id: "wp-006",
     name: "JSW Neosteel TMT 10mm",
     sku: "JSW-TMT-10",
-    category: "Steel",
+    category: "RMC",
     brand: "JSW",
     unit: "Tons",
     stockUnits: 42,

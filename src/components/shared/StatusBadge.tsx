@@ -8,6 +8,7 @@ import type { VideoStatus } from "@/features/cms/types/video.types";
 import type { ContentUpdateStatus } from "@/features/cms/types/cms.types";
 import type { CategoryVisibility } from "@/features/cms/types/category.types";
 import type { OfferStatus } from "@/features/cms/types/offer.types";
+import type { DeliveryPromotionStatus } from "@/features/cms/types/delivery-promotion.types";
 import type { ProductStatus } from "@/features/catalog/types/product.types";
 import type {
   OrderSource,
@@ -26,6 +27,7 @@ type TableStatus =
   | ProductStatus
   | CategoryVisibility
   | OfferStatus
+  | DeliveryPromotionStatus
   | NotificationStatus
   | AnalyticsStatusLabel
   | "INACTIVE"

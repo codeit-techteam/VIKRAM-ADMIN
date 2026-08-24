@@ -52,21 +52,22 @@ export const VEHICLE_STATUS_FORM_OPTIONS = [
 
 export const LICENSE_TYPE_OPTIONS = [
   "LMV",
+  "LMV-TR",
   "HMV",
+  "HGMV",
+  "HPMV",
   "Transport",
-  "Heavy Commercial",
 ] as const;
 
 export const EMPLOYMENT_TYPE_OPTIONS = [
   "Permanent",
   "Contract",
-  "Third Party",
+  "Temporary",
 ] as const;
 
 export const DRIVER_STATUS_FORM_OPTIONS = [
   { value: "available", label: "Available" },
-  { value: "driving", label: "On Trip" },
-  { value: "on_leave", label: "Leave" },
+  { value: "on_leave", label: "On Leave" },
   { value: "inactive", label: "Inactive" },
 ] as const;
 

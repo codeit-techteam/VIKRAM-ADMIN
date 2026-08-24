@@ -1,27 +1,25 @@
 "use client";
 
-import { ArrowRight, MapPin, Package, Play, Truck, User } from "lucide-react";
+import { ArrowRight, MapPin, Package, Truck, User } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 import { TransferStatusBadge } from "@/components/transfers/TransferStatusBadge";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/constants/routes";
 import { formatTransferDateTime } from "@/mock/transfers";
-import { useTransferListStore } from "@/store/transfer-list-store";
 import type { TransferListItem } from "@/types/warehouse.types";
-import { canStartLoading } from "@/utils/transfer-actions";
-import { notify } from "@/utils/notify";
+import {
+  canDispatchNow,
+  hasDriverAssigned,
+  hasVehicleAssigned,
+} from "@/utils/transfer-actions";
 
 interface DispatchDetailViewProps {
   transfer: TransferListItem;
 }
 
 export function DispatchDetailView({ transfer }: DispatchDetailViewProps) {
-  const router = useRouter();
-  const startLoading = useTransferListStore((state) => state.startLoading);
-
   const material =
     transfer.material ?? transfer.materials[0]?.split(" x")[0] ?? "—";
   const qtyLabel = transfer.quantity
@@ -31,28 +29,13 @@ export function DispatchDetailView({ transfer }: DispatchDetailViewProps) {
     ? `${transfer.estimatedWeightKg.toLocaleString("en-IN")} KG`
     : "—";
 
-  const handleStartLoading = () => {
-    try {
-      startLoading(transfer.transferId);
-      notify.success(
-        "Loading started",
-        `${transfer.transferId} loading initiated.`,
-      );
-      router.push(
-        `${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${transfer.transferId}/loading`,
-      );
-    } catch (error) {
-      notify.error(
-        "Action failed",
-        error instanceof Error ? error.message : "Unable to start loading.",
-      );
-    }
-  };
-
-  const showStartLoading =
-    transfer.status === "TRANSFER_CREATED" && canStartLoading(transfer);
-  const showContinueLoading = transfer.status === "LOADING";
-  const showDispatchNow = transfer.status === "READY_FOR_DISPATCH";
+  const logisticsReady =
+    hasVehicleAssigned(transfer) && hasDriverAssigned(transfer);
+  const showDispatchNow =
+    transfer.status === "READY_FOR_DISPATCH" &&
+    (canDispatchNow(transfer) || logisticsReady);
+  const showLoadingPrep =
+    transfer.status === "READY_FOR_DISPATCH" && logisticsReady;
 
   return (
     <div className="space-y-6">
@@ -83,22 +66,17 @@ export function DispatchDetailView({ transfer }: DispatchDetailViewProps) {
           >
             Cancel
           </Button>
-          {showStartLoading ? (
-            <Button className="gap-2" onClick={handleStartLoading}>
-              <Play className="size-4" />
-              Start Loading
-            </Button>
-          ) : null}
-          {showContinueLoading ? (
+          {showLoadingPrep ? (
             <Button
-              className="gap-2"
+              variant="outline"
+              className="gap-2 border-gray-200"
               render={
                 <Link
-                  href={`${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${transfer.transferId}/loading`}
+                  href={`${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${transfer.id}/loading`}
                 />
               }
             >
-              Loading Confirmation
+              Loading Checklist
             </Button>
           ) : null}
           {showDispatchNow ? (
@@ -106,7 +84,7 @@ export function DispatchDetailView({ transfer }: DispatchDetailViewProps) {
               className="gap-2"
               render={
                 <Link
-                  href={`${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${transfer.transferId}/confirm`}
+                  href={`${ROUTES.CENTRAL_WAREHOUSE}/dispatch/${transfer.id}/confirm`}
                 />
               }
             >
@@ -219,7 +197,7 @@ export function DispatchDetailView({ transfer }: DispatchDetailViewProps) {
             className="gap-2 border-gray-200"
             render={
               <Link
-                href={`${ROUTES.CENTRAL_WAREHOUSE}/transfers/${transfer.transferId}`}
+                href={`${ROUTES.CENTRAL_WAREHOUSE}/transfers/${transfer.id}`}
               />
             }
           >

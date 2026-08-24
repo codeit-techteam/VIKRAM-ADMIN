@@ -1,7 +1,7 @@
 "use client";
 
 import { Tags } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
 import { FormSectionCard } from "@/components/shared/FormSectionCard";
@@ -17,16 +17,34 @@ import {
 } from "@/components/ui/select";
 import { MATERIAL_CATEGORIES, getSubCategories } from "@/mock/categories";
 import type { MaterialFormSchema } from "@/schema/material-form.schema";
+import {
+  catalogService,
+  type CatalogCategory,
+} from "@/services/catalog.service";
 
 const fieldLabelClassName =
   "text-[11px] font-semibold tracking-wider text-gray-400 uppercase";
 
 export function MaterialCategory() {
   const { control, watch, setValue } = useFormContext<MaterialFormSchema>();
+  const [catalogCategories, setCatalogCategories] = useState<CatalogCategory[]>(
+    [],
+  );
   const category = watch("category");
   const tags = watch("tags");
 
   const subCategories = useMemo(() => getSubCategories(category), [category]);
+
+  useEffect(() => {
+    let active = true;
+    catalogService
+      .listCategories()
+      .then((items) => active && setCatalogCategories(items))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const addTag = (raw: string) => {
     const tag = raw.trim();
@@ -63,11 +81,20 @@ export function MaterialCategory() {
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {MATERIAL_CATEGORIES.map((option) => (
-                      <SelectItem key={option.id} value={option.id}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
+                    {catalogCategories.length > 0
+                      ? catalogCategories.map((option) => (
+                          <SelectItem
+                            key={option.id}
+                            value={option.slug ?? option.id}
+                          >
+                            {option.name}
+                          </SelectItem>
+                        ))
+                      : MATERIAL_CATEGORIES.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
                   </SelectContent>
                 </Select>
                 {fieldState.error && (

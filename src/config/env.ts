@@ -8,7 +8,7 @@ export const env = {
   appUrl: getEnv("NEXT_PUBLIC_APP_URL", "http://localhost:3000"),
   apiBaseUrl: getEnv(
     "NEXT_PUBLIC_API_BASE_URL",
-    "http://localhost:8000/api/v1",
+    "https://bajriwala-backend-zkuxd.ondigitalocean.app/api/v1",
   ),
   authTokenKey: getEnv("NEXT_PUBLIC_AUTH_TOKEN_KEY", "bw_access_token"),
   authRefreshTokenKey: getEnv(

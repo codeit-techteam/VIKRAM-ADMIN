@@ -73,7 +73,7 @@ export const driverFormSchema = z.object({
   assignedWarehouse: z.string().min(1, "Warehouse is required"),
   assignedHub: z.string().min(1, "Hub is required"),
   assignedVehicleId: z.string().optional(),
-  status: z.enum(["available", "driving", "on_leave", "inactive"]),
+  status: z.enum(["available", "on_leave", "inactive"]),
   shift: z.string().optional(),
   aadhaarNumber: aadhaarSchema,
   panNumber: panSchema,

@@ -11,12 +11,15 @@ import {
 } from "@/components/requisitions/RequisitionStatsCard";
 import { RequisitionTable } from "@/components/requisitions/RequisitionTable";
 import { useAuth } from "@/hooks/use-auth";
+import { invalidatePendingRequisitionCount } from "@/hooks/use-pending-requisition-count";
 import {
   EMPTY_REQUISITION_ADVANCED_FILTERS,
-  fetchRequisitions,
   REQUISITION_PAGE_SIZE,
 } from "@/mock/requisitions";
-import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
+import {
+  adminRequisitionsService,
+  type AdminRequisitionListParams,
+} from "@/services/adminRequisitions";
 import type {
   RequisitionAdvancedFilters,
   RequisitionFilterChip,
@@ -31,16 +34,109 @@ const STAT_CHIP_MAP = {
   "todays-requests": "today",
 } as const satisfies Record<string, RequisitionFilterChip>;
 
+function startOfDayIso(date = new Date()): string {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next.toISOString();
+}
+
+function daysAgoIso(days: number): string {
+  const next = new Date();
+  next.setDate(next.getDate() - days);
+  next.setHours(0, 0, 0, 0);
+  return next.toISOString();
+}
+
+function buildListParams(
+  chip: RequisitionFilterChip,
+  page: number,
+  advanced: RequisitionAdvancedFilters,
+): AdminRequisitionListParams {
+  const search = [advanced.material, advanced.requestedBy]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(" ");
+
+  const params: AdminRequisitionListParams = {
+    page,
+    limit: REQUISITION_PAGE_SIZE,
+    search: search || undefined,
+  };
+
+  if (advanced.priority !== "all") {
+    params.priority =
+      advanced.priority === "critical"
+        ? "URGENT"
+        : advanced.priority === "high"
+          ? "HIGH"
+          : "NORMAL";
+  }
+
+  if (advanced.status !== "all") {
+    const statusMap: Record<string, string> = {
+      PENDING: "PENDING_APPROVAL",
+      APPROVED: "APPROVED",
+      REJECTED: "REJECTED",
+      ALLOCATED: "ALLOCATED",
+      TRANSFERRED: "IN_TRANSIT",
+      COMPLETED: "COMPLETED",
+    };
+    params.status = statusMap[advanced.status] ?? advanced.status;
+  }
+
+  if (advanced.dateFrom) params.dateFrom = advanced.dateFrom;
+  if (advanced.dateTo) params.dateTo = advanced.dateTo;
+
+  switch (chip) {
+    case "pending":
+      params.status = "PENDING_APPROVAL";
+      break;
+    case "critical":
+      params.priority = "URGENT";
+      break;
+    case "awaiting-allocation":
+    case "approved":
+      params.status = "APPROVED";
+      break;
+    case "rejected":
+      params.status = "REJECTED";
+      break;
+    case "today":
+      params.dateFrom = startOfDayIso();
+      break;
+    case "last-7-days":
+      params.dateFrom = daysAgoIso(7);
+      break;
+    case "all":
+    default:
+      break;
+  }
+
+  return params;
+}
+
+function downloadCsv(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export function RequisitionPage() {
   const searchParams = useSearchParams();
-  const { user } = useAuth();
-  const requisitions = useWarehouseErpStore((state) => state.requisitions);
-  const approveRequisition = useWarehouseErpStore(
-    (state) => state.approveRequisition,
-  );
-  const rejectRequisition = useWarehouseErpStore(
-    (state) => state.rejectRequisition,
-  );
+  const { user: _user } = useAuth();
+  const [requisitions, setRequisitions] = useState<RequisitionListItem[]>([]);
+  const [stats, setStats] = useState({
+    pendingRequests: 0,
+    criticalRequests: 0,
+    awaitingAllocation: 0,
+    todaysRequests: 0,
+    total: 0,
+    totalPages: 1,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeChip, setActiveChip] = useState<RequisitionFilterChip>("all");
@@ -56,12 +152,6 @@ export function RequisitionPage() {
   >(null);
 
   useEffect(() => {
-    // TODO: Replace simulated loading with requisition API fetch
-    const timer = window.setTimeout(() => setIsLoading(false), 600);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
     const statusParam = searchParams.get("status");
     const hubParam = searchParams.get("hub");
     const typeParam = searchParams.get("type");
@@ -71,6 +161,7 @@ export function RequisitionPage() {
       setActiveChip("critical");
     } else if (
       statusParam?.toUpperCase() === "PENDING" ||
+      statusParam?.toUpperCase() === "PENDING_APPROVAL" ||
       typeParam === "hub"
     ) {
       setActiveChip("pending");
@@ -85,15 +176,72 @@ export function RequisitionPage() {
     }
   }, [searchParams]);
 
+  const loadRequisitions = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const listParams = buildListParams(
+        activeChip,
+        currentPage,
+        advancedFilters,
+      );
+
+      const [list, apiStats, todayList] = await Promise.all([
+        adminRequisitionsService.list(listParams),
+        adminRequisitionsService.stats(),
+        adminRequisitionsService.list({
+          page: 1,
+          limit: 1,
+          dateFrom: startOfDayIso(),
+        }),
+      ]);
+
+      setRequisitions(list.data);
+      setStats({
+        pendingRequests:
+          apiStats.pendingRequests ?? apiStats.pendingApproval ?? 0,
+        criticalRequests:
+          apiStats.criticalRequests ?? apiStats.delayedRequests?.value ?? 0,
+        awaitingAllocation: apiStats.awaitingAllocation ?? 0,
+        todaysRequests: todayList.meta.total,
+        total: list.meta.total,
+        totalPages: list.meta.totalPages,
+      });
+    } catch {
+      notify.error("Failed to load requisitions");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [activeChip, advancedFilters, currentPage]);
+
+  useEffect(() => {
+    void loadRequisitions();
+    const timer = window.setInterval(() => {
+      void loadRequisitions();
+    }, 15_000);
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "hidden") return;
+      void loadRequisitions();
+    };
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnFocus);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
+    };
+  }, [loadRequisitions]);
+
   const queryResult = useMemo(
-    () =>
-      fetchRequisitions(requisitions, {
+    () => ({
+      data: requisitions,
+      meta: {
         page: currentPage,
-        limit: REQUISITION_PAGE_SIZE,
-        chip: activeChip,
-        advanced: advancedFilters,
-      }),
-    [requisitions, activeChip, advancedFilters, currentPage],
+        totalPages: stats.totalPages,
+        total: stats.total,
+      },
+      stats,
+    }),
+    [requisitions, currentPage, stats],
   );
 
   useEffect(() => {
@@ -186,24 +334,36 @@ export function RequisitionPage() {
   }, []);
 
   const handleApprove = useCallback(
-    async (remarks: string) => {
+    async (
+      remarks: string,
+      items: Array<{ itemId: string; approvedQty: number }>,
+    ) => {
       if (!selectedRequisition) return;
 
       setIsSubmitting(true);
 
       try {
-        // TODO: Replace with requisition approval API
-        await new Promise((resolve) => window.setTimeout(resolve, 400));
+        let approveItems = items;
+        if (approveItems.length === 0) {
+          const detail = await adminRequisitionsService.getById(
+            selectedRequisition.id,
+          );
+          approveItems = (detail.materials ?? []).map((material) => ({
+            itemId: material.id,
+            approvedQty: material.requestedQty,
+          }));
+        }
 
-        const adminName = user?.name ?? "Super Admin";
-        approveRequisition(selectedRequisition.id, {
-          adminName,
-          remarks: remarks || undefined,
+        await adminRequisitionsService.approve(selectedRequisition.id, {
+          items: approveItems,
+          comment: remarks || undefined,
         });
 
         setIsDetailDrawerOpen(false);
         setSelectedRequisition(null);
+        invalidatePendingRequisitionCount();
         notify.success("Requisition Approved Successfully.");
+        await loadRequisitions();
       } catch {
         notify.error(
           "Approval failed",
@@ -213,7 +373,7 @@ export function RequisitionPage() {
         setIsSubmitting(false);
       }
     },
-    [selectedRequisition, user?.name, approveRequisition],
+    [selectedRequisition, loadRequisitions],
   );
 
   const handleReject = useCallback(
@@ -223,18 +383,16 @@ export function RequisitionPage() {
       setIsSubmitting(true);
 
       try {
-        // TODO: Replace with requisition rejection API
-        await new Promise((resolve) => window.setTimeout(resolve, 400));
-
-        const adminName = user?.name ?? "Super Admin";
-        rejectRequisition(selectedRequisition.id, {
-          adminName,
-          remarks,
+        await adminRequisitionsService.reject(selectedRequisition.id, {
+          reason: remarks || "Rejected by warehouse",
+          comment: remarks || undefined,
         });
 
         setIsDetailDrawerOpen(false);
         setSelectedRequisition(null);
+        invalidatePendingRequisitionCount();
         notify.success("Requisition Rejected Successfully.");
+        await loadRequisitions();
       } catch {
         notify.error(
           "Rejection failed",
@@ -244,12 +402,68 @@ export function RequisitionPage() {
         setIsSubmitting(false);
       }
     },
-    [selectedRequisition, user?.name, rejectRequisition],
+    [selectedRequisition, loadRequisitions],
   );
 
+  const handleDispatch = useCallback(async () => {
+    if (!selectedRequisition) return;
+
+    setIsSubmitting(true);
+    try {
+      await adminRequisitionsService.dispatch(selectedRequisition.id, {});
+      setIsDetailDrawerOpen(false);
+      setSelectedRequisition(null);
+      notify.success("Requisition Dispatched Successfully.");
+      await loadRequisitions();
+    } catch {
+      notify.error(
+        "Dispatch failed",
+        "Unable to dispatch the requisition. Please try again.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [selectedRequisition, loadRequisitions]);
+
   const handleExport = useCallback(() => {
-    // TODO: Connect to requisition export API
-  }, []);
+    if (requisitions.length === 0) {
+      notify.info("Nothing to export", "No requisitions match the current view.");
+      return;
+    }
+
+    const header = [
+      "Request ID",
+      "Hub",
+      "Material",
+      "Requested Qty",
+      "Unit",
+      "Priority",
+      "Status",
+      "Requested On",
+      "Requested By",
+    ];
+    const rows = requisitions.map((item) =>
+      [
+        item.requestId,
+        item.hubName,
+        item.material,
+        String(item.requestedQty),
+        item.unit,
+        item.priority,
+        item.status,
+        item.createdAt,
+        item.requestedBy.name,
+      ]
+        .map((value) => `"${String(value).replaceAll('"', '""')}"`)
+        .join(","),
+    );
+
+    downloadCsv(
+      `requisitions-page-${currentPage}.csv`,
+      [header.join(","), ...rows].join("\n"),
+    );
+    notify.success("Export ready", "Visible requisitions downloaded as CSV.");
+  }, [requisitions, currentPage]);
 
   const drawerRequisition = useMemo(() => {
     if (!selectedRequisition) return null;
@@ -304,6 +518,7 @@ export function RequisitionPage() {
         initialAction={drawerInitialAction}
         onApprove={handleApprove}
         onReject={handleReject}
+        onDispatch={handleDispatch}
       />
 
       <p className="pt-2 text-center text-xs text-gray-400">

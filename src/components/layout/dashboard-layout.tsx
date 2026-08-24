@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { AppTopbar } from "@/components/layout/AppTopbar";
+import { RouteAccessGuard } from "@/components/common/route-access-guard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getNavContextFromPath } from "@/constants/navigation.constants";
 
@@ -49,7 +50,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
             }
           >
-            {children}
+            <RouteAccessGuard>{children}</RouteAccessGuard>
           </Suspense>
         </main>
       </div>

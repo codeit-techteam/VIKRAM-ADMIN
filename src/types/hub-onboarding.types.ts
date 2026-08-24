@@ -27,6 +27,8 @@ export type HubManagerMode = "existing" | "create";
 export interface HubInventorySkuDraft {
   id: string;
   materialId: string;
+  productId?: string;
+  variantId?: string;
   sku: string;
   category: string;
   productName: string;
@@ -52,6 +54,7 @@ export interface HubDriverDraft {
   name: string;
   phone: string;
   licenseNo: string;
+  vehicleType?: string;
   avatarInitials: string;
 }
 
@@ -81,6 +84,8 @@ export interface HubDraftBasic {
   workingDays: WeekDay[];
   shiftStart: string;
   shiftEnd: string;
+  latitude: number;
+  longitude: number;
 }
 
 export interface HubDraftInventory {
@@ -109,6 +114,8 @@ export interface HubDraftManager {
   email: string;
   permissions: ManagerPermission[];
   credentialsGenerated: boolean;
+  generatedUsername?: string;
+  generatedPassword?: string;
   sendWhatsAppWelcome: boolean;
 }
 
@@ -131,6 +138,8 @@ export interface HubDraftCoverage {
   avgTransitMins: number;
   peakDelayMins: number;
   fuelEfficiency: "high" | "medium" | "low";
+  latitude: number;
+  longitude: number;
 }
 
 export interface HubDraft {
@@ -157,4 +166,6 @@ export interface CreateHubResult {
   hubId: string;
   hubCode: string;
   hubName: string;
+  managerUsername?: string;
+  managerPassword?: string;
 }

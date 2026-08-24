@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../Vikram-Backend"
+		},
+		{
+			"path": "../Vikram-frontend"
+		},
+		{
+			"path": "../Vikram-HubPanel-Frontend-main"
+		}
+	],
+	"settings": {}
+}

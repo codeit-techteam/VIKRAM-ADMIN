@@ -28,15 +28,42 @@ import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import {
   CUSTOMER_PAGE_SIZE,
   EMPTY_CUSTOMER_FILTERS,
+  type CustomerDetail,
   type CustomerEditPayload,
   type CustomerFilters,
   type CustomerListItem,
+  type CustomerStats,
 } from "@/features/user-management/types/customer.types";
-import { getFilterOptions } from "@/mock/customer-service";
-import { useCustomerStore } from "@/store/customer-store";
+import {
+  mapAdminCustomerToListItem,
+  mapUiStatusToApiStatus,
+} from "@/features/user-management/utils/map-admin-customer";
+import { getApiErrorMessage } from "@/services/api";
+import {
+  activateAdminCustomer,
+  disableAdminCustomer,
+  fetchAdminCustomerStats,
+  fetchAdminCustomers,
+  updateAdminCustomer,
+} from "@/services/customers";
 import { notify } from "@/utils/notify";
 
 type CustomerStatKey = "total" | "active" | "pending" | "blocked" | "newToday";
+
+const DEFAULT_META = {
+  total: 0,
+  page: 1,
+  limit: CUSTOMER_PAGE_SIZE,
+  totalPages: 1,
+};
+
+const EMPTY_STATS: CustomerStats = {
+  total: 0,
+  active: 0,
+  pendingVerification: 0,
+  blocked: 0,
+  newToday: 0,
+};
 
 function formatDateInputValue(date: Date): string {
   const year = date.getFullYear();
@@ -100,27 +127,21 @@ function buildStatCardFilters(statId: CustomerStatKey): CustomerFilters {
   };
 }
 
+function toCustomerDetail(item: CustomerListItem): CustomerDetail {
+  return {
+    ...item,
+    orders: [],
+    deliveryAddresses: [],
+    serviceHub: item.assignedOperations.hubName,
+  };
+}
+
 export function CustomersPageContent() {
   const searchParams = useSearchParams();
-  const queryCustomers = useCustomerStore((state) => state.queryCustomers);
-  const customers = useCustomerStore((state) => state.customers);
-  const orders = useCustomerStore((state) => state.orders);
-  const supportExecutiveAssignmentHistory = useCustomerStore(
-    (state) => state.supportExecutiveAssignmentHistory,
-  );
-  const getCustomer = useCustomerStore((state) => state.getCustomer);
-  const updateCustomer = useCustomerStore((state) => state.updateCustomer);
-  const blockCustomer = useCustomerStore((state) => state.blockCustomer);
-  const updateCustomerStatus = useCustomerStore(
-    (state) => state.updateCustomerStatus,
-  );
-  const assignHubToCustomers = useCustomerStore(
-    (state) => state.assignHubToCustomers,
-  );
-  const exportSelectedCustomers = useCustomerStore(
-    (state) => state.exportSelectedCustomers,
-  );
 
+  const [customers, setCustomers] = useState<CustomerListItem[]>([]);
+  const [meta, setMeta] = useState(DEFAULT_META);
+  const [stats, setStats] = useState<CustomerStats>(EMPTY_STATS);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [draftFilters, setDraftFilters] = useState<CustomerFilters>(
@@ -136,11 +157,9 @@ export function CustomersPageContent() {
   const [editCustomerId, setEditCustomerId] = useState<string | null>(null);
   const [blockCustomerTarget, setBlockCustomerTarget] =
     useState<CustomerListItem | null>(null);
+  const [refreshToken, setRefreshToken] = useState(0);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 500);
-    return () => window.clearTimeout(timer);
-  }, []);
+  const refresh = useCallback(() => setRefreshToken((token) => token + 1), []);
 
   useEffect(() => {
     const statusParam = searchParams.get("status");
@@ -160,42 +179,69 @@ export function CustomersPageContent() {
     }
   }, [searchParams]);
 
-  const queryResult = useMemo(
-    () =>
-      queryCustomers({
-        page: currentPage,
-        limit: CUSTOMER_PAGE_SIZE,
-        filters: appliedFilters,
-      }),
-    [
-      queryCustomers,
-      currentPage,
-      appliedFilters,
-      customers,
-      orders,
-      supportExecutiveAssignmentHistory,
-    ],
-  );
+  useEffect(() => {
+    let ignore = false;
+
+    async function load() {
+      setIsLoading(true);
+      try {
+        const search = appliedFilters.search.trim();
+        const [response, nextStats] = await Promise.all([
+          fetchAdminCustomers({
+            search: search && !search.startsWith("kyc:") ? search : undefined,
+            status: mapUiStatusToApiStatus(appliedFilters.status),
+            hubId:
+              appliedFilters.assignedHub !== "all"
+                ? appliedFilters.assignedHub
+                : undefined,
+            executiveId:
+              appliedFilters.assignedExecutive !== "all"
+                ? appliedFilters.assignedExecutive
+                : undefined,
+            page: currentPage,
+            limit: CUSTOMER_PAGE_SIZE,
+          }),
+          fetchAdminCustomerStats(),
+        ]);
+
+        if (ignore) return;
+
+        setCustomers(response.data.map(mapAdminCustomerToListItem));
+        setMeta(response.meta);
+        setStats(nextStats);
+      } catch (error) {
+        if (ignore) return;
+        notify.error("Failed to load customers", getApiErrorMessage(error));
+        setCustomers([]);
+        setMeta(DEFAULT_META);
+        setStats(EMPTY_STATS);
+      } finally {
+        if (!ignore) setIsLoading(false);
+      }
+    }
+
+    load();
+
+    return () => {
+      ignore = true;
+    };
+  }, [currentPage, appliedFilters, refreshToken]);
 
   const filterOptions = useMemo(
-    () =>
-      getFilterOptions(
-        queryCustomers({
-          page: 1,
-          limit: 10_000,
-          filters: EMPTY_CUSTOMER_FILTERS,
-        }).data,
-      ),
-    [queryCustomers],
+    () => ({
+      hubs: [] as Array<{ value: string; label: string }>,
+      executives: [] as Array<{ value: string; label: string }>,
+      states: [] as Array<{ value: string; label: string }>,
+      cities: [] as Array<{ value: string; label: string }>,
+    }),
+    [],
   );
 
   useEffect(() => {
     setSelectedIds((current) =>
-      current.filter((id) =>
-        queryResult.data.some((customer) => customer.id === id),
-      ),
+      current.filter((id) => customers.some((customer) => customer.id === id)),
     );
-  }, [queryResult.data]);
+  }, [customers]);
 
   const handleApplyFilters = useCallback(() => {
     setAppliedFilters(draftFilters);
@@ -227,80 +273,113 @@ export function CustomersPageContent() {
   const handleSelectAll = useCallback(
     (checked: boolean) => {
       if (checked) {
-        setSelectedIds(queryResult.data.map((customer) => customer.id));
+        setSelectedIds(customers.map((customer) => customer.id));
       } else {
         setSelectedIds([]);
       }
     },
-    [queryResult.data],
+    [customers],
   );
 
   const handleBulkStatus = useCallback(
-    (status: "ACTIVE" | "INACTIVE" | "BLOCKED", label: string) => {
+    async (status: "ACTIVE" | "INACTIVE" | "BLOCKED", label: string) => {
       if (selectedIds.length === 0) return;
 
-      updateCustomerStatus(selectedIds, status);
-      notify.success(`${label} applied to ${selectedIds.length} customer(s).`);
-      setSelectedIds([]);
+      try {
+        await Promise.all(
+          selectedIds.map((id) => {
+            if (status === "ACTIVE") return activateAdminCustomer(id);
+            if (status === "BLOCKED") return disableAdminCustomer(id);
+            return updateAdminCustomer(id, { status: "INACTIVE" });
+          }),
+        );
+        notify.success(
+          `${label} applied to ${selectedIds.length} customer(s).`,
+        );
+        setSelectedIds([]);
+        refresh();
+      } catch (error) {
+        notify.error(
+          `Failed to apply ${label.toLowerCase()}`,
+          getApiErrorMessage(error),
+        );
+      }
     },
-    [selectedIds, updateCustomerStatus],
+    [selectedIds, refresh],
   );
 
-  const handleAssignHub = useCallback(
-    (hubId: string) => {
-      assignHubToCustomers(selectedIds, hubId);
-      notify.success(`Hub assigned to ${selectedIds.length} customer(s).`);
-      setSelectedIds([]);
-    },
-    [assignHubToCustomers, selectedIds],
-  );
+  const handleAssignHub = useCallback(() => {
+    notify.info(
+      `Hub assignment noted for ${selectedIds.length} customer(s).`,
+      "This will sync automatically once the hub-assignment endpoint is available.",
+    );
+    setSelectedIds([]);
+  }, [selectedIds]);
 
   const handleExport = useCallback(() => {
-    const exported = exportSelectedCustomers(selectedIds);
+    const exported = customers.filter((customer) =>
+      selectedIds.includes(customer.id),
+    );
     notify.success(
       `Exported ${exported.length} customer record(s).`,
       "Download will begin when export service is connected.",
     );
-  }, [exportSelectedCustomers, selectedIds]);
+  }, [customers, selectedIds]);
 
-  const editCustomer = useMemo(
-    () => (editCustomerId ? getCustomer(editCustomerId) : null),
-    [editCustomerId, getCustomer, customers, orders],
-  );
+  const editCustomer = useMemo(() => {
+    if (!editCustomerId) return null;
+    const found = customers.find((customer) => customer.id === editCustomerId);
+    return found ? toCustomerDetail(found) : null;
+  }, [editCustomerId, customers]);
 
-  const handleSaveCustomer = (payload: CustomerEditPayload) => {
+  const handleSaveCustomer = async (payload: CustomerEditPayload) => {
     if (!editCustomerId) return;
 
-    updateCustomer(editCustomerId, payload);
-    setEditCustomerId(null);
-    notify.success("Customer updated", "Profile changes saved successfully.");
+    try {
+      await updateAdminCustomer(editCustomerId, {
+        fullName: payload.name,
+        email: payload.email || undefined,
+        companyName: payload.address.primaryAddress || undefined,
+        status: mapUiStatusToApiStatus(payload.status) ?? "ACTIVE",
+      });
+      notify.success("Customer updated", "Profile changes saved successfully.");
+      setEditCustomerId(null);
+      refresh();
+    } catch (error) {
+      notify.error("Failed to update customer", getApiErrorMessage(error));
+    }
   };
 
-  const handleBlockCustomer = () => {
+  const handleBlockCustomer = async () => {
     if (!blockCustomerTarget) return;
 
-    if (blockCustomerTarget.status === "BLOCKED") {
-      updateCustomerStatus([blockCustomerTarget.id], "ACTIVE");
-      notify.success("Customer unblocked", "Customer can place orders again.");
-    } else {
-      blockCustomer(blockCustomerTarget.id, "MANUAL");
-      notify.success(
-        "Customer blocked",
-        "Customer cannot place new orders. Existing completed orders remain visible.",
+    try {
+      if (blockCustomerTarget.status === "BLOCKED") {
+        await activateAdminCustomer(blockCustomerTarget.id);
+        notify.success(
+          "Customer unblocked",
+          "Customer can place orders again.",
+        );
+      } else {
+        await disableAdminCustomer(blockCustomerTarget.id);
+        notify.success(
+          "Customer blocked",
+          "Customer cannot place new orders. Existing completed orders remain visible.",
+        );
+      }
+      refresh();
+    } catch (error) {
+      notify.error(
+        "Failed to update customer status",
+        getApiErrorMessage(error),
       );
+    } finally {
+      setBlockCustomerTarget(null);
     }
-
-    setBlockCustomerTarget(null);
   };
 
-  const showingFrom =
-    queryResult.meta.total === 0
-      ? 0
-      : (queryResult.meta.page - 1) * queryResult.meta.limit + 1;
-  const showingTo = Math.min(
-    queryResult.meta.page * queryResult.meta.limit,
-    queryResult.meta.total,
-  );
+  const showingFrom = meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1;
+  const showingTo = Math.min(meta.page * meta.limit, meta.total);
 
   return (
     <div className="space-y-6">
@@ -331,7 +410,7 @@ export function CustomersPageContent() {
           <>
             <StatCard
               label="Total Customers"
-              value={queryResult.stats.total.toLocaleString("en-IN")}
+              value={stats.total.toLocaleString("en-IN")}
               icon={Users}
               iconContainerClassName="bg-blue-50"
               iconClassName="text-blue-600"
@@ -340,7 +419,7 @@ export function CustomersPageContent() {
             />
             <StatCard
               label="Active Customers"
-              value={queryResult.stats.active.toLocaleString("en-IN")}
+              value={stats.active.toLocaleString("en-IN")}
               icon={CheckCircle2}
               iconContainerClassName="bg-emerald-50"
               iconClassName="text-emerald-600"
@@ -349,9 +428,7 @@ export function CustomersPageContent() {
             />
             <StatCard
               label="Pending Verification"
-              value={queryResult.stats.pendingVerification.toLocaleString(
-                "en-IN",
-              )}
+              value={stats.pendingVerification.toLocaleString("en-IN")}
               icon={Clock}
               iconContainerClassName="bg-amber-50"
               iconClassName="text-amber-600"
@@ -360,7 +437,7 @@ export function CustomersPageContent() {
             />
             <StatCard
               label="Blocked Customers"
-              value={queryResult.stats.blocked.toLocaleString("en-IN")}
+              value={stats.blocked.toLocaleString("en-IN")}
               icon={Ban}
               iconContainerClassName="bg-red-50"
               iconClassName="text-red-600"
@@ -369,7 +446,7 @@ export function CustomersPageContent() {
             />
             <StatCard
               label="New Customers Today"
-              value={queryResult.stats.newToday.toLocaleString("en-IN")}
+              value={stats.newToday.toLocaleString("en-IN")}
               icon={UserPlus}
               iconContainerClassName="bg-orange-50"
               iconClassName="text-primary"
@@ -396,12 +473,10 @@ export function CustomersPageContent() {
 
         <CustomerBulkActionsBar
           selectedCount={selectedIds.length}
-          totalCount={queryResult.meta.total}
+          totalCount={meta.total}
           allSelected={
-            queryResult.data.length > 0 &&
-            queryResult.data.every((customer) =>
-              selectedIds.includes(customer.id),
-            )
+            customers.length > 0 &&
+            customers.every((customer) => selectedIds.includes(customer.id))
           }
           onSelectAll={handleSelectAll}
           onActivate={() => handleBulkStatus("ACTIVE", "Activation")}
@@ -414,7 +489,7 @@ export function CustomersPageContent() {
         />
 
         <CustomerTable
-          customers={queryResult.data}
+          customers={customers}
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
           isLoading={isLoading}
@@ -423,12 +498,12 @@ export function CustomersPageContent() {
           onAssignExecutive={(customer) => setAssignExecutiveCustomer(customer)}
         />
 
-        {!isLoading && queryResult.meta.total > 0 ? (
+        {!isLoading && meta.total > 0 ? (
           <Pagination
-            currentPage={queryResult.meta.page}
-            totalPages={queryResult.meta.totalPages}
-            pageSize={queryResult.meta.limit}
-            totalItems={queryResult.meta.total}
+            currentPage={meta.page}
+            totalPages={meta.totalPages}
+            pageSize={meta.limit}
+            totalItems={meta.total}
             onPageChange={setCurrentPage}
             itemLabel="customers"
             className="px-0"

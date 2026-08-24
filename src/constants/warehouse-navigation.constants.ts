@@ -4,8 +4,8 @@ import type {
   NavChildItem,
 } from "@/constants/navigation.constants";
 
-// TODO: Replace with warehouse navigation config API
-export const PENDING_REQUISITION_COUNT = 12;
+/** Fallback badge until live stats load in the sidebar. */
+export const PENDING_REQUISITION_COUNT = 0;
 
 export const CENTRAL_WAREHOUSE_NAV_GROUPS: NavChildGroup[] = [
   {

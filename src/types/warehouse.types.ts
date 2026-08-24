@@ -216,6 +216,7 @@ export interface MaterialAllocationItem {
   sku: string;
   requestedQty: number;
   allocatedQty: number;
+  availableStock?: number;
   unit: string;
   priority: RequisitionPriority;
   status: MaterialAllocationStatus;
@@ -311,11 +312,15 @@ export type AllocationTransferStatus = "COMPLETED";
 export interface AllocationWorkflowResult {
   allocationId: string;
   requestId: string;
+  /** Backend requisition UUID — required for assign-logistics / dispatch */
+  requisitionUuid: string;
   destinationHub: string;
+  destinationHubId?: string;
   quantity: number;
   unit: string;
   material: string;
   warehouseName: string;
+  warehouseHubId?: string;
   batchLabel: string;
   warehouseRemaining: number;
   baseWeight?: number;
@@ -434,7 +439,10 @@ export type TransferWorkflowStep = 1 | 2 | 3 | 4 | 5;
 
 export interface TransferWorkflowContext {
   allocationId: string;
+  /** Human-readable request no (REQ-…) */
   requisitionId: string;
+  /** Backend requisition UUID */
+  requisitionUuid: string;
   material: string;
   sku: string;
   quantity: number;
@@ -479,6 +487,7 @@ export interface TransferListItem {
   transferId: string;
   allocationId?: string;
   requisitionId?: string;
+  requestNo?: string;
   sourceWarehouseId: string;
   sourceWarehouse: string;
   destinationHubId: string;

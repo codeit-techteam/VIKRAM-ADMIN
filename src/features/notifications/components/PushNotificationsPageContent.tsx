@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   BellRing,
@@ -28,6 +28,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import {
   Select,
@@ -43,8 +44,6 @@ import {
   DEEP_LINK_OFFER_OPTIONS,
   DEEP_LINK_OPTIONS,
   DEEP_LINK_PRODUCT_OPTIONS,
-  PUSH_NOTIFICATION_HISTORY,
-  PUSH_NOTIFICATION_STATS,
 } from "@/features/notifications/constants/notification.mock";
 import {
   pushNotificationSchema,
@@ -54,7 +53,12 @@ import type {
   AudienceType,
   DeepLinkTarget,
   DeliveryMode,
+  PushNotification,
+  PushNotificationStats,
 } from "@/features/notifications/types/notification.types";
+import { notificationsService } from "@/services/cms-notifications.service";
+import { uploadMediaFile } from "@/services/media.service";
+import { notify } from "@/utils/notify";
 
 const fieldLabelClassName =
   "text-[11px] font-semibold tracking-wider text-gray-400 uppercase";
@@ -77,10 +81,20 @@ export function PushNotificationsPageContent() {
   const historyRef = useRef<HTMLDivElement>(null);
   const [showHistory, setShowHistory] = useState(true);
   const [uploadFile, setUploadFile] = useState<MockUploadFile | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const imagePreviewUrlRef = useRef<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [history, setHistory] = useState<PushNotification[]>([]);
+  const [stats, setStats] = useState<PushNotificationStats>({
+    totalSentThisMonth: 0,
+    avgOpenRatePercent: 0,
+    activeSubscribers: 0,
+    scheduledCount: 0,
+  });
 
-  const { control, handleSubmit, watch, setValue } =
+  const { control, handleSubmit, watch, setValue, reset } =
     useForm<PushNotificationSchema>({
       resolver: zodResolver(pushNotificationSchema),
       defaultValues: {
@@ -98,6 +112,29 @@ export function PushNotificationsPageContent() {
 
   const deepLinkTarget = watch("deepLinkTarget");
   const deliveryMode = watch("deliveryMode");
+
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [historyData, statsData] = await Promise.all([
+        notificationsService.getHistory(),
+        notificationsService.getStats(),
+      ]);
+      setHistory(historyData);
+      setStats(statsData);
+    } catch (error) {
+      notify.error(
+        "Failed to load notifications",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   const scrollToComposer = () => {
     composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -128,10 +165,14 @@ export function PushNotificationsPageContent() {
       const previewUrl = URL.createObjectURL(file);
       imagePreviewUrlRef.current = previewUrl;
       setImagePreviewUrl(previewUrl);
+      setImageFile(file);
+      setUploadFile({ name: file.name, progress: 0 });
       setValue("imageUrl", file.name);
       return;
     }
 
+    setImageFile(null);
+    setUploadFile(null);
     setImagePreviewUrl(null);
     setValue("imageUrl", undefined);
   };
@@ -144,8 +185,66 @@ export function PushNotificationsPageContent() {
     };
   }, []);
 
-  const onSubmit = (data: PushNotificationSchema) => {
-    console.log("Push notification:", data);
+  const onSubmit = async (data: PushNotificationSchema) => {
+    if (data.deliveryMode === "scheduled") {
+      notify.error(
+        "Scheduling not supported",
+        "The notifications API sends immediately. Choose Send Now.",
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // Backend Notification model has no image field — upload is optional/future-ready.
+      let imageUrl: string | undefined;
+      if (imageFile) {
+        const uploaded = await uploadMediaFile(imageFile, "thumbnails", {
+          onProgress: (percent) => {
+            setUploadFile({ name: imageFile.name, progress: percent });
+          },
+        });
+        imageUrl = uploaded.publicUrl;
+      }
+
+      const result = await notificationsService.send({
+        title: data.title,
+        message: data.message,
+        audienceType: data.audienceType,
+        audienceTargets: data.audienceTargets,
+        deepLinkTarget: data.deepLinkTarget,
+        deepLinkValue: data.deepLinkValue,
+        imageUrl,
+      });
+
+      notify.success(
+        "Notification sent",
+        result.sentTo != null
+          ? `Delivered to ${result.sentTo.toLocaleString("en-IN")} customers.`
+          : "Notification created successfully.",
+      );
+
+      reset({
+        title: "",
+        message: "",
+        imageUrl: undefined,
+        audienceType: "all",
+        audienceTargets: [],
+        deepLinkTarget: "home",
+        deepLinkValue: "",
+        deliveryMode: "now",
+        scheduledAt: "",
+      });
+      handleImageChange(null);
+      await loadData();
+    } catch (error) {
+      notify.error(
+        "Send failed",
+        error instanceof Error ? error.message : "Unable to send notification.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const deepLinkSecondaryOptions =
@@ -193,35 +292,41 @@ export function PushNotificationsPageContent() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Total Sent"
-          value={PUSH_NOTIFICATION_STATS.totalSentThisMonth}
+          value={stats.totalSentThisMonth}
           subtext="This month"
           icon={Send}
           iconContainerClassName="bg-orange-50"
           iconClassName="text-primary"
+          isLoading={isLoading}
         />
         <StatCard
           label="Avg. Open Rate"
-          value={`${PUSH_NOTIFICATION_STATS.avgOpenRatePercent}%`}
+          value={
+            stats.avgOpenRatePercent > 0
+              ? `${stats.avgOpenRatePercent}%`
+              : "—"
+          }
           icon={BellRing}
           iconContainerClassName="bg-emerald-50"
           iconClassName="text-emerald-600"
+          isLoading={isLoading}
         />
         <StatCard
           label="Active Subscribers"
-          value={formatSubscriberCount(
-            PUSH_NOTIFICATION_STATS.activeSubscribers,
-          )}
+          value={formatSubscriberCount(stats.activeSubscribers)}
           icon={Users}
           iconContainerClassName="bg-blue-50"
           iconClassName="text-blue-600"
+          isLoading={isLoading}
         />
         <StatCard
           label="Scheduled"
-          value={PUSH_NOTIFICATION_STATS.scheduledCount}
+          value={stats.scheduledCount}
           subtext="Upcoming"
           icon={CalendarClock}
           iconContainerClassName="bg-violet-50"
           iconClassName="text-violet-600"
+          isLoading={isLoading}
         />
       </div>
 
@@ -277,7 +382,7 @@ export function PushNotificationsPageContent() {
                 <Label className={fieldLabelClassName}>
                   Notification Image{" "}
                   <span className="font-normal tracking-normal text-gray-400 normal-case">
-                    (Optional)
+                    (Optional — stored in R2; not yet attached by API)
                   </span>
                 </Label>
                 <FileDropzone
@@ -422,6 +527,10 @@ export function PushNotificationsPageContent() {
                             {...field}
                           />
                         </div>
+                        <p className="text-xs text-amber-600">
+                          Scheduling is not available on the current API —
+                          notifications are sent immediately.
+                        </p>
                       </div>
                     )}
                   />
@@ -429,16 +538,32 @@ export function PushNotificationsPageContent() {
               </div>
 
               <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:flex-wrap">
-                <Button type="button" variant="outline" className="sm:flex-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="sm:flex-1"
+                  disabled
+                >
                   Save as Draft
                 </Button>
-                <Button type="button" variant="outline" className="sm:flex-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="sm:flex-1"
+                  disabled
+                >
                   Send Test to Me
                 </Button>
-                <Button type="submit" className="sm:flex-1">
-                  {deliveryMode === "scheduled"
-                    ? "Schedule Notification"
-                    : "Send Notification"}
+                <Button
+                  type="submit"
+                  className="sm:flex-1"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting
+                    ? "Sending..."
+                    : deliveryMode === "scheduled"
+                      ? "Schedule Notification"
+                      : "Send Notification"}
                 </Button>
               </div>
             </div>
@@ -457,11 +582,23 @@ export function PushNotificationsPageContent() {
                 Notification History
               </h2>
               <p className="mt-1 text-sm text-[#64748B]">
-                Recent broadcasts, scheduled sends, and saved drafts.
+                Recent broadcasts and announcements from the API.
               </p>
             </div>
           </div>
-          <NotificationHistoryTable notifications={PUSH_NOTIFICATION_HISTORY} />
+          {isLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-14 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : history.length === 0 ? (
+            <p className="py-8 text-center text-sm text-[#64748B]">
+              No notifications yet. Send your first broadcast above.
+            </p>
+          ) : (
+            <NotificationHistoryTable notifications={history} />
+          )}
         </div>
       ) : null}
     </div>

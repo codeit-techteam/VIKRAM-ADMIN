@@ -1,5 +1,4 @@
-export type InventoryCategorySlug =
-  "steel-rebar" | "cement" | "electrical" | "masonry" | "paint";
+export type InventoryCategorySlug = string;
 
 export type InventoryStockStatus = "in-stock" | "low-stock" | "out-of-stock";
 
@@ -7,15 +6,19 @@ export type IncomingDeliveryStatus = "in-transit" | "expected";
 
 export interface InventoryItem {
   id: string;
+  productId?: string;
   productName: string;
   sku: string;
   category: string;
-  categorySlug: InventoryCategorySlug;
+  categorySlug: string;
+  imageUrl?: string | null;
   currentStock: number;
   committedStock: number;
+  availableStock?: number;
   minimumStock: number;
   unit: string;
   purchasePrice: number;
+  status?: InventoryStockStatus;
 }
 
 export interface IncomingDelivery {

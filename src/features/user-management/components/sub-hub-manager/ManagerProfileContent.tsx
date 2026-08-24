@@ -36,13 +36,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ROUTES } from "@/constants/routes";
+import { hubManagerService } from "@/services/hubManager.service";
+import { getApiErrorMessage } from "@/services/api";
 import { useLogisticsStore } from "@/store/logistics-store";
-import { useSubHubManagerStore } from "@/store/sub-hub-manager-store";
 import { normalizeHubInventory } from "@/store/sub-hub-state";
 import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
 import { formatDate } from "@/utils/format-date";
 import { enrichManagersWithOps } from "@/utils/manager-ops-metrics";
 import { notify } from "@/utils/notify";
+import type {
+  ManagerActivityEvent,
+  ManagerDispatchRow,
+  ManagerDriverRow,
+  ManagerProfileDetail,
+  ManagerRequisitionRow,
+  SubHubManager,
+} from "@/features/user-management/types/sub-hub-manager.types";
 import { cn } from "@/lib/utils";
 
 interface ManagerProfileContentProps {
@@ -155,15 +164,6 @@ function SummaryCard({
 export function ManagerProfileContent({
   managerId,
 }: ManagerProfileContentProps) {
-  const getManagerProfile = useSubHubManagerStore(
-    (state) => state.getManagerProfile,
-  );
-  const transferHub = useSubHubManagerStore((state) => state.transferHub);
-  const deactivateManager = useSubHubManagerStore(
-    (state) => state.deactivateManager,
-  );
-  const managers = useSubHubManagerStore((state) => state.managers);
-
   const hubInventory = useWarehouseErpStore((state) => state.hubInventory);
   const requisitions = useWarehouseErpStore((state) => state.requisitions);
   const transfers = useWarehouseErpStore((state) => state.transfers);
@@ -171,17 +171,32 @@ export function ManagerProfileContent({
 
   const [isLoading, setIsLoading] = useState(true);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
+  const [manager, setManager] = useState<SubHubManager | null>(null);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 450);
-    return () => window.clearTimeout(timer);
+    let active = true;
+    setIsLoading(true);
+    hubManagerService
+      .getById(managerId)
+      .then((data) => {
+        if (active) setManager(data);
+      })
+      .catch(() => {
+        if (active) setManager(null);
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [managerId]);
 
-  const profile = useMemo(() => {
-    const base = getManagerProfile(managerId);
-    if (!base) return null;
+  const profile = useMemo((): ManagerProfileDetail | null => {
+    if (!manager) return null;
 
-    const [enriched] = enrichManagersWithOps([base], {
+    const [enriched] = enrichManagersWithOps([manager], {
       hubInventory: normalizeHubInventory(hubInventory),
       requisitions,
       transfers,
@@ -189,26 +204,27 @@ export function ManagerProfileContent({
     });
 
     return {
-      ...base,
+      ...manager,
       ...enriched,
       hub: {
-        ...base.hub,
+        hubId: manager.hubId,
+        hubName: manager.hubName,
+        hubCode: manager.hubCode,
+        city: manager.city,
+        warehouse: manager.warehouse,
+        coverageRadius: "—",
         pendingRequisitions: enriched.pendingRequisitions,
         pendingDispatches: enriched.pendingDispatches,
         todayOrders: enriched.todayOrders,
         lowStockItems: enriched.lowStockItems,
         drivers: enriched.totalDrivers,
       },
+      recentActivity: [],
+      pendingRequisitionRows: [],
+      pendingDispatchRows: [],
+      driverRows: [],
     };
-  }, [
-    getManagerProfile,
-    managerId,
-    managers,
-    hubInventory,
-    requisitions,
-    transfers,
-    drivers,
-  ]);
+  }, [manager, hubInventory, requisitions, transfers, drivers]);
 
   if (isLoading) {
     return <ProfileSkeleton />;
@@ -326,12 +342,19 @@ export function ManagerProfileContent({
               type="button"
               variant="outline"
               className="gap-2"
-              onClick={() =>
-                notify.success(
-                  "Reset Password",
-                  "Temporary password generated.",
-                )
-              }
+              onClick={async () => {
+                try {
+                  const result = await hubManagerService.resetPassword(
+                    profile.id,
+                  );
+                  notify.success(
+                    "Reset Password",
+                    `Temporary password: ${result.temporaryPassword}`,
+                  );
+                } catch (error) {
+                  notify.error("Reset failed", getApiErrorMessage(error));
+                }
+              }}
             >
               <KeyRound className="size-4" />
               Reset Password
@@ -340,9 +363,19 @@ export function ManagerProfileContent({
               type="button"
               variant="outline"
               className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
-              onClick={() => {
-                deactivateManager(profile.id);
-                notify.success("Deactivated", `${profile.name} deactivated.`);
+              onClick={async () => {
+                try {
+                  const updated = await hubManagerService.deactivate(
+                    profile.id,
+                  );
+                  setManager(updated);
+                  notify.success("Deactivated", `${profile.name} deactivated.`);
+                } catch (error) {
+                  notify.error(
+                    "Deactivation failed",
+                    getApiErrorMessage(error),
+                  );
+                }
               }}
             >
               <Ban className="size-4" />
@@ -669,13 +702,22 @@ export function ManagerProfileContent({
         manager={profile}
         open={isTransferOpen}
         onClose={() => setIsTransferOpen(false)}
-        onTransfer={(managerId, newHubId, reason, effectiveDate) => {
-          transferHub({ managerId, newHubId, reason, effectiveDate });
-          notify.success(
-            "Manager Transferred",
-            "Manager transferred successfully to new hub.",
-          );
-          setIsTransferOpen(false);
+        onTransfer={async (managerId, newHubId, reason) => {
+          try {
+            const updated = await hubManagerService.transferHub(
+              managerId,
+              newHubId,
+              reason,
+            );
+            setManager(updated);
+            notify.success(
+              "Manager Transferred",
+              "Manager transferred successfully to new hub.",
+            );
+            setIsTransferOpen(false);
+          } catch (error) {
+            notify.error("Transfer failed", getApiErrorMessage(error));
+          }
         }}
       />
     </div>

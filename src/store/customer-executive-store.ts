@@ -1,46 +1,17 @@
 "use client";
 
+import axios from "axios";
 import { create } from "zustand";
 
-import {
-  CE_ACTIVITIES,
-  CE_COMPLAINTS,
-  CE_CURRENT_EXECUTIVE,
-  CE_CUSTOMERS,
-  CE_DRIVERS,
-  CE_EXECUTIVES,
-  CE_HUBS,
-  CE_NOTES,
-  CE_NOTIFICATIONS,
-  CE_ORDERS,
-  CE_PAYMENTS,
-  CE_PRODUCTS,
-  CE_VEHICLES,
-} from "@/features/customer-executive/mock/seed";
-import {
-  calculateOrderTotal,
-  computeDashboardStats,
-  generateCustomerId,
-  generateId,
-  generateOrderNumber,
-  generateTicketNumber,
-  getActivitiesForCustomer,
-  getCustomerOrderStats,
-  getCustomerPendingAmount,
-  queryComplaints,
-  queryCustomers,
-  queryOrders,
-  queryPayments,
-} from "@/features/customer-executive/mock/queries";
 import type {
   CeActivity,
   CeComplaint,
   CeComplaintFilters,
+  CeCreatePaymentLinkDraft,
   CeCustomer,
   CeCustomerFilters,
   CeDashboardStats,
   CeExecutiveProfile,
-  CeCreatePaymentLinkDraft,
   CeNewComplaintDraft,
   CeNewCustomerDraft,
   CeNewOrderDraft,
@@ -50,9 +21,53 @@ import type {
   CeOrderFilters,
   CePayment,
   CePaymentFilters,
+  CeProduct,
   CeQueryParams,
   CeQueryResult,
 } from "@/features/customer-executive/types";
+import {
+  mapApiActivity,
+  mapApiComplaint,
+  mapApiCustomer,
+  mapApiDashboardStats,
+  mapApiOrder,
+  mapApiPayment,
+  mapApiProduct,
+  mapAuthUserToExecutive,
+  mapComplaintStatusToApi,
+  mapIssueTypeToReason,
+  mapPaginationMeta,
+  mapPaymentMethodToApi,
+  type ApiPaginationMeta,
+} from "@/features/customer-executive/utils/map-api";
+import { mapBackendOrderToCeOrder } from "@/features/customer-executive/utils/map-backend-order";
+import { catalogService } from "@/services/catalog.service";
+import { customerExecutiveService } from "@/services/customerExecutive";
+import { authService } from "@/services/auth";
+import { useAuthStore } from "@/store/auth-store";
+
+function getErrorMessage(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const message = error.response?.data?.message;
+    if (typeof message === "string" && message.trim()) return message;
+    return error.message;
+  }
+  if (error instanceof Error) return error.message;
+  return "Request failed";
+}
+
+function toQueryResult<T>(
+  items: T[],
+  meta: ApiPaginationMeta | null,
+  fallbackPage: number,
+): CeQueryResult<T> {
+  const page = meta?.page ?? fallbackPage;
+  const total = meta?.total ?? items.length;
+  const totalPages =
+    meta?.totalPages ?? Math.max(1, Math.ceil(total / (meta?.limit ?? 10)));
+
+  return { items, total, page, totalPages };
+}
 
 interface CustomerExecutiveStore {
   customers: CeCustomer[];
@@ -62,12 +77,60 @@ interface CustomerExecutiveStore {
   activities: CeActivity[];
   notes: CeNote[];
   notifications: CeNotification[];
-  currentExecutive: CeExecutiveProfile;
-  products: typeof CE_PRODUCTS;
-  drivers: typeof CE_DRIVERS;
-  vehicles: typeof CE_VEHICLES;
-  hubs: typeof CE_HUBS;
-  executives: typeof CE_EXECUTIVES;
+  products: CeProduct[];
+  currentExecutive: CeExecutiveProfile | null;
+
+  customersMeta: ApiPaginationMeta | null;
+  ordersMeta: ApiPaginationMeta | null;
+  paymentsMeta: ApiPaginationMeta | null;
+  complaintsMeta: ApiPaginationMeta | null;
+
+  dashboardStats: CeDashboardStats | null;
+  dashboardLoading: boolean;
+  customersLoading: boolean;
+  ordersLoading: boolean;
+  paymentsLoading: boolean;
+  complaintsLoading: boolean;
+  bulkLoading: boolean;
+  productsLoading: boolean;
+  executiveLoading: boolean;
+
+  dashboardError: string | null;
+  customersError: string | null;
+  ordersError: string | null;
+  paymentsError: string | null;
+  complaintsError: string | null;
+  productsError: string | null;
+  executiveError: string | null;
+
+  loadDashboard: () => Promise<void>;
+  loadCustomers: (params?: {
+    page?: number;
+    limit?: number;
+    filters?: CeCustomerFilters;
+    sortBy?: string;
+    sortDir?: "asc" | "desc";
+  }) => Promise<void>;
+  loadCustomerById: (id: string) => Promise<CeCustomer | null>;
+  loadOrders: (params?: {
+    page?: number;
+    limit?: number;
+    filters?: CeOrderFilters;
+    customerId?: string;
+  }) => Promise<void>;
+  loadPayments: (params?: {
+    page?: number;
+    limit?: number;
+    filters?: CePaymentFilters;
+  }) => Promise<void>;
+  loadComplaints: (params?: {
+    page?: number;
+    limit?: number;
+    filters?: CeComplaintFilters;
+  }) => Promise<void>;
+  loadProducts: () => Promise<void>;
+  loadCurrentExecutive: () => Promise<void>;
+  loadActivities: (limit?: number) => Promise<void>;
 
   queryCustomers: (
     params: CeQueryParams<CeCustomerFilters>,
@@ -94,72 +157,396 @@ interface CustomerExecutiveStore {
   getCustomerComplaints: (customerId: string) => CeComplaint[];
   getCustomerNotes: (customerId: string) => CeNote[];
   getCustomerActivities: (customerId: string) => CeActivity[];
-  getCustomerOrderStats: (
-    customerId: string,
-  ) => ReturnType<typeof getCustomerOrderStats>;
+  getCustomerOrderStats: (customerId: string) => {
+    totalOrders: number;
+    activeOrders: number;
+    deliveredOrders: number;
+    totalSpent: number;
+  };
   getCustomerPendingAmount: (customerId: string) => number;
   getRecentActivities: (limit?: number) => CeActivity[];
   getPendingPayments: (limit?: number) => CePayment[];
 
-  assignExecutive: (customerIds: string[], executiveId: string) => void;
-  registerCustomer: (draft: CeNewCustomerDraft) => CeCustomer;
-  createOrder: (draft: CeNewOrderDraft) => CeOrder;
-  sendPaymentLink: (paymentId: string) => void;
+  lookupCustomer: (phone: string) => Promise<{
+    exists: boolean;
+    customer?: CeCustomer;
+    assignedToOtherExecutive?: boolean;
+  }>;
+  sendOtp: (phone: string) => Promise<{ expiresIn?: number; otp?: string }>;
+  verifyOtp: (
+    phone: string,
+    otp: string,
+  ) => Promise<{ verificationToken: string }>;
+  registerCustomer: (
+    draft: CeNewCustomerDraft,
+    verificationToken: string,
+  ) => Promise<CeCustomer>;
+  createOrder: (draft: CeNewOrderDraft) => Promise<CeOrder>;
+  sendPaymentLink: (paymentId: string) => Promise<void>;
+  sendPaymentLinkByOrderId: (orderId: string) => Promise<void>;
   copyPaymentLink: (paymentId: string) => string;
   markPaymentPaid: (paymentId: string) => void;
-  incrementReminder: (paymentId: string) => void;
-  addNote: (customerId: string, content: string) => CeNote;
+  incrementReminder: (paymentId: string) => Promise<void>;
+  addNote: (customerId: string, content: string) => Promise<CeNote>;
   updateNote: (noteId: string, content: string) => void;
   deleteNote: (noteId: string) => void;
   updateComplaintStatus: (
     complaintId: string,
     status: CeComplaint["status"],
-  ) => void;
-  addComplaintNote: (complaintId: string, content: string) => void;
-  createComplaint: (draft: CeNewComplaintDraft) => CeComplaint;
+    resolution?: string,
+  ) => Promise<void>;
+  addComplaintNote: (complaintId: string, content: string) => Promise<void>;
+  createComplaint: (draft: CeNewComplaintDraft) => Promise<CeComplaint>;
   generatePaymentLinkForCustomer: (
     draft: CeCreatePaymentLinkDraft,
-  ) => CePayment | null;
+  ) => Promise<CePayment | null>;
   markNotificationRead: (notificationId: string) => void;
-}
-
-function addActivity(
-  activities: CeActivity[],
-  activity: Omit<CeActivity, "id">,
-): CeActivity[] {
-  const newActivity: CeActivity = { ...activity, id: generateId("act") };
-  return [newActivity, ...activities];
+  searchTracking: (q: string) => Promise<CeOrder[]>;
+  loadOrderDetailFromApi: (id: string) => Promise<CeOrder | null>;
+  loadOrdersFromApi: () => Promise<void>;
 }
 
 export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
   (set, get) => ({
-    customers: [...CE_CUSTOMERS],
-    orders: [...CE_ORDERS],
-    payments: [...CE_PAYMENTS],
-    complaints: [...CE_COMPLAINTS],
-    activities: [...CE_ACTIVITIES],
-    notes: [...CE_NOTES],
-    notifications: [...CE_NOTIFICATIONS],
-    currentExecutive: CE_CURRENT_EXECUTIVE,
-    products: CE_PRODUCTS,
-    drivers: CE_DRIVERS,
-    vehicles: CE_VEHICLES,
-    hubs: CE_HUBS,
-    executives: CE_EXECUTIVES,
+    customers: [],
+    orders: [],
+    payments: [],
+    complaints: [],
+    activities: [],
+    notes: [],
+    notifications: [],
+    products: [],
+    currentExecutive: null,
 
-    queryCustomers: (params) => queryCustomers(get().customers, params),
-    queryOrders: (params) => queryOrders(get().orders, params),
-    queryPayments: (params) => queryPayments(get().payments, params),
-    queryComplaints: (params) => queryComplaints(get().complaints, params),
+    customersMeta: null,
+    ordersMeta: null,
+    paymentsMeta: null,
+    complaintsMeta: null,
+
+    dashboardStats: null,
+    dashboardLoading: false,
+    customersLoading: false,
+    ordersLoading: false,
+    paymentsLoading: false,
+    complaintsLoading: false,
+    bulkLoading: false,
+    productsLoading: false,
+    executiveLoading: false,
+
+    dashboardError: null,
+    customersError: null,
+    ordersError: null,
+    paymentsError: null,
+    complaintsError: null,
+    productsError: null,
+    executiveError: null,
+
+    loadDashboard: async () => {
+      set({ dashboardLoading: true, dashboardError: null });
+      try {
+        const [dashboard, activities] = await Promise.all([
+          customerExecutiveService.getDashboard(),
+          customerExecutiveService.getActivity(8),
+        ]);
+
+        const stats = mapApiDashboardStats(
+          dashboard as unknown as Record<string, unknown>,
+        );
+        const recentActivities = (
+          dashboard.recentActivities?.length
+            ? dashboard.recentActivities
+            : activities
+        ).map((item) => mapApiActivity(item));
+
+        const pendingPaymentsResult = await customerExecutiveService.getPayments(
+          { page: 1, limit: 5, status: "PENDING" },
+        );
+
+        set({
+          dashboardStats: stats,
+          activities: recentActivities,
+          payments: pendingPaymentsResult.data.map((row) =>
+            mapApiPayment(row),
+          ),
+          dashboardLoading: false,
+          dashboardError: null,
+        });
+      } catch (error) {
+        set({
+          dashboardLoading: false,
+          dashboardError: getErrorMessage(error),
+        });
+      }
+    },
+
+    loadCustomers: async (params) => {
+      set({ customersLoading: true, customersError: null });
+      try {
+        const filters = params?.filters;
+        const result = await customerExecutiveService.getCustomers({
+          page: params?.page ?? 1,
+          limit: params?.limit ?? 10,
+          q: filters?.search || undefined,
+          status: filters?.status && filters.status !== "ALL" ? filters.status : undefined,
+          city: filters?.city && filters.city !== "ALL" ? filters.city : undefined,
+          customerType:
+            filters?.customerType && filters.customerType !== "ALL"
+              ? filters.customerType
+              : undefined,
+          sortBy: params?.sortBy,
+          sortDir: params?.sortDir,
+        });
+
+        let customers = result.data.map((row) => mapApiCustomer(row));
+
+        if (filters?.activeThisMonth) {
+          const now = new Date();
+          customers = customers.filter((customer) => {
+            if (!customer.lastOrderAt) return false;
+            const date = new Date(customer.lastOrderAt);
+            return (
+              date.getMonth() === now.getMonth() &&
+              date.getFullYear() === now.getFullYear()
+            );
+          });
+        }
+
+        set({
+          customers,
+          customersMeta: mapPaginationMeta(result.meta, params?.page, params?.limit),
+          customersLoading: false,
+          customersError: null,
+        });
+      } catch (error) {
+        set({
+          customersLoading: false,
+          customersError: getErrorMessage(error),
+        });
+      }
+    },
+
+    loadCustomerById: async (id) => {
+      set({ customersLoading: true, customersError: null });
+      try {
+        const raw = await customerExecutiveService.getCustomerById(id);
+        const customer = mapApiCustomer(raw);
+        set((state) => {
+          const exists = state.customers.some((c) => c.id === customer.id);
+          return {
+            customers: exists
+              ? state.customers.map((c) =>
+                  c.id === customer.id ? customer : c,
+                )
+              : [customer, ...state.customers],
+            customersLoading: false,
+            customersError: null,
+          };
+        });
+        return customer;
+      } catch (error) {
+        set({
+          customersLoading: false,
+          customersError: getErrorMessage(error),
+        });
+        return null;
+      }
+    },
+
+    loadOrders: async (params) => {
+      set({ ordersLoading: true, ordersError: null });
+      try {
+        const filters = params?.filters;
+        const result = await customerExecutiveService.getOrders({
+          page: params?.page ?? 1,
+          limit: params?.limit ?? 10,
+          q: filters?.search || undefined,
+          status:
+            filters?.assignment === "UNASSIGNED"
+              ? undefined
+              : filters?.status && filters.status !== "ALL"
+                ? filters.status
+                : undefined,
+          orderSource:
+            filters?.orderSource && filters.orderSource !== "ALL"
+              ? filters.orderSource
+              : undefined,
+          unassigned: filters?.assignment === "UNASSIGNED" ? true : undefined,
+          customerId: params?.customerId,
+        });
+
+        set({
+          orders: result.data.map((row) => mapApiOrder(row)),
+          ordersMeta: mapPaginationMeta(result.meta, params?.page, params?.limit),
+          ordersLoading: false,
+          ordersError: null,
+        });
+      } catch (error) {
+        set({
+          ordersLoading: false,
+          ordersError: getErrorMessage(error),
+        });
+      }
+    },
+
+    loadPayments: async (params) => {
+      set({ paymentsLoading: true, paymentsError: null });
+      try {
+        const filters = params?.filters;
+        const result = await customerExecutiveService.getPayments({
+          page: params?.page ?? 1,
+          limit: params?.limit ?? 10,
+          q: filters?.search || undefined,
+          status:
+            filters?.status && filters.status !== "ALL"
+              ? filters.status
+              : undefined,
+          linkStatus:
+            filters?.linkStatus && filters.linkStatus !== "ALL"
+              ? filters.linkStatus
+              : undefined,
+        });
+
+        set({
+          payments: result.data.map((row) => mapApiPayment(row)),
+          paymentsMeta: mapPaginationMeta(result.meta, params?.page, params?.limit),
+          paymentsLoading: false,
+          paymentsError: null,
+        });
+      } catch (error) {
+        set({
+          paymentsLoading: false,
+          paymentsError: getErrorMessage(error),
+        });
+      }
+    },
+
+    loadComplaints: async (params) => {
+      set({ complaintsLoading: true, complaintsError: null });
+      try {
+        const filters = params?.filters;
+        const result = await customerExecutiveService.getTickets({
+          page: params?.page ?? 1,
+          limit: params?.limit ?? 10,
+          q: filters?.search || undefined,
+          status:
+            filters?.status && filters.status !== "ALL"
+              ? mapComplaintStatusToApi(filters.status)
+              : undefined,
+          priority:
+            filters?.priority && filters.priority !== "ALL"
+              ? filters.priority
+              : undefined,
+        });
+
+        let complaints = result.data.map((row) => mapApiComplaint(row));
+
+        if (filters?.issueType && filters.issueType !== "ALL") {
+          complaints = complaints.filter(
+            (complaint) => complaint.issueType === filters.issueType,
+          );
+        }
+
+        set({
+          complaints,
+          complaintsMeta: mapPaginationMeta(result.meta, params?.page, params?.limit),
+          complaintsLoading: false,
+          complaintsError: null,
+        });
+      } catch (error) {
+        set({
+          complaintsLoading: false,
+          complaintsError: getErrorMessage(error),
+        });
+      }
+    },
+
+    loadProducts: async () => {
+      set({ productsLoading: true, productsError: null });
+      try {
+        const result = await catalogService.listProducts({
+          page: 1,
+          limit: 100,
+          status: "ACTIVE",
+        });
+        set({
+          products: result.data.map(mapApiProduct),
+          productsLoading: false,
+          productsError: null,
+        });
+      } catch (error) {
+        set({
+          productsLoading: false,
+          productsError: getErrorMessage(error),
+        });
+      }
+    },
+
+    loadCurrentExecutive: async () => {
+      set({ executiveLoading: true, executiveError: null });
+      try {
+        const authUser = useAuthStore.getState().user;
+        if (authUser) {
+          set({
+            currentExecutive: mapAuthUserToExecutive({
+              id: authUser.id,
+              name: authUser.name,
+              email: authUser.email,
+              phone: authUser.phone,
+            }),
+            executiveLoading: false,
+            executiveError: null,
+          });
+          return;
+        }
+
+        const me = await authService.getMe();
+        set({
+          currentExecutive: mapAuthUserToExecutive({
+            id: me.id,
+            name: me.name,
+            email: me.email,
+            phone: me.phone,
+          }),
+          executiveLoading: false,
+          executiveError: null,
+        });
+      } catch (error) {
+        set({
+          executiveLoading: false,
+          executiveError: getErrorMessage(error),
+        });
+      }
+    },
+
+    loadActivities: async (limit = 8) => {
+      try {
+        const rows = await customerExecutiveService.getActivity(limit);
+        set({ activities: rows.map((row) => mapApiActivity(row)) });
+      } catch {
+        // Activity feed failures are non-blocking for list pages.
+      }
+    },
+
+    queryCustomers: (params) =>
+      toQueryResult(get().customers, get().customersMeta, params.page),
+
+    queryOrders: (params) =>
+      toQueryResult(get().orders, get().ordersMeta, params.page),
+
+    queryPayments: (params) =>
+      toQueryResult(get().payments, get().paymentsMeta, params.page),
+
+    queryComplaints: (params) =>
+      toQueryResult(get().complaints, get().complaintsMeta, params.page),
 
     getDashboardStats: () =>
-      computeDashboardStats(
-        get().customers,
-        get().orders,
-        get().payments,
-        get().complaints,
-        get().currentExecutive.id,
-      ),
+      get().dashboardStats ?? {
+        assignedCustomers: 0,
+        openComplaints: 0,
+        pendingPayments: 0,
+        pendingPaymentsAmount: 0,
+        avgResolutionHours: 0,
+      },
 
     getCustomer: (id) => get().customers.find((c) => c.id === id),
     getCustomerByPhone: (phone) => {
@@ -211,204 +598,147 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
         ),
 
     getCustomerActivities: (customerId) =>
-      getActivitiesForCustomer(get().activities, customerId),
-
-    getCustomerOrderStats: (customerId) =>
-      getCustomerOrderStats(get().orders, customerId),
-
-    getCustomerPendingAmount: (customerId) =>
-      getCustomerPendingAmount(get().payments, customerId),
-
-    getRecentActivities: (limit = 8) =>
-      [...get().activities]
+      get()
+        .activities.filter((a) => a.customerId === customerId)
         .sort(
           (a, b) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-        )
-        .slice(0, limit),
+        ),
+
+    getCustomerOrderStats: (customerId) => {
+      const orders = get().getCustomerOrders(customerId);
+      return {
+        totalOrders: orders.length,
+        activeOrders: orders.filter((o) => o.status === "ACTIVE").length,
+        deliveredOrders: orders.filter((o) => o.status === "DELIVERED").length,
+        totalSpent: orders.reduce((sum, order) => sum + order.amount, 0),
+      };
+    },
+
+    getCustomerPendingAmount: (customerId) =>
+      get()
+        .getCustomerPayments(customerId)
+        .filter((p) => p.status === "PENDING" || p.status === "PARTIAL")
+        .reduce((sum, p) => sum + (p.amount - p.paidAmount), 0),
+
+    getRecentActivities: (limit = 8) => get().activities.slice(0, limit),
 
     getPendingPayments: (limit = 5) =>
       get()
         .payments.filter(
           (p) => p.status === "PENDING" || p.status === "PARTIAL",
         )
-        .sort(
-          (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-        )
         .slice(0, limit),
 
-    assignExecutive: (customerIds, executiveId) => {
-      set((state) => ({
-        customers: state.customers.map((c) =>
-          customerIds.includes(c.id)
-            ? { ...c, assignedExecutiveId: executiveId }
-            : c,
-        ),
-      }));
+    lookupCustomer: async (phone) => {
+      const result = await customerExecutiveService.lookupCustomer(phone);
+      if (!result.exists || !result.customer) {
+        return { exists: false };
+      }
+      if (result.customer.assignedToOtherExecutive) {
+        return { exists: true, assignedToOtherExecutive: true };
+      }
+      const customer = mapApiCustomer(result.customer);
+      set((state) => {
+        const exists = state.customers.some((c) => c.id === customer.id);
+        return {
+          customers: exists
+            ? state.customers.map((c) => (c.id === customer.id ? customer : c))
+            : [customer, ...state.customers],
+        };
+      });
+      return { exists: true, customer };
     },
 
-    registerCustomer: (draft) => {
-      const newCustomer: CeCustomer = {
-        id: generateCustomerId(),
-        name: draft.name,
-        company: draft.company,
+    sendOtp: async (phone) => customerExecutiveService.sendOtp(phone),
+
+    verifyOtp: async (phone, otp) =>
+      customerExecutiveService.verifyOtp(phone, otp),
+
+    registerCustomer: async (draft, verificationToken) => {
+      const raw = await customerExecutiveService.registerCustomer({
         phone: draft.phone,
-        email: draft.email,
-        gst: draft.gst || undefined,
+        verificationToken,
+        fullName: draft.name,
+        email: draft.email || undefined,
+        companyName: draft.company || undefined,
+        customerType: draft.customerType,
+        gstNumber: draft.gst || undefined,
+        address: draft.address,
+        pincode: draft.pincode,
         city: draft.city,
         state: draft.state,
-        pincode: draft.pincode,
-        address: draft.address,
-        customerType: draft.customerType,
-        status: "ACTIVE",
-        assignedExecutiveId: get().currentExecutive.id,
-        creditLimit: 100000,
-        lifetimePurchase: 0,
-        createdAt: new Date().toISOString(),
-      };
-
+      });
+      const customer = mapApiCustomer(raw);
       set((state) => ({
-        customers: [newCustomer, ...state.customers],
-        activities: addActivity(state.activities, {
-          type: "CUSTOMER_REGISTERED",
-          title: "New Customer Registered",
-          description: `${newCustomer.name} from ${newCustomer.company} registered.`,
-          customerId: newCustomer.id,
-          createdAt: new Date().toISOString(),
-          createdBy: get().currentExecutive.name,
-        }),
+        customers: [customer, ...state.customers],
       }));
-
-      return newCustomer;
+      return customer;
     },
 
-    createOrder: (draft) => {
+    createOrder: async (draft) => {
       const customer = get().getCustomer(draft.customerId);
       if (!customer) throw new Error("Customer not found");
 
-      const { grandTotal } = calculateOrderTotal(draft.items);
-      const orderNumber = generateOrderNumber();
-
-      const newOrder: CeOrder = {
-        id: generateId("ord"),
-        orderNumber,
-        customerId: customer.id,
-        customerName: customer.name,
-        company: customer.company,
-        items: draft.items,
-        amount: grandTotal,
-        status: "ACTIVE",
-        orderSource: "EXECUTIVE",
-        createdAt: new Date().toISOString(),
-        eta: "Jul 12, 02:00 PM",
+      const raw = await customerExecutiveService.createOrder({
+        customerId: draft.customerId,
+        items: draft.items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+        })),
+        paymentMethod: mapPaymentMethodToApi(draft.paymentMethod),
         deliveryAddress: draft.deliveryAddress,
         deliveryPincode: draft.deliveryPincode,
-        deliveryDate: draft.deliveryDate,
-        deliveryPriority: draft.deliveryPriority,
-        paymentMethod: draft.paymentMethod,
-        trackingStep: "ORDER_CREATED",
-        hubId: "hub-1",
-      };
+        deliveryCity: customer.city,
+        deliveryState: customer.state,
+        notes: draft.deliveryPriority !== "STANDARD" ? draft.deliveryPriority : undefined,
+      });
 
-      const newPayment: CePayment = {
-        id: generateId("pay"),
-        orderId: newOrder.id,
-        orderNumber,
-        customerId: customer.id,
-        customerName: customer.name,
-        customerPhone: customer.phone,
-        amount: grandTotal,
-        paidAmount: draft.paymentMethod === "CASH" ? grandTotal : 0,
-        status: draft.paymentMethod === "CASH" ? "PAID" : "PENDING",
-        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        linkStatus: "NOT_SENT",
-        reminderCount: 0,
-        createdAt: new Date().toISOString(),
-      };
-
+      const order = mapApiOrder(raw);
       set((state) => ({
-        orders: [newOrder, ...state.orders],
-        payments: [newPayment, ...state.payments],
-        customers: state.customers.map((c) =>
-          c.id === customer.id
-            ? {
-                ...c,
-                lastOrderAt: new Date().toISOString(),
-                lifetimePurchase: c.lifetimePurchase + grandTotal,
-              }
-            : c,
-        ),
-        activities: addActivity(state.activities, {
-          type: "ORDER_CREATED",
-          title: "Order Created",
-          description: `Order #${orderNumber} placed for ${customer.name} — ₹${grandTotal.toLocaleString("en-IN")}`,
-          customerId: customer.id,
-          orderId: newOrder.id,
-          createdAt: new Date().toISOString(),
-          createdBy: get().currentExecutive.name,
-        }),
+        orders: [order, ...state.orders],
       }));
-
-      return newOrder;
+      return order;
     },
 
-    sendPaymentLink: (paymentId) => {
+    sendPaymentLink: async (paymentId) => {
+      const payment = get().payments.find((p) => p.id === paymentId);
+      if (!payment) throw new Error("Payment not found");
+      await get().sendPaymentLinkByOrderId(payment.orderId);
+    },
+
+    sendPaymentLinkByOrderId: async (orderId) => {
+      const response = await customerExecutiveService.sendPaymentLink(orderId);
       set((state) => ({
-        payments: state.payments.map((p) =>
-          p.id === paymentId
+        payments: state.payments.map((payment) =>
+          payment.orderId === orderId
             ? {
-                ...p,
+                ...payment,
                 linkStatus: "SENT" as const,
                 linkSentAt: new Date().toISOString(),
-                paymentLink:
-                  p.paymentLink ?? `https://pay.buildquick.in/${p.orderNumber}`,
-                reminderCount: p.reminderCount + 1,
+                paymentLink: response.paymentUrl,
+                reminderCount: payment.reminderCount + 1,
               }
-            : p,
+            : payment,
         ),
-        activities: addActivity(state.activities, {
-          type: "PAYMENT_LINK_SENT",
-          title: "Payment Link Sent",
-          description: `Payment link sent to ${state.payments.find((p) => p.id === paymentId)?.customerName}`,
-          paymentId,
-          customerId: state.payments.find((p) => p.id === paymentId)
-            ?.customerId,
-          createdAt: new Date().toISOString(),
-          createdBy: get().currentExecutive.name,
-        }),
       }));
     },
 
     copyPaymentLink: (paymentId) => {
       const payment = get().payments.find((p) => p.id === paymentId);
-      const link =
-        payment?.paymentLink ??
-        `https://pay.buildquick.in/${payment?.orderNumber ?? ""}`;
-      return link;
+      return payment?.paymentLink ?? "";
     },
 
-    markPaymentPaid: (paymentId) => {
-      set((state) => ({
-        payments: state.payments.map((p) =>
-          p.id === paymentId
-            ? { ...p, status: "PAID" as const, paidAmount: p.amount }
-            : p,
-        ),
-        activities: addActivity(state.activities, {
-          type: "PAYMENT_RECEIVED",
-          title: "Payment Received",
-          description: `Payment verified for Order #${state.payments.find((p) => p.id === paymentId)?.orderNumber}`,
-          paymentId,
-          customerId: state.payments.find((p) => p.id === paymentId)
-            ?.customerId,
-          orderId: state.payments.find((p) => p.id === paymentId)?.orderId,
-          createdAt: new Date().toISOString(),
-        }),
-      }));
+    markPaymentPaid: (_paymentId) => {
+      throw new Error(
+        "Payments can only be marked paid via payment provider webhook",
+      );
     },
 
-    incrementReminder: (paymentId) => {
+    incrementReminder: async (paymentId) => {
+      const payment = get().payments.find((p) => p.id === paymentId);
+      if (!payment) return;
+      await customerExecutiveService.sendPaymentReminder(payment.orderId);
       set((state) => ({
         payments: state.payments.map((p) =>
           p.id === paymentId ? { ...p, reminderCount: p.reminderCount + 1 } : p,
@@ -416,85 +746,57 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
       }));
     },
 
-    addNote: (customerId, content) => {
+    addNote: async (customerId, content) => {
+      await customerExecutiveService.updateCustomerNote(customerId, content);
       const note: CeNote = {
-        id: generateId("note"),
+        id: `note-${Date.now()}`,
         customerId,
         content,
         createdAt: new Date().toISOString(),
-        createdBy: get().currentExecutive.name,
+        createdBy: get().currentExecutive?.name ?? "Executive",
       };
-
-      set((state) => ({
-        notes: [note, ...state.notes],
-        activities: addActivity(state.activities, {
-          type: "NOTE_ADDED",
-          title: "Note Added",
-          description:
-            content.slice(0, 80) + (content.length > 80 ? "..." : ""),
-          customerId,
-          createdAt: new Date().toISOString(),
-          createdBy: get().currentExecutive.name,
-        }),
-      }));
-
+      set((state) => ({ notes: [note, ...state.notes] }));
       return note;
     },
 
     updateNote: (noteId, content) => {
       set((state) => ({
-        notes: state.notes.map((n) =>
-          n.id === noteId ? { ...n, content } : n,
+        notes: state.notes.map((note) =>
+          note.id === noteId ? { ...note, content } : note,
         ),
       }));
     },
 
     deleteNote: (noteId) => {
       set((state) => ({
-        notes: state.notes.filter((n) => n.id !== noteId),
+        notes: state.notes.filter((note) => note.id !== noteId),
       }));
     },
 
-    updateComplaintStatus: (complaintId, status) => {
+    updateComplaintStatus: async (complaintId, status, resolution) => {
+      const raw = await customerExecutiveService.updateTicket(complaintId, {
+        status: mapComplaintStatusToApi(status),
+        resolution,
+      });
+      const updated = mapApiComplaint(raw);
       set((state) => ({
-        complaints: state.complaints.map((c) =>
-          c.id === complaintId
-            ? {
-                ...c,
-                status,
-                resolvedAt:
-                  status === "RESOLVED"
-                    ? new Date().toISOString()
-                    : c.resolvedAt,
-              }
-            : c,
+        complaints: state.complaints.map((complaint) =>
+          complaint.id === complaintId ? updated : complaint,
         ),
-        activities:
-          status === "RESOLVED"
-            ? addActivity(state.activities, {
-                type: "COMPLAINT_RESOLVED",
-                title: "Complaint Resolved",
-                description: `Ticket resolved for ${state.complaints.find((c) => c.id === complaintId)?.customerName}`,
-                complaintId,
-                customerId: state.complaints.find((c) => c.id === complaintId)
-                  ?.customerId,
-                createdAt: new Date().toISOString(),
-                createdBy: get().currentExecutive.name,
-              })
-            : state.activities,
       }));
     },
 
-    addComplaintNote: (complaintId, content) => {
+    addComplaintNote: async (complaintId, content) => {
+      await customerExecutiveService.updateTicket(complaintId, { note: content });
+      const complaint = get().complaints.find((c) => c.id === complaintId);
+      if (!complaint) return;
       const note: CeNote = {
-        id: generateId("cnote"),
-        customerId:
-          get().complaints.find((c) => c.id === complaintId)?.customerId ?? "",
+        id: `cnote-${Date.now()}`,
+        customerId: complaint.customerId,
         content,
         createdAt: new Date().toISOString(),
-        createdBy: get().currentExecutive.name,
+        createdBy: get().currentExecutive?.name ?? "Executive",
       };
-
       set((state) => ({
         complaints: state.complaints.map((c) =>
           c.id === complaintId
@@ -504,61 +806,29 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
       }));
     },
 
-    createComplaint: (draft) => {
-      const customer = get().getCustomer(draft.customerId);
-      if (!customer) throw new Error("Customer not found");
-
-      const order = draft.orderId ? get().getOrder(draft.orderId) : undefined;
-
-      const newComplaint: CeComplaint = {
-        id: generateId("cmp"),
-        ticketNumber: generateTicketNumber(),
-        customerId: customer.id,
-        customerName: customer.name,
-        company: customer.company,
-        orderId: order?.id,
-        orderNumber: order?.orderNumber,
-        issue: draft.issue,
-        issueType: draft.issueType,
+    createComplaint: async (draft) => {
+      const raw = await customerExecutiveService.createTicket({
+        customerId: draft.customerId,
+        orderId: draft.orderId,
+        reason: mapIssueTypeToReason(draft.issueType),
+        subject: draft.issueType,
+        description: draft.issue,
         priority: draft.priority,
-        status: "OPEN",
-        assignedExecutiveId: get().currentExecutive.id,
-        createdAt: new Date().toISOString(),
-        internalNotes: [],
-        timeline: [],
-      };
-
+      });
+      const complaint = mapApiComplaint(raw);
       set((state) => ({
-        complaints: [newComplaint, ...state.complaints],
-        activities: addActivity(state.activities, {
-          type: "COMPLAINT_RAISED",
-          title: "Complaint Raised",
-          description: `${customer.name}: ${draft.issue.slice(0, 60)}`,
-          customerId: customer.id,
-          orderId: order?.id,
-          complaintId: newComplaint.id,
-          createdAt: new Date().toISOString(),
-          createdBy: get().currentExecutive.name,
-        }),
+        complaints: [complaint, ...state.complaints],
       }));
-
-      return newComplaint;
+      return complaint;
     },
 
-    generatePaymentLinkForCustomer: (draft) => {
-      const customer = get().getCustomer(draft.customerId);
-      if (!customer) return null;
-
-      let payment = draft.orderId
-        ? get().payments.find(
-            (p) =>
-              p.orderId === draft.orderId &&
-              (p.status === "PENDING" || p.status === "PARTIAL"),
-          )
+    generatePaymentLinkForCustomer: async (draft) => {
+      const payment = draft.orderId
+        ? get().payments.find((p) => p.orderId === draft.orderId)
         : get()
             .payments.filter(
               (p) =>
-                p.customerId === customer.id &&
+                p.customerId === draft.customerId &&
                 (p.status === "PENDING" || p.status === "PARTIAL"),
             )
             .sort(
@@ -567,43 +837,58 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
                 new Date(a.createdAt).getTime(),
             )[0];
 
-      if (!payment && draft.orderId) {
-        const order = get().getOrder(draft.orderId);
-        if (!order) return null;
-
-        payment = {
-          id: generateId("pay"),
-          orderId: order.id,
-          orderNumber: order.orderNumber,
-          customerId: customer.id,
-          customerName: customer.name,
-          customerPhone: customer.phone,
-          amount: draft.amount ?? order.amount,
-          paidAmount: 0,
-          status: "PENDING",
-          dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          linkStatus: "NOT_SENT",
-          reminderCount: 0,
-          createdAt: new Date().toISOString(),
-        };
-
-        set((state) => ({
-          payments: [payment!, ...state.payments],
-        }));
-      }
-
       if (!payment) return null;
-
-      get().sendPaymentLink(payment.id);
-      return get().payments.find((p) => p.id === payment!.id) ?? payment;
+      await get().sendPaymentLinkByOrderId(payment.orderId);
+      return get().payments.find((p) => p.id === payment.id) ?? payment;
     },
 
     markNotificationRead: (notificationId) => {
       set((state) => ({
-        notifications: state.notifications.map((n) =>
-          n.id === notificationId ? { ...n, read: true } : n,
+        notifications: state.notifications.map((notification) =>
+          notification.id === notificationId
+            ? { ...notification, read: true }
+            : notification,
         ),
       }));
+    },
+
+    searchTracking: async (q) => {
+      const rows = await customerExecutiveService.searchTracking(q);
+      const orders = rows.map((row) => mapApiOrder(row));
+      set((state) => {
+        const merged = [...state.orders];
+        for (const order of orders) {
+          const index = merged.findIndex((item) => item.id === order.id);
+          if (index >= 0) merged[index] = order;
+          else merged.unshift(order);
+        }
+        return { orders: merged };
+      });
+      return orders;
+    },
+
+    loadOrderDetailFromApi: async (id) => {
+      try {
+        const raw = await customerExecutiveService.getOrderById(id);
+        const mapped = mapBackendOrderToCeOrder(raw as never);
+        set((state) => {
+          const exists = state.orders.some((order) => order.id === mapped.id);
+          return {
+            orders: exists
+              ? state.orders.map((order) =>
+                  order.id === mapped.id ? mapped : order,
+                )
+              : [mapped, ...state.orders],
+          };
+        });
+        return mapped;
+      } catch {
+        return get().getOrder(id) ?? null;
+      }
+    },
+
+    loadOrdersFromApi: async () => {
+      await get().loadOrders({ page: 1, limit: 100 });
     },
   }),
 );

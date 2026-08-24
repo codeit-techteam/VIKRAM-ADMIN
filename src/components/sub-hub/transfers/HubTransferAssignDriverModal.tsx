@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { formatHubTransferDateTime } from "@/mock/hub-transfers";
+import { formatHubTransferDateTime } from "@/constants/sub-hub-ops.constants";
 import type { HubTransferFleetDriver } from "@/types/hub-transfer.types";
 import { cn } from "@/lib/utils";
 

@@ -59,6 +59,11 @@ export function HubProfileHeader({
               </span>
             </span>
           </div>
+          {hub.routingWarning ? (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Hub location/radius incomplete — this hub will not receive new orders until coordinates and a valid service radius are set.
+            </p>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2">

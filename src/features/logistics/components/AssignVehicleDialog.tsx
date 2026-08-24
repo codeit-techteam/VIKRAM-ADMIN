@@ -8,14 +8,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useLogisticsStore } from "@/store/logistics-store";
+import {
+  useAssignOrderDriver,
+  useAssignWarehouseLogistics,
+} from "@/features/logistics/hooks/use-logistics";
+import { useVehicles } from "@/features/logistics/hooks/use-vehicles";
 import { notify } from "@/utils/notify";
 
 interface AssignVehicleDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Database UUID of requisition/order */
   targetId: string;
+  /** Human-readable label for UI */
+  targetLabel?: string;
   targetType: "warehouse" | "customer" | "dispatch";
+  /** Optional paired driver for customer assign */
+  driverId?: string | null;
   onAssigned?: () => void;
 }
 
@@ -23,28 +32,71 @@ export function AssignVehicleDialog({
   open,
   onOpenChange,
   targetId,
+  targetLabel,
   targetType,
+  driverId,
   onAssigned,
 }: AssignVehicleDialogProps) {
-  const vehicles = useLogisticsStore((s) => s.vehicles);
-  const assignVehicleToShipment = useLogisticsStore(
-    (s) => s.assignVehicleToShipment,
-  );
-  const assignVehicleToDispatch = useLogisticsStore(
-    (s) => s.assignVehicleToDispatch,
-  );
+  const { data: vehiclesData, isLoading } = useVehicles({
+    page: 1,
+    limit: 50,
+    status: "AVAILABLE",
+  });
+  const assignWarehouse = useAssignWarehouseLogistics();
+  const assignOrder = useAssignOrderDriver();
 
-  const availableVehicles = vehicles.filter((v) => v.status === "available");
+  const availableVehicles = vehiclesData?.vehicles ?? [];
+  const busy =
+    assignWarehouse.isPending || assignOrder.isPending;
 
-  const handleAssign = (vehicleId: string) => {
-    if (targetType === "dispatch") {
-      assignVehicleToDispatch(targetId, vehicleId);
-    } else {
-      assignVehicleToShipment(targetId, vehicleId, targetType);
+  const handleAssign = async (vehicleId: string) => {
+    try {
+      if (targetType === "warehouse") {
+        await assignWarehouse.mutateAsync({
+          requisitionId: targetId,
+          vehicleId,
+        });
+      } else if (targetType === "dispatch") {
+        // Dispatch board may be warehouse transfer or customer order.
+        // Prefer warehouse assign-logistics; if a driver is already known, treat as order.
+        if (driverId) {
+          await assignOrder.mutateAsync({
+            orderId: targetId,
+            driverId,
+            vehicleId,
+          });
+        } else {
+          await assignWarehouse.mutateAsync({
+            requisitionId: targetId,
+            vehicleId,
+          });
+        }
+      } else {
+        if (!driverId) {
+          notify.error(
+            "Driver required",
+            "Assign a driver before or with the vehicle.",
+          );
+          return;
+        }
+        await assignOrder.mutateAsync({
+          orderId: targetId,
+          driverId,
+          vehicleId,
+        });
+      }
+      notify.success(
+        "Vehicle Assigned",
+        `${targetLabel ?? targetId} updated successfully.`,
+      );
+      onOpenChange(false);
+      onAssigned?.();
+    } catch (err) {
+      notify.error(
+        "Assignment failed",
+        err instanceof Error ? err.message : "Could not assign vehicle",
+      );
     }
-    notify.success("Vehicle Assigned", `${targetId} updated successfully.`);
-    onOpenChange(false);
-    onAssigned?.();
   };
 
   return (
@@ -55,9 +107,12 @@ export function AssignVehicleDialog({
         </DialogHeader>
         <div className="space-y-3 py-2">
           <p className="text-sm text-[#64748B]">
-            Select an available vehicle for <strong>{targetId}</strong>
+            Select an available vehicle for{" "}
+            <strong>{targetLabel ?? targetId}</strong>
           </p>
-          {availableVehicles.length === 0 ? (
+          {isLoading ? (
+            <p className="text-sm text-[#64748B]">Loading vehicles…</p>
+          ) : availableVehicles.length === 0 ? (
             <p className="text-sm text-amber-600">No vehicles available.</p>
           ) : (
             <div className="max-h-64 space-y-2 overflow-y-auto">
@@ -65,8 +120,9 @@ export function AssignVehicleDialog({
                 <button
                   key={vehicle.id}
                   type="button"
-                  onClick={() => handleAssign(vehicle.id)}
-                  className="hover:border-primary/30 flex w-full items-center justify-between rounded-lg border border-gray-100 p-3 text-left transition-colors hover:bg-orange-50/50"
+                  disabled={busy}
+                  onClick={() => void handleAssign(vehicle.id)}
+                  className="hover:border-primary/30 flex w-full items-center justify-between rounded-lg border border-gray-100 p-3 text-left transition-colors hover:bg-orange-50/50 disabled:opacity-50"
                 >
                   <div>
                     <p className="text-sm font-medium text-[#1A1A1A]">

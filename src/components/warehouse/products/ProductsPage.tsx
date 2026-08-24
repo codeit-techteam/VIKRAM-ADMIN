@@ -1,9 +1,10 @@
 "use client";
 
 import { Plus, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
+import { SafeRemoteImage } from "@/components/shared/SafeRemoteImage";
 import { DataTableSkeleton } from "@/components/tables/data-table-skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,11 +25,15 @@ import {
 } from "@/components/ui/table";
 import { CreateProductDialog } from "@/components/warehouse/products/CreateProductDialog";
 import {
-  WAREHOUSE_PRODUCTS,
   WAREHOUSE_PRODUCT_CATEGORIES,
   type WarehouseProduct,
 } from "@/mock/warehouse-products";
 import { cn } from "@/lib/utils";
+import {
+  catalogService,
+  type CatalogProduct,
+} from "@/services/catalog.service";
+import { notify } from "@/utils/notify";
 
 const statusStyles: Record<WarehouseProduct["status"], string> = {
   ACTIVE: "bg-emerald-100 text-emerald-700",
@@ -36,13 +41,59 @@ const statusStyles: Record<WarehouseProduct["status"], string> = {
   INACTIVE: "bg-gray-100 text-gray-600",
 };
 
+function getPrimaryImageUrl(product: CatalogProduct): string | undefined {
+  const urls = (product.images ?? [])
+    .map((img) => img.url?.trim())
+    .filter((url): url is string => Boolean(url) && url.startsWith("http"));
+  const primary =
+    product.images?.find((img) => img.isPrimary && img.url?.startsWith("http"))
+      ?.url ||
+    urls.find((url) => url.includes("r2.dev")) ||
+    urls[0];
+  return primary || undefined;
+}
+
 export function ProductsPage() {
-  const [isLoading] = useState(false);
-  const [products, setProducts] =
-    useState<WarehouseProduct[]>(WAREHOUSE_PRODUCTS);
+  const [isLoading, setIsLoading] = useState(true);
+  const [products, setProducts] = useState<WarehouseProduct[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    catalogService
+      .listProducts({ page: 1, limit: 1000 })
+      .then((result) => {
+        if (!active) return;
+        setProducts(
+          result.data.map((product) => ({
+            id: product.id,
+            name: product.name,
+            sku: product.sku ?? "—",
+            category: product.category?.name ?? "Uncategorized",
+            brand: product.brand ?? "—",
+            unit: product.unit,
+            stockUnits: product.stockLeft ?? 0,
+            imageUrl: getPrimaryImageUrl(product),
+            status:
+              product.entityStatus === "INACTIVE" ||
+              product.status === "INACTIVE"
+                ? "INACTIVE"
+                : (product.stockLeft ?? 0) <= 0
+                  ? "LOW_STOCK"
+                  : "ACTIVE",
+          })),
+        );
+      })
+      .catch(() =>
+        notify.error("Products unavailable", "Unable to load product catalog."),
+      )
+      .finally(() => active && setIsLoading(false));
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const filteredProducts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -118,7 +169,7 @@ export function ProductsPage() {
 
         {isLoading ? (
           <div className="p-4">
-            <DataTableSkeleton columns={7} rows={6} />
+            <DataTableSkeleton columns={8} rows={6} />
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="p-8">
@@ -132,6 +183,9 @@ export function ProductsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-16 text-xs font-semibold tracking-wide text-[#64748B] uppercase">
+                    Image
+                  </TableHead>
                   <TableHead className="text-xs font-semibold tracking-wide text-[#64748B] uppercase">
                     Product
                   </TableHead>
@@ -161,6 +215,17 @@ export function ProductsPage() {
                     key={product.id}
                     className="transition-colors hover:bg-orange-50/40"
                   >
+                    <TableCell>
+                      <div className="relative size-10 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+                        <SafeRemoteImage
+                          src={product.imageUrl}
+                          alt={product.name}
+                          fill
+                          className="object-cover"
+                          sizes="40px"
+                        />
+                      </div>
+                    </TableCell>
                     <TableCell className="font-medium text-[#1A1A1A]">
                       {product.name}
                     </TableCell>

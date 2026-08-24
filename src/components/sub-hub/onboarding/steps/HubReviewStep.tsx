@@ -8,13 +8,12 @@ import {
   Pencil,
   Truck,
   UserRound,
-  Warehouse,
 } from "lucide-react";
 import { useMemo } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
-import { hubTypeLabel } from "@/mock/hub-onboarding";
+import { hubTypeLabel, MAIN_WAREHOUSE } from "@/mock/hub-onboarding";
 import type { HubFormSchema } from "@/schema/hub-form.schema";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +25,6 @@ export function HubReviewStep({ onEditStep }: HubReviewStepProps) {
   const { control } = useFormContext<HubFormSchema>();
   const basic = useWatch({ control, name: "basic" });
   const inventory = useWatch({ control, name: "inventory" });
-  const warehouse = useWatch({ control, name: "warehouse" });
   const manager = useWatch({ control, name: "manager" });
   const fleet = useWatch({ control, name: "fleet" });
   const coverage = useWatch({ control, name: "coverage" });
@@ -40,7 +38,6 @@ export function HubReviewStep({ onEditStep }: HubReviewStepProps) {
 
     if (!basic?.hubName?.trim()) errors.push("Hub name missing");
     if (!basic?.detailedAddress?.trim()) errors.push("Address missing");
-    if (!warehouse?.warehouseId) errors.push("Warehouse not selected");
     if (!manager?.fullName?.trim()) errors.push("Manager not assigned");
     if (!manager?.credentialsGenerated)
       errors.push("Credentials not generated");
@@ -57,7 +54,7 @@ export function HubReviewStep({ onEditStep }: HubReviewStepProps) {
     const score = Math.max(0, 100 - errors.length * 12 - warnings.length * 4);
 
     return { errors, warnings, score };
-  }, [basic, warehouse, manager, fleet, coverage, selectedSkus]);
+  }, [basic, manager, fleet, coverage, selectedSkus]);
 
   const cards = [
     {
@@ -68,18 +65,7 @@ export function HubReviewStep({ onEditStep }: HubReviewStepProps) {
         basic?.hubName || "Untitled hub",
         `${basic?.city || "—"}, ${basic?.state || "—"}`,
         hubTypeLabel(basic?.hubType ?? "distribution-center"),
-      ],
-    },
-    {
-      step: 3,
-      title: "Warehouse",
-      icon: Warehouse,
-      lines: [
-        warehouse?.warehouseName || "—",
-        `Distance: ${warehouse?.distanceKm ?? 0} km`,
-        warehouse?.autoRestocking
-          ? "• Auto-restock enabled"
-          : "• Manual restock",
+        `Warehouse: ${MAIN_WAREHOUSE.name}`,
       ],
     },
     {
@@ -88,17 +74,17 @@ export function HubReviewStep({ onEditStep }: HubReviewStepProps) {
       icon: Boxes,
       lines: [
         `${selectedSkus} SKUs Mapped`,
-        `Sync Frequency: 5 Mins`,
-        `Auto-reorder Level: ${warehouse?.restockThresholdPercent ?? 20}%`,
+        `Status: ${basic?.isActive ? "Active on create" : "Inactive"}`,
+        "Catalog-backed stock allocation",
       ],
     },
     {
-      step: 4,
+      step: 3,
       title: "Hub Manager",
       icon: UserRound,
       lines: [
         manager?.fullName || "Pending",
-        manager?.employeeId || "—",
+        manager?.generatedUsername || manager?.employeeId || "—",
         manager?.email || "—",
       ],
       avatar: (manager?.fullName || "NA")
@@ -109,17 +95,17 @@ export function HubReviewStep({ onEditStep }: HubReviewStepProps) {
         .toUpperCase(),
     },
     {
-      step: 5,
+      step: 4,
       title: "Fleet Setup",
       icon: Truck,
       lines: [
         `${fleet?.vehicles?.length ?? 0} Vehicles Linked`,
         `${fleet?.drivers?.length ?? 0} Drivers · ${fleet?.deliverySlots?.length ?? 0} Shifts`,
-        "Fuel Card Integration: Active",
+        "Drivers saved to hub on create",
       ],
     },
     {
-      step: 6,
+      step: 5,
       title: "Coverage",
       icon: MapPinned,
       lines: [
@@ -138,8 +124,8 @@ export function HubReviewStep({ onEditStep }: HubReviewStepProps) {
             Review Hub Configuration
           </h1>
           <p className="mt-1 text-sm text-[#64748B]">
-            Finalize your warehouse settings and operational logistics before
-            launching.
+            Confirm hub, inventory, manager, drivers, and coverage before
+            publishing to the database.
           </p>
         </div>
         <span

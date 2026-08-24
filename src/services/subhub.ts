@@ -5,42 +5,31 @@ import type {
   PaginatedResponse,
   PaginationParams,
 } from "@/types/api";
+import { hubsService } from "@/services/hubs.service";
 
+/** @deprecated Prefer hubsService — kept for compatibility */
 export const subhubService = {
   getAll: async (
     params?: PaginationParams,
   ): Promise<PaginatedResponse<unknown>> => {
-    const { data } = await api.get<ApiResponse<PaginatedResponse<unknown>>>(
-      API_ENDPOINTS.SUBHUB.BASE,
-      { params },
-    );
-    return data.data;
+    return hubsService.list(params);
   },
 
   getById: async (id: string): Promise<unknown> => {
-    const { data } = await api.get<ApiResponse<unknown>>(
-      API_ENDPOINTS.SUBHUB.BY_ID(id),
-    );
-    return data.data;
+    return hubsService.getById(id);
   },
 
   create: async (payload: unknown): Promise<unknown> => {
-    const { data } = await api.post<ApiResponse<unknown>>(
-      API_ENDPOINTS.SUBHUB.BASE,
-      payload,
-    );
-    return data.data;
+    return hubsService.create(payload);
   },
 
   update: async (id: string, payload: unknown): Promise<unknown> => {
-    const { data } = await api.put<ApiResponse<unknown>>(
-      API_ENDPOINTS.SUBHUB.BY_ID(id),
-      payload,
-    );
-    return data.data;
+    return hubsService.update(id, payload);
   },
 
   delete: async (id: string): Promise<void> => {
-    await api.delete(API_ENDPOINTS.SUBHUB.BY_ID(id));
+    await hubsService.delete(id);
   },
+
+  provision: hubsService.provision,
 };

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Calendar, Download, Plus } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { InventoryDetailSheet } from "@/components/inventory/InventoryDetailSheet";
@@ -21,10 +21,10 @@ import {
   formatInventoryItemsCount,
   getAvailableStock,
   getInventoryStockStatus,
-  INVENTORY_CATEGORY_FILTERS,
   INVENTORY_PAGE_SIZE,
 } from "@/mock/inventory";
-import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
+import { catalogService } from "@/services/catalog.service";
+import { warehouseService } from "@/services/warehouse";
 import type {
   InventoryCategoryFilter,
   InventoryItem,
@@ -45,6 +45,14 @@ const STAT_STATUS_MAP: Partial<
   "low-stock-alerts": "low-stock",
   "out-of-stock-items": "out-of-stock",
 };
+
+function slugifyCategory(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
 
 function downloadInventoryCsv(items: InventoryItem[]) {
   const header = [
@@ -93,9 +101,13 @@ function downloadInventoryCsv(items: InventoryItem[]) {
 
 export function InventoryPage() {
   const searchParams = useSearchParams();
-  const inventoryItems = useWarehouseErpStore((state) => state.inventory);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [categoryFilters, setCategoryFilters] = useState<
+    InventoryCategoryFilter[]
+  >([{ id: "all", label: "All Categories", slug: "all" }]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] =
     useState<InventoryCategoryFilter["slug"]>("all");
   const [activeStat, setActiveStat] = useState<InventoryStatKey | null>(null);
@@ -103,20 +115,93 @@ export function InventoryPage() {
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 600);
-    return () => window.clearTimeout(timer);
+  const loadInventory = useCallback(async (background = false) => {
+    if (background) setIsRefreshing(true);
+    else setIsLoading(true);
+    try {
+      const [result, categories] = await Promise.all([
+        warehouseService.listInventory({
+          page: 1,
+          limit: 10000,
+        }),
+        catalogService.listCategories().catch(() => []),
+      ]);
+      setInventoryItems(result.data);
+
+      const inventorySlugs = new Set(
+        result.data
+          .map((item) => item.categorySlug)
+          .filter((slug): slug is string => Boolean(slug)),
+      );
+
+      const fromCatalog: InventoryCategoryFilter[] = categories
+        .filter((category) => category.isVisible !== false)
+        .map((category) => {
+          const slug =
+            category.slug?.trim() ||
+            slugifyCategory(category.name) ||
+            category.id;
+          return {
+            id: category.id,
+            label: category.name,
+            slug,
+          };
+        })
+        .filter((category) => inventorySlugs.has(category.slug))
+        .sort((a, b) => a.label.localeCompare(b.label));
+
+      // Fallback: derive tabs from inventory when catalog has no matching slugs
+      const fromInventory: InventoryCategoryFilter[] = Array.from(
+        result.data.reduce((map, item) => {
+          if (!item.categorySlug || map.has(item.categorySlug)) return map;
+          map.set(item.categorySlug, {
+            id: item.categorySlug,
+            label: item.category || item.categorySlug,
+            slug: item.categorySlug,
+          });
+          return map;
+        }, new Map<string, InventoryCategoryFilter>()),
+      )
+        .map(([, filter]) => filter)
+        .sort((a, b) => a.label.localeCompare(b.label));
+
+      setCategoryFilters([
+        { id: "all", label: "All Categories", slug: "all" },
+        ...(fromCatalog.length > 0 ? fromCatalog : fromInventory),
+      ]);
+      setLoadError(null);
+    } catch {
+      setLoadError("Unable to load warehouse inventory.");
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
   }, []);
 
   useEffect(() => {
-    if (searchParams.get("alert") === "low-stock") {
+    void loadInventory();
+    const interval = window.setInterval(() => void loadInventory(true), 30000);
+    const onFocus = () => void loadInventory(true);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [loadInventory]);
+
+  useEffect(() => {
+    const status = searchParams.get("status");
+    if (searchParams.get("alert") === "low-stock" || status === "LOW_STOCK") {
       setActiveStat("low-stock-alerts");
+      setCurrentPage(1);
+    } else if (status === "OUT_OF_STOCK") {
+      setActiveStat("out-of-stock-items");
       setCurrentPage(1);
     }
   }, [searchParams]);
 
   const stats = useMemo(
-    () => computeInventoryStats(inventoryItems),
+    () => computeInventoryStats(inventoryItems, inventoryItems.length),
     [inventoryItems],
   );
 
@@ -190,6 +275,15 @@ export function InventoryPage() {
     }
   }, [currentPage, totalPages]);
 
+  useEffect(() => {
+    if (
+      activeCategory !== "all" &&
+      !categoryFilters.some((category) => category.slug === activeCategory)
+    ) {
+      setActiveCategory("all");
+    }
+  }, [activeCategory, categoryFilters]);
+
   const handleCategoryChange = (slug: InventoryCategoryFilter["slug"]) => {
     setActiveCategory(slug);
     setActiveStat(null);
@@ -207,17 +301,25 @@ export function InventoryPage() {
     setCurrentPage(1);
   };
 
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    window.setTimeout(() => setIsRefreshing(false), 800);
-  };
+  const handleRefresh = () => void loadInventory(true);
 
-  const handleExportCsv = () => {
-    downloadInventoryCsv(filteredItems);
-    notify.success(
-      "Export started",
-      `${filteredItems.length} inventory item${filteredItems.length === 1 ? "" : "s"} exported as CSV.`,
-    );
+  const handleExportCsv = async () => {
+    try {
+      const blob = await warehouseService.exportInventory();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `central-warehouse-inventory-${Date.now()}.csv`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      notify.success("Export started", "Warehouse inventory CSV downloaded.");
+    } catch {
+      downloadInventoryCsv(filteredItems);
+      notify.warning(
+        "API export unavailable",
+        "Exported the currently loaded inventory instead.",
+      );
+    }
   };
 
   const handleViewItem = (item: InventoryItem) => {
@@ -286,6 +388,11 @@ export function InventoryPage() {
       </div>
 
       <div className="space-y-4">
+        {loadError ? (
+          <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {loadError}
+          </div>
+        ) : null}
         <InventoryTable
           items={paginatedItems}
           isLoading={isLoading}
@@ -297,7 +404,7 @@ export function InventoryPage() {
           onEditItem={handleEditItem}
           header={
             <InventoryFilters
-              categories={INVENTORY_CATEGORY_FILTERS}
+              categories={categoryFilters}
               activeCategory={activeCategory}
               onCategoryChange={handleCategoryChange}
               onAdvancedFilter={() => {}}

@@ -21,8 +21,8 @@ import {
   estimateHouseholdReach,
   HUB_CAPACITY_OPTIONS,
   HUB_TYPE_OPTIONS,
-  HUB_WAREHOUSE_OPTIONS,
   INDIAN_STATES,
+  MAIN_WAREHOUSE,
   WEEK_DAYS,
 } from "@/mock/hub-onboarding";
 import type { HubFormSchema } from "@/schema/hub-form.schema";
@@ -39,36 +39,32 @@ export function HubBasicInfoStep() {
   const updateCoverage = useHubDraftStore((s) => s.updateCoverage);
 
   const state = useWatch({ control, name: "basic.state" });
-  const warehouseId = useWatch({ control, name: "basic.linkedWarehouseId" });
   const coverageRadius = useWatch({ control, name: "basic.coverageRadiusKm" });
   const workingDays = useWatch({ control, name: "basic.workingDays" }) ?? [];
   const hubName = useWatch({ control, name: "basic.hubName" });
 
   useEffect(() => {
-    const warehouse = HUB_WAREHOUSE_OPTIONS.find(
-      (item) => item.id === warehouseId,
-    );
-    if (!warehouse) return;
-    setValue("basic.linkedWarehouseName", warehouse.name);
-    setValue("warehouse.warehouseId", warehouse.id);
-    setValue("warehouse.warehouseName", warehouse.name);
-    setValue("warehouse.distanceKm", warehouse.distanceKm);
-    setValue("warehouse.transferTimeMins", warehouse.transferTimeMins);
-    setValue("warehouse.priority", warehouse.priority);
-    setValue("warehouse.contacts", [...warehouse.contacts]);
+    setValue("basic.linkedWarehouseId", MAIN_WAREHOUSE.id);
+    setValue("basic.linkedWarehouseName", MAIN_WAREHOUSE.name);
+    setValue("warehouse.warehouseId", MAIN_WAREHOUSE.id);
+    setValue("warehouse.warehouseName", MAIN_WAREHOUSE.name);
+    setValue("warehouse.distanceKm", MAIN_WAREHOUSE.distanceKm);
+    setValue("warehouse.transferTimeMins", MAIN_WAREHOUSE.transferTimeMins);
+    setValue("warehouse.priority", MAIN_WAREHOUSE.priority);
+    setValue("warehouse.contacts", [...MAIN_WAREHOUSE.contacts]);
     updateBasic({
-      linkedWarehouseId: warehouse.id,
-      linkedWarehouseName: warehouse.name,
+      linkedWarehouseId: MAIN_WAREHOUSE.id,
+      linkedWarehouseName: MAIN_WAREHOUSE.name,
     });
     updateWarehouse({
-      warehouseId: warehouse.id,
-      warehouseName: warehouse.name,
-      distanceKm: warehouse.distanceKm,
-      transferTimeMins: warehouse.transferTimeMins,
-      priority: warehouse.priority,
-      contacts: [...warehouse.contacts],
+      warehouseId: MAIN_WAREHOUSE.id,
+      warehouseName: MAIN_WAREHOUSE.name,
+      distanceKm: MAIN_WAREHOUSE.distanceKm,
+      transferTimeMins: MAIN_WAREHOUSE.transferTimeMins,
+      priority: MAIN_WAREHOUSE.priority,
+      contacts: [...MAIN_WAREHOUSE.contacts],
     });
-  }, [warehouseId, setValue, updateBasic, updateWarehouse]);
+  }, [setValue, updateBasic, updateWarehouse]);
 
   useEffect(() => {
     setValue("coverage.radiusKm", coverageRadius);
@@ -380,38 +376,17 @@ export function HubBasicInfoStep() {
         <FormSectionCard icon={Clock} title="Operational Hours">
           <div className="space-y-5">
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              <Controller
-                control={control}
-                name="basic.linkedWarehouseId"
-                render={({ field, fieldState }) => (
-                  <div className="space-y-2">
-                    <Label className={fieldLabel}>Linked Warehouse *</Label>
-                    <Select
-                      value={field.value}
-                      onValueChange={(value) => {
-                        if (!value) return;
-                        field.onChange(value);
-                      }}
-                    >
-                      <SelectTrigger className="h-10 w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {HUB_WAREHOUSE_OPTIONS.map((warehouse) => (
-                          <SelectItem key={warehouse.id} value={warehouse.id}>
-                            {warehouse.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {fieldState.error && (
-                      <p className="text-destructive text-sm">
-                        {fieldState.error.message}
-                      </p>
-                    )}
-                  </div>
-                )}
-              />
+              <div className="space-y-2">
+                <Label className={fieldLabel}>Linked Warehouse</Label>
+                <Input
+                  value={MAIN_WAREHOUSE.name}
+                  readOnly
+                  className="h-10 bg-gray-50"
+                />
+                <p className="text-xs text-gray-500">
+                  All hubs are linked to Main Warehouse, Gurugram in this phase.
+                </p>
+              </div>
 
               <Controller
                 control={control}
@@ -538,12 +513,12 @@ export function HubBasicInfoStep() {
           </div>
           <div className="space-y-2 text-sm text-gray-600">
             <p>
-              Step <span className="font-semibold text-[#1A1A1A]">1 of 7</span>
+              Step <span className="font-semibold text-[#1A1A1A]">1 of 6</span>
             </p>
             <p>Last Saved: Auto-saving</p>
             <p>
-              Assignee:{" "}
-              <span className="font-medium text-[#1A1A1A]">Rohan Sharma</span>
+              Hub Manager:{" "}
+              <span className="font-medium text-amber-700">Unassigned</span>
             </p>
           </div>
         </div>

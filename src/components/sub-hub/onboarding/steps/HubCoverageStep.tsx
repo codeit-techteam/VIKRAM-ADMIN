@@ -8,6 +8,7 @@ import {
   PenLine,
   Plus,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useEffect } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 
@@ -17,6 +18,21 @@ import type { HubFormSchema } from "@/schema/hub-form.schema";
 import { useHubDraftStore } from "@/store/hub-draft-store";
 import { cn } from "@/lib/utils";
 
+const HubCoverageMap = dynamic(
+  () =>
+    import("@/components/sub-hub/onboarding/HubCoverageMap").then(
+      (mod) => mod.HubCoverageMap,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex size-full items-center justify-center bg-slate-100 text-sm text-gray-500">
+        Loading map…
+      </div>
+    ),
+  },
+);
+
 export function HubCoverageStep() {
   const { control, setValue } = useFormContext<HubFormSchema>();
   const updateCoverage = useHubDraftStore((s) => s.updateCoverage);
@@ -25,6 +41,8 @@ export function HubCoverageStep() {
   const radiusKm = useWatch({ control, name: "coverage.radiusKm" }) ?? 15;
   const mode = useWatch({ control, name: "coverage.mode" });
   const pincodes = useWatch({ control, name: "coverage.pincodes" }) ?? [];
+  const latitude = useWatch({ control, name: "coverage.latitude" }) ?? 28.6139;
+  const longitude = useWatch({ control, name: "coverage.longitude" }) ?? 77.209;
   const estimatedCustomers = useWatch({
     control,
     name: "coverage.estimatedCustomers",
@@ -42,8 +60,6 @@ export function HubCoverageStep() {
   const avgTransitMins = useWatch({ control, name: "coverage.avgTransitMins" });
   const peakDelayMins = useWatch({ control, name: "coverage.peakDelayMins" });
   const fuelEfficiency = useWatch({ control, name: "coverage.fuelEfficiency" });
-  const polygonPoints =
-    useWatch({ control, name: "coverage.polygonPoints" }) ?? [];
 
   useEffect(() => {
     const metrics = computeCoverageMetrics(radiusKm);
@@ -59,24 +75,19 @@ export function HubCoverageStep() {
     updateBasic({ coverageRadiusKm: radiusKm });
   }, [radiusKm, setValue, updateBasic, updateCoverage]);
 
-  const polygonPath = polygonPoints
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
-    .concat("Z")
-    .join(" ");
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-primary text-xs font-semibold tracking-wider uppercase">
-            Step 06/07
+            Step 05/06
           </p>
           <h1 className="mt-1 text-2xl font-bold text-[#1A1A1A]">
             Service Area Coverage
           </h1>
           <p className="mt-1 text-sm text-[#64748B]">
             Define the geographic boundaries for your hub&apos;s delivery
-            operations.
+            operations. Customers within this radius are auto-assigned here.
           </p>
         </div>
         <div className="rounded-xl border border-orange-100 bg-orange-50 px-4 py-3">
@@ -175,11 +186,14 @@ export function HubCoverageStep() {
                 </span>
               ))}
             </div>
+            <p className="mt-3 text-xs text-gray-500">
+              Center: {latitude.toFixed(4)}, {longitude.toFixed(4)}
+            </p>
           </div>
         </div>
 
-        <div className="relative min-h-[420px] overflow-hidden rounded-xl border border-gray-100 bg-[linear-gradient(145deg,#f8fafc_0%,#fff7ed_45%,#e2e8f0_100%)] shadow-sm">
-          <div className="absolute top-4 left-4 z-10 flex flex-wrap gap-2">
+        <div className="relative min-h-[420px] overflow-hidden rounded-xl border border-gray-100 bg-slate-100 shadow-sm">
+          <div className="absolute top-4 left-4 z-[500] flex flex-wrap gap-2">
             <Button
               type="button"
               size="sm"
@@ -208,34 +222,17 @@ export function HubCoverageStep() {
             </Button>
           </div>
 
-          <svg viewBox="0 0 100 100" className="absolute inset-0 size-full">
-            <path
-              d={polygonPath}
-              fill="rgba(255,107,0,0.12)"
-              stroke="#ff6b00"
-              strokeWidth="0.8"
-              strokeDasharray="2 1.5"
-            />
-            <circle cx="50" cy="50" r="2.2" fill="#9a3412" />
-            <circle
-              cx="50"
-              cy="50"
-              r={Math.min(35, radiusKm * 0.9)}
-              fill="none"
-              stroke="rgba(255,107,0,0.35)"
-              strokeWidth="0.6"
-            />
-          </svg>
+          <HubCoverageMap
+            latitude={latitude}
+            longitude={longitude}
+            radiusKm={radiusKm}
+          />
 
-          <div className="absolute top-[46%] left-[42%] rounded-md bg-[#1A1A1A] px-2 py-1 text-[10px] font-semibold tracking-wider text-white uppercase shadow">
-            Main Hub Center
-          </div>
-          <div className="absolute top-[58%] left-[55%] flex items-center gap-1 text-xs font-medium text-[#9A3412]">
-            <MapPinned className="size-3.5" />
-            DL-{pincodes[0] || "110001"}
+          <div className="absolute top-4 right-4 z-[500] rounded-md bg-[#1A1A1A] px-2 py-1 text-[10px] font-semibold tracking-wider text-white uppercase shadow">
+            Hub Marker · {radiusKm} KM
           </div>
 
-          <div className="absolute right-4 bottom-4 flex flex-col gap-2">
+          <div className="absolute right-4 bottom-4 z-[500] flex flex-col gap-2">
             {[Plus, Minus, Crosshair].map((Icon, index) => (
               <button
                 key={index}

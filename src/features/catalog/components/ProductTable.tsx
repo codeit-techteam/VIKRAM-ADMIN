@@ -7,9 +7,9 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { Pencil, Trash2 } from "lucide-react";
-import Image from "next/image";
 import { useMemo } from "react";
 
+import { SafeRemoteImage } from "@/components/shared/SafeRemoteImage";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { StockLevelBar } from "@/components/shared/StockLevelBar";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,8 @@ import type {
 interface ProductTableProps {
   products: Product[];
   onLiveToggle: (productId: string, isLive: boolean) => void;
+  onEdit: (productId: string) => void;
+  onDelete: (productId: string) => void;
 }
 
 const columnHelper = createColumnHelper<Product>();
@@ -44,7 +46,12 @@ function formatPrice(price: number): string {
   return new Intl.NumberFormat("en-IN").format(price);
 }
 
-export function ProductTable({ products, onLiveToggle }: ProductTableProps) {
+export function ProductTable({
+  products,
+  onLiveToggle,
+  onEdit,
+  onDelete,
+}: ProductTableProps) {
   const columns = useMemo(
     () => [
       columnHelper.display({
@@ -56,7 +63,7 @@ export function ProductTable({ products, onLiveToggle }: ProductTableProps) {
           return (
             <div className="flex items-center gap-3">
               <div className="relative size-10 shrink-0 overflow-hidden rounded-lg bg-gray-100">
-                <Image
+                <SafeRemoteImage
                   src={product.thumbnailUrl}
                   alt={product.name}
                   fill
@@ -139,17 +146,21 @@ export function ProductTable({ products, onLiveToggle }: ProductTableProps) {
         cell: ({ row }) => (
           <div className="flex items-center gap-1">
             <Button
+              type="button"
               variant="ghost"
               size="icon-sm"
               className="size-8 text-gray-400 hover:text-[#1A1A1A]"
+              onClick={() => onEdit(row.original.id)}
             >
               <Pencil className="size-4" />
               <span className="sr-only">Edit {row.original.name}</span>
             </Button>
             <Button
+              type="button"
               variant="ghost"
               size="icon-sm"
               className="size-8 text-gray-400 hover:text-red-600"
+              onClick={() => onDelete(row.original.id)}
             >
               <Trash2 className="size-4" />
               <span className="sr-only">Delete {row.original.name}</span>
@@ -158,7 +169,7 @@ export function ProductTable({ products, onLiveToggle }: ProductTableProps) {
         ),
       }),
     ],
-    [onLiveToggle],
+    [onLiveToggle, onEdit, onDelete],
   );
 
   const table = useReactTable({

@@ -3,7 +3,8 @@ export type OrderSource = "APP" | "EXECUTIVE";
 export type OrderStatus =
   "ACTIVE" | "IN_TRANSIT" | "DELIVERED" | "CANCELLED" | "HUB_PROCESSING";
 
-export type PaymentStatus = "PENDING" | "PAID" | "PARTIAL" | "EXPIRED";
+export type PaymentStatus =
+  "PENDING" | "PAID" | "COLLECTED" | "PARTIAL" | "EXPIRED";
 
 export type LinkStatus = "NOT_SENT" | "SENT" | "EXPIRED" | "OPENED";
 
@@ -38,8 +39,19 @@ export type TrackingStep =
   | "LOADED"
   | "DISPATCHED"
   | "DRIVER_ASSIGNED"
+  | "OUT_FOR_DELIVERY"
   | "IN_TRANSIT"
   | "DELIVERED";
+
+export interface CeOrderTimelineEntry {
+  id?: string;
+  status?: string;
+  statusLabel?: string;
+  message?: string;
+  createdAt?: string;
+  updatedBy?: string;
+  updatedByRole?: string;
+}
 
 export interface CeExecutive {
   id: string;
@@ -100,6 +112,10 @@ export interface CeOrder {
   items: CeOrderItem[];
   amount: number;
   status: OrderStatus;
+  /** Raw backend OrderStatus (PENDING, OUT_FOR_DELIVERY, …). */
+  rawBackendStatus?: string;
+  /** Backend display label when provided (prefer for UI). */
+  statusLabel?: string;
   orderSource: OrderSource;
   createdAt: string;
   eta?: string;
@@ -108,10 +124,67 @@ export interface CeOrder {
   deliveryDate?: string;
   deliveryPriority: DeliveryPriority;
   paymentMethod: PaymentMethod;
+  paymentStatus?: PaymentStatus;
   trackingStep: TrackingStep;
   driverId?: string;
   vehicleId?: string;
   hubId: string;
+  hubName?: string;
+  hubCode?: string;
+  managerName?: string;
+  driverName?: string;
+  driverPhone?: string;
+  vehicleNumber?: string;
+  invoiceId?: string;
+  invoiceNumber?: string;
+  lastUpdated?: string;
+  expectedDelivery?: string;
+  orderAgeHours?: number;
+  routing?: {
+    assignmentStatus?: "ASSIGNED" | "UNASSIGNED";
+    assignmentReason?: string | null;
+    assignmentReasonLabel?: string | null;
+    snapshot?: {
+      customerLatitude?: number | null;
+      customerLongitude?: number | null;
+      selectedHubName?: string | null;
+      nearestHubName?: string | null;
+      nearestDistanceKm?: number | null;
+      nearestHubRadiusKm?: number | null;
+      inCoverage?: boolean;
+      reason?: string | null;
+    } | null;
+  };
+  timeline?: CeOrderTimelineEntry[];
+  deliveryVerification?: {
+    driverReached: boolean;
+    driverReachedAt?: string | null;
+    otpGenerated: boolean;
+    otpGeneratedAt?: string | null;
+    otpVerified: boolean;
+    verifiedBy?: string | null;
+    verifiedAt?: string | null;
+    delivered: boolean;
+    deliveredAt?: string | null;
+    deliveryCompletedAt?: string | null;
+    paymentCollectedAt?: string | null;
+    driver?: { id?: string; name?: string; phone?: string } | null;
+    vehicle?: { id?: string; registration?: string } | null;
+    hub?: { id?: string; name?: string; code?: string } | null;
+    verificationLink?: string;
+  };
+  deliveryPreference?: {
+    type?: string;
+    label?: string;
+    scheduledDate?: string | null;
+    scheduledDateLabel?: string | null;
+    scheduledSlotLabel?: string | null;
+    scheduledStartAt?: string | null;
+    scheduledEndAt?: string | null;
+    customerRemark?: string | null;
+  };
+  customerRemark?: string | null;
+  adminInternalNote?: string | null;
 }
 
 export interface CePayment {
@@ -226,6 +299,7 @@ export interface CeOrderFilters {
   status: OrderStatus | "ALL";
   statusGroup: "IN_TRANSIT" | "ALL";
   orderSource: OrderSource | "ALL";
+  assignment: "ALL" | "UNASSIGNED";
 }
 
 export interface CePaymentFilters {
@@ -317,6 +391,7 @@ export const EMPTY_ORDER_FILTERS: CeOrderFilters = {
   status: "ALL",
   statusGroup: "ALL",
   orderSource: "ALL",
+  assignment: "ALL",
 };
 
 export const EMPTY_PAYMENT_FILTERS: CePaymentFilters = {

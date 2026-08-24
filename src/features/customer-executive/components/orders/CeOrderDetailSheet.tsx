@@ -1,7 +1,8 @@
 "use client";
 
-import { MapPin, Package, Truck } from "lucide-react";
+import { Download, MapPin, Package, ShieldCheck, Truck } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,9 +24,12 @@ import {
 import { ROUTES } from "@/constants/routes";
 import { CeStatusBadge } from "@/features/customer-executive/components/shared/CeStatusBadge";
 import type { CeOrder } from "@/features/customer-executive/types";
+import { downloadAdminOrderInvoicePdf } from "@/services/adminOrders";
 import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
 import { formatCurrency } from "@/utils/format-currency";
 import { formatDate } from "@/utils/format-date";
+import { notify } from "@/utils/notify";
+import { formatPaymentMethodLabel } from "@/utils/payment-method-labels";
 
 interface CeOrderDetailSheetProps {
   open: boolean;
@@ -70,23 +74,60 @@ function DetailField({
   );
 }
 
+function paymentStatusDisplay(order: CeOrder): string {
+  if (order.paymentStatus) {
+    return order.paymentStatus.replaceAll("_", " ");
+  }
+  return "—";
+}
+
 export function CeOrderDetailSheet({
   open,
   onOpenChange,
   order,
 }: CeOrderDetailSheetProps) {
-  const hubs = useCustomerExecutiveStore((s) => s.hubs);
-  const drivers = useCustomerExecutiveStore((s) => s.drivers);
-  const vehicles = useCustomerExecutiveStore((s) => s.vehicles);
+  const loadOrderDetailFromApi = useCustomerExecutiveStore(
+    (s) => s.loadOrderDetailFromApi,
+  );
+  const getOrder = useCustomerExecutiveStore((s) => s.getOrder);
+  const [downloadingInvoice, setDownloadingInvoice] = useState(false);
 
-  if (!order) {
+  useEffect(() => {
+    if (!open || !order?.id) return;
+    void loadOrderDetailFromApi(order.id);
+  }, [open, order?.id, loadOrderDetailFromApi]);
+
+  const liveOrder = order ? (getOrder(order.id) ?? order) : null;
+
+  if (!liveOrder) {
     return null;
   }
 
-  const hub = hubs.find((h) => h.id === order.hubId);
-  const driver = drivers.find((d) => d.id === order.driverId);
-  const vehicle = vehicles.find((v) => v.id === order.vehicleId);
-  const paymentStatus = order.paymentMethod === "CREDIT" ? "PENDING" : "PAID";
+  const hubName = liveOrder.hubName;
+  const driverName = liveOrder.driverName;
+  const driverPhone = liveOrder.driverPhone;
+  const vehicleNumber = liveOrder.vehicleNumber;
+  const paymentStatus = paymentStatusDisplay(liveOrder);
+  const paymentTone =
+    liveOrder.paymentStatus === "PAID" ||
+    liveOrder.paymentStatus === "COLLECTED"
+      ? "text-emerald-600"
+      : "text-amber-600";
+
+  const handleDownloadInvoice = async () => {
+    setDownloadingInvoice(true);
+    try {
+      await downloadAdminOrderInvoicePdf(liveOrder.id);
+      notify.success(
+        "Invoice downloaded",
+        liveOrder.invoiceNumber ?? liveOrder.orderNumber,
+      );
+    } catch {
+      notify.error("Invoice unavailable", "Could not download order invoice");
+    } finally {
+      setDownloadingInvoice(false);
+    }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -97,59 +138,78 @@ export function CeOrderDetailSheet({
         <SheetHeader className="border-b border-gray-100 p-5">
           <div className="flex flex-wrap items-center gap-3 pr-8">
             <SheetTitle className="text-lg text-[#1A1A1A]">
-              #{order.orderNumber}
+              #{liveOrder.orderNumber}
             </SheetTitle>
-            <CeStatusBadge status={order.status} />
+            <CeStatusBadge
+              status={liveOrder.status}
+              label={liveOrder.statusLabel}
+            />
           </div>
           <SheetDescription>
-            Placed on {formatDate(order.createdAt)} ·{" "}
-            {formatCurrency(order.amount)}
+            Placed on {formatDate(liveOrder.createdAt)} ·{" "}
+            {formatCurrency(liveOrder.amount)}
           </SheetDescription>
         </SheetHeader>
 
         <div className="space-y-8 p-5">
           <Section title="Order Summary" icon={Package}>
             <div className="grid gap-4 rounded-lg border border-gray-100 bg-gray-50/50 p-4 sm:grid-cols-2">
-              <DetailField label="Order ID" value={`#${order.orderNumber}`} />
+              <DetailField
+                label="Order ID"
+                value={`#${liveOrder.orderNumber}`}
+              />
               <DetailField
                 label="Order Date"
-                value={formatDate(order.createdAt)}
+                value={formatDate(liveOrder.createdAt)}
               />
               <DetailField
                 label="Amount"
-                value={formatCurrency(order.amount)}
+                value={formatCurrency(liveOrder.amount)}
               />
-              <DetailField label="ETA" value={order.eta ?? "—"} />
               <DetailField
-                label="Payment"
+                label="ETA"
                 value={
-                  <span
-                    className={
-                      paymentStatus === "PAID"
-                        ? "text-green-600"
-                        : "text-red-600"
-                    }
-                  >
-                    {paymentStatus}
-                  </span>
+                  liveOrder.expectedDelivery
+                    ? formatDate(liveOrder.expectedDelivery)
+                    : (liveOrder.eta ?? "—")
                 }
               />
               <DetailField
-                label="Payment Method"
-                value={order.paymentMethod.replace("_", " ")}
+                label="Payment"
+                value={<span className={paymentTone}>{paymentStatus}</span>}
               />
+              <DetailField
+                label="Payment Method"
+                value={formatPaymentMethodLabel(liveOrder.paymentMethod)}
+              />
+              <DetailField
+                label="Tracking"
+                value={
+                  liveOrder.statusLabel ??
+                  liveOrder.trackingStep.replaceAll("_", " ")
+                }
+              />
+              {liveOrder.lastUpdated ? (
+                <DetailField
+                  label="Last Updated"
+                  value={formatDate(liveOrder.lastUpdated)}
+                />
+              ) : null}
             </div>
           </Section>
 
           <Section title="Customer" icon={Package}>
             <div className="grid gap-4 rounded-lg border border-gray-100 p-4 sm:grid-cols-2">
-              <DetailField label="Company" value={order.company} />
-              <DetailField label="Contact" value={order.customerName} />
+              <DetailField label="Company" value={liveOrder.company} />
+              <DetailField label="Contact" value={liveOrder.customerName} />
               <DetailField
                 label="Source"
-                value={<CeStatusBadge status={order.orderSource} />}
+                value={<CeStatusBadge status={liveOrder.orderSource} />}
               />
-              <DetailField label="Priority" value={order.deliveryPriority} />
+              <DetailField
+                label="Priority"
+                value={liveOrder.deliveryPriority}
+              />
             </div>
           </Section>
 
@@ -168,8 +228,8 @@ export function CeOrderDetailSheet({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {order.items.map((item) => (
-                    <TableRow key={item.productId}>
+                  {liveOrder.items.map((item) => (
+                    <TableRow key={`${item.productId}-${item.productName}`}>
                       <TableCell>
                         <p className="text-sm font-medium">
                           {item.productName}
@@ -191,31 +251,251 @@ export function CeOrderDetailSheet({
 
           <Section title="Delivery Address" icon={MapPin}>
             <div className="rounded-lg border border-gray-100 p-4 text-sm">
-              <p className="text-[#1A1A1A]">{order.deliveryAddress}</p>
+              <p className="text-[#1A1A1A]">{liveOrder.deliveryAddress}</p>
               <p className="mt-1 text-[#64748B]">
-                PIN: {order.deliveryPincode}
+                PIN: {liveOrder.deliveryPincode}
               </p>
             </div>
           </Section>
 
-          {hub ? (
+          <Section title="Delivery Preference" icon={Truck}>
+            <div className="grid gap-4 rounded-lg border border-gray-100 p-4 sm:grid-cols-2">
+              <DetailField
+                label="Delivery Type"
+                value={liveOrder.deliveryPreference?.label ?? "As soon as possible"}
+              />
+              <DetailField
+                label="Date"
+                value={liveOrder.deliveryPreference?.scheduledDateLabel ?? "—"}
+              />
+              <DetailField
+                label="Time"
+                value={liveOrder.deliveryPreference?.scheduledSlotLabel ?? "—"}
+              />
+              <DetailField
+                label="Status"
+                value={
+                  liveOrder.rawBackendStatus === "PENDING" ||
+                  liveOrder.rawBackendStatus === "CONFIRMED"
+                    ? "Awaiting Reconfirmation"
+                    : "Scheduled"
+                }
+              />
+              <DetailField
+                label="Customer Remark"
+                value={
+                  liveOrder.customerRemark ||
+                  liveOrder.deliveryPreference?.customerRemark ||
+                  "—"
+                }
+              />
+              <DetailField
+                label="Admin Note"
+                value={liveOrder.adminInternalNote || "—"}
+              />
+            </div>
+          </Section>
+
+          <Section title="Hub routing" icon={MapPin}>
+            <div className="grid gap-4 rounded-lg border border-gray-100 p-4 sm:grid-cols-2">
+              <DetailField
+                label="Assignment"
+                value={
+                  liveOrder.routing?.assignmentStatus === "UNASSIGNED" || !hubName
+                    ? "Not Assigned"
+                    : hubName
+                }
+              />
+              <DetailField
+                label="Status"
+                value={
+                  liveOrder.routing?.snapshot?.inCoverage
+                    ? "Inside service area"
+                    : liveOrder.routing?.assignmentReasonLabel ||
+                      (hubName ? "Assigned" : "Outside service area")
+                }
+              />
+              <DetailField
+                label="Nearest Hub"
+                value={
+                  liveOrder.routing?.snapshot?.nearestHubName ||
+                  hubName ||
+                  "—"
+                }
+              />
+              <DetailField
+                label="Distance"
+                value={
+                  liveOrder.routing?.snapshot?.nearestDistanceKm != null
+                    ? `${liveOrder.routing.snapshot.nearestDistanceKm} km`
+                    : "—"
+                }
+              />
+              <DetailField
+                label="Hub radius"
+                value={
+                  liveOrder.routing?.snapshot?.nearestHubRadiusKm != null
+                    ? `${liveOrder.routing.snapshot.nearestHubRadiusKm} km`
+                    : "—"
+                }
+              />
+              <DetailField
+                label="Customer location"
+                value={
+                  liveOrder.routing?.snapshot?.customerLatitude != null &&
+                  liveOrder.routing?.snapshot?.customerLongitude != null
+                    ? `${liveOrder.routing.snapshot.customerLatitude}, ${liveOrder.routing.snapshot.customerLongitude}`
+                    : "Not available"
+                }
+              />
+            </div>
+          </Section>
+
+          {hubName ? (
             <Section title="Assigned Hub" icon={MapPin}>
               <div className="grid gap-4 rounded-lg border border-gray-100 p-4 sm:grid-cols-2">
-                <DetailField label="Hub" value={hub.name} />
-                <DetailField label="City" value={hub.city} />
+                <DetailField label="Hub" value={hubName} />
+                <DetailField
+                  label="Code"
+                  value={liveOrder.hubCode || "—"}
+                />
+                <DetailField
+                  label="Manager"
+                  value={liveOrder.managerName || "—"}
+                />
               </div>
             </Section>
           ) : null}
 
-          {driver ? (
+          {driverName ? (
             <Section title="Driver & Vehicle" icon={Truck}>
               <div className="grid gap-4 rounded-lg border border-gray-100 p-4 sm:grid-cols-2">
-                <DetailField label="Driver" value={driver.name} />
-                <DetailField label="Phone" value={driver.phone} />
-                {vehicle ? (
-                  <DetailField label="Vehicle" value={vehicle.registration} />
+                <DetailField label="Driver" value={driverName} />
+                <DetailField label="Phone" value={driverPhone || "—"} />
+                {vehicleNumber ? (
+                  <DetailField label="Vehicle" value={vehicleNumber} />
                 ) : null}
               </div>
+            </Section>
+          ) : null}
+
+          {liveOrder.deliveryVerification ? (
+            <Section title="Delivery Verification" icon={ShieldCheck}>
+              <div className="grid gap-4 rounded-lg border border-gray-100 p-4 sm:grid-cols-2">
+                <DetailField
+                  label="Driver Reached"
+                  value={
+                    liveOrder.deliveryVerification.driverReached
+                      ? liveOrder.deliveryVerification.driverReachedAt
+                        ? formatDate(
+                            liveOrder.deliveryVerification.driverReachedAt,
+                          )
+                        : "Yes"
+                      : "No"
+                  }
+                />
+                <DetailField
+                  label="OTP Generated"
+                  value={
+                    liveOrder.deliveryVerification.otpGenerated
+                      ? liveOrder.deliveryVerification.otpGeneratedAt
+                        ? formatDate(
+                            liveOrder.deliveryVerification.otpGeneratedAt,
+                          )
+                        : "Yes"
+                      : "No"
+                  }
+                />
+                <DetailField
+                  label="OTP Verified"
+                  value={
+                    liveOrder.deliveryVerification.otpVerified ? "Yes" : "No"
+                  }
+                />
+                <DetailField
+                  label="Verified By"
+                  value={liveOrder.deliveryVerification.verifiedBy || "—"}
+                />
+                <DetailField
+                  label="Verification Time"
+                  value={
+                    liveOrder.deliveryVerification.verifiedAt
+                      ? formatDate(liveOrder.deliveryVerification.verifiedAt)
+                      : "—"
+                  }
+                />
+                <DetailField
+                  label="Delivered"
+                  value={
+                    liveOrder.deliveryVerification.delivered
+                      ? liveOrder.deliveryVerification.deliveredAt
+                        ? formatDate(liveOrder.deliveryVerification.deliveredAt)
+                        : "Yes"
+                      : "No"
+                  }
+                />
+                <DetailField
+                  label="Driver"
+                  value={
+                    liveOrder.deliveryVerification.driver?.name ||
+                    driverName ||
+                    "—"
+                  }
+                />
+                <DetailField
+                  label="Vehicle"
+                  value={
+                    liveOrder.deliveryVerification.vehicle?.registration ||
+                    vehicleNumber ||
+                    "—"
+                  }
+                />
+                <DetailField
+                  label="Hub"
+                  value={
+                    liveOrder.deliveryVerification.hub?.name || hubName || "—"
+                  }
+                />
+                {liveOrder.deliveryVerification.paymentCollectedAt ? (
+                  <DetailField
+                    label="Payment Collected"
+                    value={formatDate(
+                      liveOrder.deliveryVerification.paymentCollectedAt,
+                    )}
+                  />
+                ) : null}
+              </div>
+            </Section>
+          ) : null}
+
+          {liveOrder.timeline && liveOrder.timeline.length > 0 ? (
+            <Section title="Timeline" icon={Package}>
+              <ol className="space-y-3 rounded-lg border border-gray-100 p-4">
+                {liveOrder.timeline.map((entry, index) => (
+                  <li
+                    key={
+                      entry.id ?? `${entry.status}-${entry.createdAt}-${index}`
+                    }
+                    className="border-b border-gray-50 pb-3 last:border-0 last:pb-0"
+                  >
+                    <p className="text-sm font-medium text-[#1A1A1A]">
+                      {entry.statusLabel ??
+                        entry.status?.replaceAll("_", " ") ??
+                        "Update"}
+                    </p>
+                    {entry.message ? (
+                      <p className="mt-0.5 text-xs text-[#64748B]">
+                        {entry.message}
+                      </p>
+                    ) : null}
+                    {entry.createdAt ? (
+                      <p className="mt-1 text-[11px] text-gray-400">
+                        {formatDate(entry.createdAt)}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ol>
             </Section>
           ) : null}
         </div>
@@ -229,12 +509,24 @@ export function CeOrderDetailSheet({
           >
             Close
           </Button>
+          {(liveOrder.invoiceId || liveOrder.status === "DELIVERED") && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              disabled={downloadingInvoice}
+              onClick={() => void handleDownloadInvoice()}
+            >
+              <Download className="size-4" />
+              Invoice PDF
+            </Button>
+          )}
           <Button
             type="button"
             className="w-full sm:w-auto"
             render={
               <Link
-                href={`${ROUTES.CUSTOMER_EXECUTIVE_ORDERS}?order=${order.id}`}
+                href={`${ROUTES.CUSTOMER_EXECUTIVE_ORDERS}?order=${liveOrder.id}`}
               />
             }
           >

@@ -35,14 +35,19 @@ import {
   EXECUTIVE_STATUS_LABELS,
   SUPPORT_ASSIGNMENT_PRIORITY_LABELS,
   SUPPORT_ASSIGNMENT_REASON_LABELS,
-  type AssignSupportExecutivePayload,
   type ExecutiveAvailabilityStatus,
   type SupportAssignmentPriority,
   type SupportAssignmentReason,
   type SupportExecutiveFilters,
 } from "@/features/user-management/types/support-executive.types";
 import { CUSTOMER_HUBS } from "@/mock/customers";
-import { useCustomerStore } from "@/store/customer-store";
+import { getApiErrorMessage } from "@/services/api";
+import {
+  fetchCustomerExecutives,
+  type AdminUserListItem,
+} from "@/services/admin-users";
+import { assignAdminCustomer } from "@/services/customers";
+import type { SupportExecutive } from "@/features/user-management/types/support-executive.types";
 import { notify } from "@/utils/notify";
 
 interface AssignExecutiveDrawerProps {
@@ -66,23 +71,32 @@ const EXECUTIVE_STATUSES = Object.entries(EXECUTIVE_STATUS_LABELS) as [
   string,
 ][];
 
+function mapUserToSupportExecutive(user: AdminUserListItem): SupportExecutive {
+  const isActive = user.isActive || user.status === "ACTIVE";
+  return {
+    id: user.id,
+    employeeId: user.id.slice(0, 8).toUpperCase(),
+    name: user.fullName || user.email,
+    phone: user.phone ?? "Not available",
+    email: user.email,
+    hubId: "",
+    hubName: "Not available",
+    status: isActive ? "AVAILABLE" : "OFFLINE",
+    activeCustomers:
+      (user as AdminUserListItem & { assignedCustomers?: number })
+        .assignedCustomers ?? 0,
+    openTickets: 0,
+  };
+}
+
 export function AssignExecutiveDrawer({
   open,
   onOpenChange,
   customer,
   onAssigned,
 }: AssignExecutiveDrawerProps) {
-  const getSupportExecutives = useCustomerStore(
-    (state) => state.getSupportExecutives,
-  );
-  const assignSupportExecutive = useCustomerStore(
-    (state) => state.assignSupportExecutive,
-  );
-  const supportExecutiveAssignmentHistory = useCustomerStore(
-    (state) => state.supportExecutiveAssignmentHistory,
-  );
-
   const [isLoading, setIsLoading] = useState(true);
+  const [executives, setExecutives] = useState<SupportExecutive[]>([]);
   const [filters, setFilters] = useState<SupportExecutiveFilters>(
     EMPTY_SUPPORT_EXECUTIVE_FILTERS,
   );
@@ -96,19 +110,41 @@ export function AssignExecutiveDrawer({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!open) {
-      return;
+    if (!open) return;
+
+    let ignore = false;
+    async function load() {
+      setIsLoading(true);
+      try {
+        const response = await fetchCustomerExecutives({
+          search: filters.search.trim() || undefined,
+          status: filters.status === "AVAILABLE" ? "ACTIVE" : undefined,
+          page: 1,
+          limit: 50,
+        });
+        if (ignore) return;
+        setExecutives(response.data.map(mapUserToSupportExecutive));
+      } catch (error) {
+        if (ignore) return;
+        setExecutives([]);
+        notify.error("Failed to load executives", getApiErrorMessage(error));
+      } finally {
+        if (!ignore) setIsLoading(false);
+      }
     }
 
-    setIsLoading(true);
-    const timer = window.setTimeout(() => setIsLoading(false), 350);
-    return () => window.clearTimeout(timer);
-  }, [open]);
+    void load();
+    return () => {
+      ignore = true;
+    };
+  }, [open, filters.search, filters.status]);
 
   useEffect(() => {
     if (open && customer) {
       setSelectedExecutiveId(
-        customer.supportExecutiveAssignment?.executiveId ?? null,
+        customer.supportExecutiveAssignment?.executiveId ??
+          customer.assignedOperations.executiveId ??
+          null,
       );
       setReason(
         customer.supportExecutiveAssignment?.reason ?? "CUSTOMER_SUPPORT",
@@ -119,38 +155,37 @@ export function AssignExecutiveDrawer({
     }
   }, [open, customer]);
 
-  const executives = useMemo(
-    () => getSupportExecutives(filters),
-    [getSupportExecutives, filters, supportExecutiveAssignmentHistory],
-  );
-
   const selectedExecutive = useMemo(
     () => executives.find((executive) => executive.id === selectedExecutiveId),
     [executives, selectedExecutiveId],
   );
 
-  const hasExistingAssignment = Boolean(customer?.supportExecutiveAssignment);
+  const hasExistingAssignment = Boolean(
+    customer?.supportExecutiveAssignment ||
+      customer?.assignedOperations.executiveId,
+  );
   const isValid = Boolean(selectedExecutiveId && reason);
 
-  const handleAssign = () => {
+  const handleAssign = async () => {
     if (!customer || !selectedExecutiveId || !reason) {
       return;
     }
 
     setIsSubmitting(true);
-
-    const payload: AssignSupportExecutivePayload = {
-      executiveId: selectedExecutiveId,
-      reason,
-      priority,
-      notes: notes.trim() || undefined,
-    };
-
-    assignSupportExecutive(customer.id, payload);
-    setIsSubmitting(false);
-    onOpenChange(false);
-    onAssigned?.();
-    notify.success("Executive Assigned Successfully");
+    try {
+      await assignAdminCustomer(customer.id, {
+        executiveId: selectedExecutiveId,
+        reason,
+        notes: notes.trim() || undefined,
+      });
+      onOpenChange(false);
+      onAssigned?.();
+      notify.success("Executive Assigned Successfully");
+    } catch (error) {
+      notify.error("Assignment failed", getApiErrorMessage(error));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!customer) {

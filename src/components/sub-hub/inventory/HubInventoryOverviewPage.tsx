@@ -1,10 +1,11 @@
 "use client";
 
-import { ClipboardCheck, Download, ShoppingCart } from "lucide-react";
+import { Download } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-import { HubInventoryAdjustDialog } from "@/components/sub-hub/inventory/HubInventoryAdjustDialog";
+import { HubContextSelector } from "@/components/sub-hub/HubContextSelector";
 import { HubInventoryDetailSheet } from "@/components/sub-hub/inventory/HubInventoryDetailSheet";
 import { HubInventoryFilters } from "@/components/sub-hub/inventory/HubInventoryFilters";
 import {
@@ -14,17 +15,11 @@ import {
 import { HubInventoryTable } from "@/components/sub-hub/inventory/HubInventoryTable";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { HUB_INVENTORY_PAGE_SIZE } from "@/constants/sub-hub-ops.constants";
 import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
-import { normalizeHubInventory, resolveSubHubs } from "@/store/sub-hub-state";
-import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
+import { hubsService } from "@/services/hubs.service";
+import { useSelectedHubStore } from "@/store/selected-hub-store";
 import {
-  collectFilterOptions,
-  computeHubInventoryOverviewStats,
-  filterNetworkInventoryRows,
-  getIncomingTransfersForMaterial,
-  getOutgoingDispatchesForMaterial,
-  HUB_INVENTORY_PAGE_SIZE,
-  buildNetworkInventoryRows,
   sortNetworkInventoryRows,
   type HubInventoryOverviewFilters,
   type HubInventorySortDirection,
@@ -35,9 +30,10 @@ import {
   getRaiseRequisitionHref,
   getRaiseTransferHref,
 } from "@/utils/hub-profile-metrics";
+import { formatHubStockValue } from "@/utils/sub-hub-metrics";
 
 function isLowStockRow(row: HubNetworkInventoryRow) {
-  return row.availableQty <= row.reorderLevel;
+  return row.availableQty <= row.reorderLevel || row.status === "low-stock";
 }
 
 const DEFAULT_FILTERS: HubInventoryOverviewFilters = {
@@ -60,6 +56,7 @@ function downloadCsv(rows: HubNetworkInventoryRow[]) {
     "Reorder Level",
     "Status",
     "Unit",
+    "Inventory Value",
     "Last Updated",
   ];
 
@@ -75,6 +72,7 @@ function downloadCsv(rows: HubNetworkInventoryRow[]) {
       row.reorderLevel,
       row.status,
       row.unit,
+      row.inventoryValue,
       row.lastUpdated ?? "",
     ]
       .map((cell) => `"${String(cell).replaceAll('"', '""')}"`)
@@ -92,33 +90,32 @@ function downloadCsv(rows: HubNetworkInventoryRow[]) {
   URL.revokeObjectURL(url);
 }
 
+function mapStatus(status: string): HubNetworkInventoryRow["status"] {
+  const upper = status.toUpperCase();
+  if (upper === "OUT_OF_STOCK") return "out-of-stock";
+  if (upper === "LOW_STOCK") return "low-stock";
+  return "healthy";
+}
+
 export function HubInventoryOverviewPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const hubFromQuery = searchParams.get("hub");
+  const selectedHubId = useSelectedHubStore((s) => s.selectedHubId);
+  const selectedHubName = useSelectedHubStore((s) => s.selectedHubName);
+  const setSelectedHub = useSelectedHubStore((s) => s.setSelectedHub);
 
-  const subHubs = useWarehouseErpStore((state) => state.subHubs);
-  const hubInventory = useWarehouseErpStore((state) => state.hubInventory);
-  const transfers = useWarehouseErpStore((state) => state.transfers);
-  const requisitions = useWarehouseErpStore((state) => state.requisitions);
-  const allocations = useWarehouseErpStore((state) => state.allocations);
-  const dispatches = useWarehouseErpStore((state) => state.dispatches);
-  const activityLogs = useWarehouseErpStore((state) => state.activityLogs);
-  const adjustHubInventory = useWarehouseErpStore(
-    (state) => state.adjustHubInventory,
-  );
+  const hubFromQuery =
+    searchParams.get("hubId") || searchParams.get("hub") || null;
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [filters, setFilters] = useState<HubInventoryOverviewFilters>(() => ({
     ...DEFAULT_FILTERS,
-    hubId: hubFromQuery ?? "all",
+    hubId: hubFromQuery || selectedHubId || "all",
   }));
   const [activeStat, setActiveStat] = useState<HubInventoryStatKey | null>(
     null,
   );
   const [currentPage, setCurrentPage] = useState(1);
-  const [sortKey, setSortKey] = useState<HubInventorySortKey>("hubName");
+  const [sortKey, setSortKey] = useState<HubInventorySortKey>("materialName");
   const [sortDirection, setSortDirection] =
     useState<HubInventorySortDirection>("asc");
   const [selectedRow, setSelectedRow] = useState<HubNetworkInventoryRow | null>(
@@ -126,134 +123,152 @@ export function HubInventoryOverviewPage() {
   );
   const [detailOpen, setDetailOpen] = useState(false);
   const [focusHistory, setFocusHistory] = useState(false);
-  const [adjustOpen, setAdjustOpen] = useState(false);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 550);
-    return () => window.clearTimeout(timer);
-  }, []);
+    const nextHubId = hubFromQuery || selectedHubId || "all";
+    setFilters((prev) =>
+      prev.hubId === nextHubId ? prev : { ...prev, hubId: nextHubId },
+    );
+  }, [hubFromQuery, selectedHubId]);
 
-  useEffect(() => {
-    if (hubFromQuery) {
-      setFilters((prev) => ({ ...prev, hubId: hubFromQuery }));
-    }
-  }, [hubFromQuery]);
+  const hubsQuery = useQuery({
+    queryKey: ["admin-hubs", "inventory-page"],
+    queryFn: () => hubsService.list({ page: 1, limit: 100 }),
+  });
 
-  const resolvedSubHubs = useMemo(() => resolveSubHubs(subHubs), [subHubs]);
-  const resolvedHubInventory = useMemo(
-    () => normalizeHubInventory(hubInventory),
-    [hubInventory],
-  );
+  const hubs = hubsQuery.data?.data ?? [];
 
-  const allRows = useMemo(
-    () =>
-      buildNetworkInventoryRows(
-        resolvedSubHubs,
-        resolvedHubInventory,
-        transfers,
-        requisitions,
-        allocations ?? [],
-        dispatches ?? [],
-      ),
-    [
-      resolvedSubHubs,
-      resolvedHubInventory,
-      transfers,
-      requisitions,
-      allocations,
-      dispatches,
+  const scopedHubId =
+    filters.hubId !== "all" ? filters.hubId : undefined;
+
+  const inventoryQuery = useQuery({
+    queryKey: [
+      "hub-inventory",
+      scopedHubId ?? "all",
+      filters.skuSearch,
+      filters.category,
+      currentPage,
     ],
-  );
+    queryFn: () =>
+      hubsService.listInventory({
+        hubId: scopedHubId,
+        page: currentPage,
+        limit: HUB_INVENTORY_PAGE_SIZE,
+        search: filters.skuSearch || undefined,
+        category:
+          filters.category !== "all" ? filters.category : undefined,
+      }),
+    refetchInterval: 15000,
+  });
 
-  const filterOptions = useMemo(() => collectFilterOptions(allRows), [allRows]);
+  const allRows: HubNetworkInventoryRow[] = useMemo(() => {
+    const items = inventoryQuery.data?.data ?? [];
+    return items.map((item) => {
+      const availableQty = item.availableQty ?? 0;
+      const reservedQty = item.reservedQty ?? 0;
+      const freeQty = item.freeQty ?? Math.max(0, availableQty - reservedQty);
+      const unitPrice = item.unitPrice ?? 0;
+      const inventoryValue =
+        item.inventoryValue ?? availableQty * unitPrice;
+      return {
+        hubId: item.hubId,
+        hubName: item.hubName || selectedHubName || "Hub",
+        materialId: item.productId,
+        materialName: item.productName,
+        sku: item.sku || item.productId.slice(0, 8),
+        category: item.category || "Catalog",
+        availableQty,
+        reservedQty,
+        freeQty,
+        incomingQty: 0,
+        outgoingQty: 0,
+        reorderLevel: item.reorderLevel ?? 0,
+        safetyStock: item.minimumStock ?? item.reorderLevel ?? 0,
+        unit: item.unit || "unit",
+        unitPrice,
+        inventoryValue,
+        status: mapStatus(item.status),
+        lastUpdated: item.lastUpdated,
+        recommendedQty: Math.max(0, (item.reorderLevel ?? 0) - freeQty),
+        supplier: "—",
+        materialType: item.category || "Catalog",
+        materialTypeSlug: (item.category || "catalog")
+          .toLowerCase()
+          .replace(/\s+/g, "-"),
+        maxStock: item.maximumStock ?? 0,
+        entryKey: `${item.hubId}:${item.productId}`,
+        imageUrl: item.imageUrl,
+      } as HubNetworkInventoryRow & { imageUrl?: string | null };
+    });
+  }, [inventoryQuery.data, selectedHubName]);
 
-  const filteredRows = useMemo(
-    () => filterNetworkInventoryRows(allRows, filters),
-    [allRows, filters],
+  const categories = useMemo(
+    () =>
+      Array.from(
+        new Set(allRows.map((row) => row.category).filter(Boolean)),
+      ).sort(),
+    [allRows],
   );
 
   const displayRows = useMemo(() => {
     if (activeStat === "low-stock") {
-      return filteredRows.filter(isLowStockRow);
+      return allRows.filter(isLowStockRow);
     }
-    return filteredRows;
-  }, [filteredRows, activeStat]);
+    return allRows;
+  }, [allRows, activeStat]);
 
   const sortedRows = useMemo(
     () => sortNetworkInventoryRows(displayRows, sortKey, sortDirection),
     [displayRows, sortKey, sortDirection],
   );
 
-  const stats = useMemo(
-    () => computeHubInventoryOverviewStats(filteredRows),
-    [filteredRows],
-  );
+  const apiStats = inventoryQuery.data?.stats;
+  const stats = useMemo(() => {
+    const totalUnits = apiStats?.totalInventoryUnits ?? 0;
+    const reserved = apiStats?.reservedInventory ?? 0;
+    const lowStockItems = apiStats?.lowStockItems ?? 0;
+    const inventoryValue = apiStats?.inventoryValue ?? 0;
+    return {
+      totalInventoryUnits: totalUnits,
+      totalInventoryLabel: totalUnits.toLocaleString("en-IN"),
+      lowStockItems,
+      inventoryValue,
+      inventoryValueLabel: formatHubStockValue(inventoryValue),
+      reservedInventory: reserved,
+      reservedInventoryLabel: reserved.toLocaleString("en-IN"),
+    };
+  }, [apiStats]);
 
+  const totalItems = inventoryQuery.data?.meta.total ?? 0;
   const pageCount = Math.max(
     1,
-    Math.ceil(sortedRows.length / HUB_INVENTORY_PAGE_SIZE),
+    Math.ceil(totalItems / HUB_INVENTORY_PAGE_SIZE),
   );
 
   useEffect(() => {
-    if (currentPage > pageCount) {
-      setCurrentPage(pageCount);
-    }
+    if (currentPage > pageCount) setCurrentPage(pageCount);
   }, [currentPage, pageCount]);
-
-  const paginatedRows = useMemo(() => {
-    const start = (currentPage - 1) * HUB_INVENTORY_PAGE_SIZE;
-    return sortedRows.slice(start, start + HUB_INVENTORY_PAGE_SIZE);
-  }, [sortedRows, currentPage]);
-
-  const lowStockRows = useMemo(() => allRows.filter(isLowStockRow), [allRows]);
-
-  const selectedHistory = useMemo(() => {
-    if (!selectedRow) return [];
-    return activityLogs
-      .filter((log) => {
-        const remarks = log.remarks?.toLowerCase() ?? "";
-        const entity = log.entityId ?? "";
-        return (
-          entity.includes(selectedRow.hubId) ||
-          entity.includes(selectedRow.materialId) ||
-          remarks.includes(selectedRow.materialName.toLowerCase()) ||
-          remarks.includes(selectedRow.sku.toLowerCase()) ||
-          remarks.includes(selectedRow.hubName.toLowerCase())
-        );
-      })
-      .slice(0, 20);
-  }, [activityLogs, selectedRow]);
-
-  const incomingTransfers = useMemo(() => {
-    if (!selectedRow) return [];
-    return getIncomingTransfersForMaterial(
-      transfers,
-      selectedRow.hubId,
-      selectedRow.sku,
-      selectedRow.materialName,
-    );
-  }, [selectedRow, transfers]);
-
-  const outgoingDispatches = useMemo(() => {
-    if (!selectedRow) return [];
-    return getOutgoingDispatchesForMaterial(
-      dispatches ?? [],
-      selectedRow.hubName,
-      selectedRow.materialId,
-    );
-  }, [dispatches, selectedRow]);
 
   const handleFilterChange = (next: Partial<HubInventoryOverviewFilters>) => {
     startTransition(() => {
       setFilters((prev) => ({ ...prev, ...next }));
+      if (next.hubId !== undefined) {
+        if (next.hubId === "all") {
+          setSelectedHub(null, null);
+        } else {
+          const hub = hubs.find((h) => h.id === next.hubId);
+          setSelectedHub(next.hubId, hub?.name ?? null);
+        }
+      }
       setActiveStat(null);
       setCurrentPage(1);
     });
   };
 
   const handleClearFilters = () => {
-    setFilters(DEFAULT_FILTERS);
+    setFilters({ ...DEFAULT_FILTERS });
+    setSelectedHub(null, null);
     setActiveStat(null);
     setCurrentPage(1);
   };
@@ -279,22 +294,21 @@ export function HubInventoryOverviewPage() {
     setDetailOpen(true);
   };
 
-  const openAdjust = (row: HubNetworkInventoryRow) => {
-    setSelectedRow(row);
-    setAdjustOpen(true);
-  };
-
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    window.setTimeout(() => setIsRefreshing(false), 700);
-  };
+  const isLoading = hubsQuery.isLoading || inventoryQuery.isLoading;
+  const isRefreshing = inventoryQuery.isFetching && !inventoryQuery.isLoading;
+  const hubLabel =
+    scopedHubId == null
+      ? "all hubs"
+      : selectedHubName ||
+        hubs.find((h) => h.id === scopedHubId)?.name ||
+        "this hub";
 
   const statCards = [
     {
       id: "total-inventory" as const,
       label: "Total Inventory",
       value: stats.totalInventoryLabel,
-      subtitle: "Available qty across hubs",
+      subtitle: `Available qty at ${hubLabel}`,
       variant: "default" as const,
     },
     {
@@ -316,7 +330,7 @@ export function HubInventoryOverviewPage() {
       id: "inventory-value" as const,
       label: "Inventory Value",
       value: stats.inventoryValueLabel,
-      subtitle: "Available × unit price",
+      subtitle: "On-hand × unit price",
       variant: "default" as const,
     },
   ];
@@ -325,130 +339,112 @@ export function HubInventoryOverviewPage() {
     <div className="space-y-5">
       <PageHeader
         title="Hub Inventory Overview"
-        subtitle="Monitor real-time stock levels and inventory health across all regional sub-hubs."
+        subtitle="Monitor real-time stock levels and inventory health for the selected hub."
         breadcrumbs={getNavBreadcrumbsFromPath("/sub-hub-network/inventory")}
         actions={
           <>
+            <HubContextSelector className="mr-2" allowAll allLabel="All Hubs" />
             <Button
               type="button"
               variant="outline"
               className="h-10 gap-2 px-4"
               onClick={() => downloadCsv(sortedRows)}
+              disabled={sortedRows.length === 0}
             >
               <Download className="size-4" />
               Export CSV
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-10 gap-2 px-4"
-              disabled={allRows.length === 0}
-              onClick={() => {
-                const auditRow = lowStockRows[0] ?? allRows[0];
-                if (!auditRow) return;
-                openDetail(auditRow, true);
-              }}
-            >
-              <ClipboardCheck className="size-4" />
-              Inventory Audit
-            </Button>
-            <Button
-              type="button"
-              className="h-10 gap-2 px-4"
-              disabled={lowStockRows.length === 0}
-              onClick={() => {
-                const first = lowStockRows[0];
-                if (!first) return;
-                router.push(
-                  getRaiseRequisitionHref(first.hubId, first.materialId),
-                );
-              }}
-            >
-              <ShoppingCart className="size-4" />
-              Reorder All Low Stock
-              {lowStockRows.length > 0 ? (
-                <span className="rounded-full bg-white/20 px-1.5 text-xs">
-                  {lowStockRows.length}
-                </span>
-              ) : null}
             </Button>
           </>
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {inventoryQuery.isError ? (
+        <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+          Unable to load inventory
+          {scopedHubId ? ` for ${hubLabel}` : ""}.{" "}
+          <button
+            type="button"
+            className="font-semibold underline"
+            onClick={() => void inventoryQuery.refetch()}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {statCards.map((stat, index) => (
           <HubInventoryStatsCard
             key={stat.id}
             stat={stat}
-            isLoading={isLoading}
             index={index}
+            isLoading={isLoading}
             isActive={activeStat === stat.id}
-            onClick={
-              stat.id === "low-stock"
-                ? () => handleStatClick(stat.id)
-                : undefined
-            }
+            onClick={() => handleStatClick(stat.id)}
           />
         ))}
       </div>
 
       <HubInventoryFilters
         filters={filters}
-        hubs={resolvedSubHubs}
-        categories={filterOptions.categories}
-        suppliers={filterOptions.suppliers}
-        materialTypes={filterOptions.materialTypes}
+        hubs={hubs.map((h) => ({
+          id: h.id,
+          name: h.name,
+          nodeId: h.code,
+          city: h.city,
+          region: h.state,
+          isActive: h.isActive,
+          managerName: h.manager?.fullName || "Unassigned",
+          managerPhone: h.manager?.phone || "",
+          managerEmail: h.manager?.email || "",
+          lastInventorySync: h.updatedAt,
+        }))}
+        categories={categories}
+        suppliers={[]}
+        materialTypes={categories}
         onChange={handleFilterChange}
         onClear={handleClearFilters}
-        hasStatFilter={activeStat !== null}
       />
 
       <HubInventoryTable
-        rows={paginatedRows}
+        rows={sortedRows}
         isLoading={isLoading}
         isRefreshing={isRefreshing}
         currentPage={currentPage}
-        totalItems={sortedRows.length}
+        totalItems={totalItems}
         pageSize={HUB_INVENTORY_PAGE_SIZE}
         sortKey={sortKey}
         sortDirection={sortDirection}
         onSort={handleSort}
         onPageChange={setCurrentPage}
-        onRefresh={handleRefresh}
-        onView={(row) => openDetail(row, false)}
-        onAdjust={openAdjust}
-        onRaiseRequisition={(row) =>
-          router.push(getRaiseRequisitionHref(row.hubId, row.materialId))
-        }
-        onTransfer={(row) => router.push(getRaiseTransferHref(row.hubId))}
+        onRefresh={() => void inventoryQuery.refetch()}
+        onView={(row) => openDetail(row)}
+        onAdjust={() => undefined}
+        onRaiseRequisition={(row) => {
+          router.push(getRaiseRequisitionHref(row.hubId, row.materialId));
+        }}
+        onTransfer={(row) => {
+          router.push(getRaiseTransferHref(row.hubId));
+        }}
         onHistory={(row) => openDetail(row, true)}
       />
+
+      {!isLoading && !inventoryQuery.isError && sortedRows.length === 0 ? (
+        <p className="text-center text-sm text-[#64748B]">
+          {scopedHubId
+            ? `No inventory available for ${hubLabel}.`
+            : "No inventory available."}
+        </p>
+      ) : null}
 
       <HubInventoryDetailSheet
         open={detailOpen}
         onOpenChange={setDetailOpen}
         row={selectedRow}
-        incomingTransfers={incomingTransfers}
-        outgoingDispatches={outgoingDispatches}
-        history={selectedHistory}
         focusHistory={focusHistory}
-      />
-
-      <HubInventoryAdjustDialog
-        open={adjustOpen}
-        onOpenChange={setAdjustOpen}
-        row={selectedRow}
-        onConfirm={({ newQuantity, reason }) => {
-          if (!selectedRow) return;
-          adjustHubInventory({
-            hubId: selectedRow.hubId,
-            materialId: selectedRow.materialId,
-            newQuantity,
-            reason,
-            adminName: "Super Admin",
-          });
-        }}
+        history={[]}
+        incomingTransfers={[]}
+        outgoingDispatches={[]}
       />
     </div>
   );

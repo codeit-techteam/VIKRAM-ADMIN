@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { DISPATCH_LOG_STATUS_LABELS } from "@/mock/dispatch-logs";
+import { DISPATCH_LOG_STATUS_LABELS } from "@/constants/sub-hub-ops.constants";
 import type { DispatchLogStatus } from "@/types/dispatch-log.types";
 
 const statusStyles: Record<DispatchLogStatus, string> = {

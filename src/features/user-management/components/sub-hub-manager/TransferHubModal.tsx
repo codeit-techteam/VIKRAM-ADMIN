@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRightLeft, Calendar } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,10 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { SubHubManager } from "@/features/user-management/types/sub-hub-manager.types";
-import { MANAGER_HUBS } from "@/mock/sub-hub-manager-service";
+import {
+  hubManagerService,
+  type ApiHubOption,
+} from "@/services/hubManager.service";
 
 interface TransferHubModalProps {
   manager: SubHubManager | null;
@@ -44,9 +47,18 @@ export function TransferHubModal({
 }: TransferHubModalProps) {
   const [newHubId, setNewHubId] = useState("");
   const [reason, setReason] = useState("");
+  const [hubs, setHubs] = useState<ApiHubOption[]>([]);
   const [effectiveDate, setEffectiveDate] = useState(
     new Date().toISOString().split("T")[0],
   );
+
+  useEffect(() => {
+    if (!open) return;
+    hubManagerService
+      .listHubs()
+      .then(setHubs)
+      .catch(() => setHubs([]));
+  }, [open]);
 
   function handleSubmit() {
     if (!manager || !newHubId || !reason || !effectiveDate) return;
@@ -64,7 +76,7 @@ export function TransferHubModal({
     onClose();
   }
 
-  const availableHubs = MANAGER_HUBS.filter((h) => h.hubId !== manager?.hubId);
+  const availableHubs = hubs.filter((h) => h.id !== manager?.hubId);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
@@ -100,8 +112,8 @@ export function TransferHubModal({
               </SelectTrigger>
               <SelectContent>
                 {availableHubs.map((hub) => (
-                  <SelectItem key={hub.hubId} value={hub.hubId}>
-                    {hub.hubName} · {hub.city}
+                  <SelectItem key={hub.id} value={hub.id}>
+                    {hub.name} · {hub.city}
                   </SelectItem>
                 ))}
               </SelectContent>

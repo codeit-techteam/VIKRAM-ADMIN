@@ -325,7 +325,7 @@ export function calculateOrderTotal(
     0,
   );
   const gst = subtotal * GST_RATE;
-  const loyaltyDiscount = subtotal * LOYALTY_DISCOUNT_RATE;
+  const loyaltyDiscount = 0;
   const grandTotal = subtotal + gst + DELIVERY_FEE - loyaltyDiscount;
 
   return {

@@ -23,10 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  CUSTOMER_TYPE_LABELS,
-  type CustomerListItem,
-} from "@/features/user-management/types/customer.types";
+import type { CustomerListItem } from "@/features/user-management/types/customer.types";
 import { ROUTES } from "@/constants/routes";
 import { formatDate } from "@/utils/format-date";
 import { cn } from "@/lib/utils";
@@ -121,46 +118,46 @@ export function CustomerTable({
           );
         },
       }),
-      columnHelper.accessor("customerType", {
-        header: "CUSTOMER TYPE",
+      columnHelper.accessor("phone", {
+        header: "PHONE",
         cell: ({ getValue }) => (
-          <span className="text-sm text-[#1A1A1A]">
-            {CUSTOMER_TYPE_LABELS[getValue()]}
-          </span>
+          <span className="text-sm text-[#1A1A1A]">{getValue()}</span>
         ),
       }),
-      columnHelper.accessor("assignedHub", {
-        header: "ASSIGNED HUB",
-        cell: ({ getValue }) => (
-          <span
-            className={cn(
-              "text-sm",
-              getValue() === "Not Assigned"
-                ? "text-[#64748B] italic"
-                : "text-[#1A1A1A]",
-            )}
-          >
-            {getValue()}
-          </span>
-        ),
+      columnHelper.accessor("company", {
+        header: "COMPANY",
+        cell: ({ getValue }) => {
+          const value = getValue();
+          return (
+            <span
+              className={cn(
+                "text-sm",
+                value ? "text-[#1A1A1A]" : "text-[#64748B] italic",
+              )}
+            >
+              {value || "—"}
+            </span>
+          );
+        },
       }),
-      columnHelper.accessor("assignedExecutive", {
-        header: "ASSIGNED EXECUTIVE",
-        cell: ({ getValue }) => (
-          <span
-            className={cn(
-              "text-sm",
-              getValue() === "Not Assigned"
-                ? "text-[#64748B] italic"
-                : "text-[#1A1A1A]",
-            )}
-          >
-            {getValue()}
-          </span>
-        ),
+      columnHelper.accessor("gst", {
+        header: "GST",
+        cell: ({ getValue }) => {
+          const value = getValue();
+          return (
+            <span
+              className={cn(
+                "text-sm",
+                value ? "text-[#1A1A1A]" : "text-[#64748B] italic",
+              )}
+            >
+              {value || "—"}
+            </span>
+          );
+        },
       }),
       columnHelper.accessor("activeOrders", {
-        header: "ACTIVE ORDERS",
+        header: "ORDERS",
         cell: ({ getValue }) => {
           const count = getValue();
 
@@ -179,8 +176,16 @@ export function CustomerTable({
           );
         },
       }),
-      columnHelper.accessor("lastOrderDate", {
-        header: "LAST ORDER DATE",
+      columnHelper.accessor("registrationDate", {
+        header: "CREATED",
+        cell: ({ getValue }) => (
+          <span className="text-sm text-[#64748B]">
+            {formatDate(getValue())}
+          </span>
+        ),
+      }),
+      columnHelper.accessor("lastLogin", {
+        header: "LAST LOGIN",
         cell: ({ getValue }) => {
           const value = getValue();
 
@@ -191,18 +196,10 @@ export function CustomerTable({
                 value ? "text-[#1A1A1A]" : "text-[#64748B] italic",
               )}
             >
-              {value ? formatDate(value) : "No Orders Yet"}
+              {value ? formatDate(value) : "Never"}
             </span>
           );
         },
-      }),
-      columnHelper.accessor("registrationDate", {
-        header: "REGISTRATION DATE",
-        cell: ({ getValue }) => (
-          <span className="text-sm text-[#64748B]">
-            {formatDate(getValue())}
-          </span>
-        ),
       }),
       columnHelper.accessor("status", {
         header: "STATUS",

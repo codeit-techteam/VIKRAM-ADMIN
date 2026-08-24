@@ -1,7 +1,7 @@
 "use client";
 
 import { MapPin, Package, Truck, Users } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -22,6 +22,10 @@ import {
   getWarehousesByCity,
   HUB_ASSIGNMENT_DATA,
 } from "@/mock/manager-onboarding";
+import {
+  hubManagerService,
+  type ApiHubOption,
+} from "@/services/hubManager.service";
 import { useManagerDraftStore } from "@/store/manager-draft-store";
 import { notify } from "@/utils/notify";
 import { ManagerWizardPreview } from "../ManagerWizardPreview";
@@ -30,6 +34,7 @@ import { FieldWrapper, StepHeader } from "./ManagerBasicInfoStep";
 export function ManagerHubAssignmentStep() {
   const { control, setValue } = useFormContext<ManagerOnboardingSchema>();
   const patchDraft = useManagerDraftStore((s) => s.patchDraft);
+  const [apiHubs, setApiHubs] = useState<ApiHubOption[]>([]);
 
   const region = useWatch({ control, name: "region" });
   const city = useWatch({ control, name: "city" });
@@ -39,11 +44,34 @@ export function ManagerHubAssignmentStep() {
   const cities = region ? getCitiesByRegion(region) : [];
   const warehouses = city ? getWarehousesByCity(city) : [];
   const hubs = warehouse ? getHubsByWarehouse(warehouse) : [];
+  const selectedApiHub = apiHubs.find((item) => item.id === hub) ?? null;
   const selectedHub = hub ? getHubById(hub) : null;
   const prevHubRef = useRef<string>("");
 
   useEffect(() => {
+    hubManagerService
+      .listHubs()
+      .then(setApiHubs)
+      .catch(() => {
+        notify.error("Unable to load hubs", "Hub list could not be fetched.");
+      });
+  }, []);
+
+  useEffect(() => {
     if (!hub) return;
+
+    const apiHub = apiHubs.find((item) => item.id === hub);
+    if (apiHub) {
+      setValue("hubName", apiHub.name);
+      setValue("hubCode", apiHub.code);
+      patchDraft({ hubName: apiHub.name, hubCode: apiHub.code });
+      if (prevHubRef.current && prevHubRef.current !== hub) {
+        notify.success("Hub Assigned", `${apiHub.name} has been selected.`);
+      }
+      prevHubRef.current = hub;
+      return;
+    }
+
     const hubData = getHubById(hub);
     if (!hubData) return;
     setValue("hubName", hubData.name);
@@ -57,7 +85,7 @@ export function ManagerHubAssignmentStep() {
     }
     prevHubRef.current = hub;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hub]);
+  }, [hub, apiHubs]);
 
   return (
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_280px]">
@@ -69,6 +97,41 @@ export function ManagerHubAssignmentStep() {
         />
 
         <FormSectionCard icon={MapPin} title="Hub Assignment">
+          <div className="mb-5 space-y-1.5">
+            <FieldWrapper label="Assigned Hub" required>
+              <Controller
+                control={control}
+                name="hub"
+                render={({ field, fieldState }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={(val) => {
+                      if (!val) return;
+                      field.onChange(val);
+                      patchDraft({ hub: val });
+                    }}
+                  >
+                    <SelectTrigger className="h-10 w-full">
+                      <SelectValue placeholder="Select assigned hub" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {apiHubs.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name} · {item.city}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                    {fieldState.error?.message ? (
+                      <p className="mt-1 text-xs text-red-500">
+                        {fieldState.error.message}
+                      </p>
+                    ) : null}
+                  </Select>
+                )}
+              />
+            </FieldWrapper>
+          </div>
+
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
             <Controller
               control={control}
@@ -171,14 +234,8 @@ export function ManagerHubAssignmentStep() {
                     onValueChange={(val) => {
                       if (!val) return;
                       field.onChange(val);
-                      setValue("hub", "");
-                      setValue("hubName", "");
-                      setValue("hubCode", "");
                       patchDraft({
                         warehouse: val,
-                        hub: "",
-                        hubName: "",
-                        hubCode: "",
                       });
                     }}
                     disabled={!city}
@@ -197,79 +254,48 @@ export function ManagerHubAssignmentStep() {
                 </FieldWrapper>
               )}
             />
-
-            <Controller
-              control={control}
-              name="hub"
-              render={({ field, fieldState }) => (
-                <FieldWrapper
-                  label="Assign Sub Hub"
-                  required
-                  error={fieldState.error?.message}
-                >
-                  <Select
-                    value={field.value}
-                    onValueChange={(val) => {
-                      if (!val) return;
-                      field.onChange(val);
-                      patchDraft({ hub: val });
-                    }}
-                    disabled={!warehouse}
-                  >
-                    <SelectTrigger className="h-10 w-full">
-                      <SelectValue placeholder="Select hub" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {hubs.map((h) => (
-                        <SelectItem key={h.id} value={h.id}>
-                          {h.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FieldWrapper>
-              )}
-            />
           </div>
         </FormSectionCard>
 
-        {selectedHub ? (
+        {selectedApiHub || selectedHub ? (
           <>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <HubStat
                 icon={MapPin}
                 label="Hub Code"
-                value={selectedHub.code ?? "—"}
+                value={selectedApiHub?.code ?? selectedHub?.code ?? "—"}
               />
               <HubStat
                 icon={Users}
                 label="Current Manager"
-                value={selectedHub.currentManager ?? "Vacant"}
+                value={selectedHub?.currentManager ?? "Vacant"}
               />
               <HubStat
                 icon={Package}
                 label="Capacity"
-                value={selectedHub.capacity ?? "—"}
+                value={selectedHub?.capacity ?? "—"}
               />
               <HubStat
                 icon={MapPin}
                 label="Coverage"
-                value={selectedHub.coverageRadius ?? "—"}
+                value={
+                  selectedHub?.coverageRadius ?? selectedApiHub?.city ?? "—"
+                }
               />
               <HubStat
                 icon={Package}
                 label="Inventory"
-                value={selectedHub.currentInventory ?? "—"}
+                value={selectedHub?.currentInventory ?? "—"}
               />
               <HubStat
                 icon={Truck}
                 label="Pending Dispatches"
-                value={String(selectedHub.pendingDispatches ?? 0)}
+                value={String(selectedHub?.pendingDispatches ?? 0)}
               />
               <HubStat
                 icon={Package}
                 label="Pending Requisitions"
-                value={String(selectedHub.pendingRequisitions ?? 0)}
+                value={String(selectedHub?.pendingRequisitions ?? 0)}
               />
             </div>
 
@@ -294,10 +320,11 @@ export function ManagerHubAssignmentStep() {
                     <MapPin className="size-5 text-white" />
                   </div>
                   <p className="mt-2 text-sm font-semibold text-[#1A1A1A]">
-                    {selectedHub.name}
+                    {selectedApiHub?.name ?? selectedHub?.name ?? "—"}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {selectedHub.coverageRadius} radius
+                    {selectedHub?.coverageRadius ??
+                      `${selectedApiHub?.city ?? "Hub"} coverage`}
                   </p>
                 </div>
               </div>

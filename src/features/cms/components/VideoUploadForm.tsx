@@ -1,17 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Calendar,
   Clapperboard,
   FileText,
-  Image as ImageIcon,
   LayoutGrid,
   MousePointerClick,
-  Upload,
 } from "lucide-react";
-import { Controller, useForm } from "react-hook-form";
+import {
+  Controller,
+  useForm,
+  type FieldErrors,
+  type Resolver,
+} from "react-hook-form";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { CheckboxGroup } from "@/components/shared/CheckboxGroup";
@@ -32,86 +35,372 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { BannerCtaDestinationPicker } from "@/features/cms/components/BannerCtaDestinationPicker";
 import { PrioritySlider } from "@/features/cms/components/PrioritySlider";
-import { ThumbnailPicker } from "@/features/cms/components/ThumbnailPicker";
 import {
-  CTA_DESTINATION_OPTIONS,
-  CTA_REDIRECT_OPTIONS,
-  MOCK_UPLOAD_FILE,
   PLACEMENT_OPTIONS,
-  THUMBNAIL_FRAMES,
   VIDEO_AUDIENCE_OPTIONS,
   VIDEO_CATEGORY_OPTIONS,
 } from "@/features/cms/constants/video-upload.mock";
 import {
+  clampVideoPriority,
   videoUploadSchema,
   type VideoUploadSchema,
 } from "@/features/cms/schema/video-upload.schema";
+import { videosService } from "@/services/videos.service";
+import { useInvalidateCmsVideos } from "@/hooks/useCmsVideos";
+import { notify } from "@/utils/notify";
+import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { inferBannerCtaDestination } from "@/features/cms/schema/banner-form.schema";
 
 const fieldLabelClassName =
   "text-[11px] font-semibold tracking-wider text-gray-400 uppercase";
 
-export function VideoUploadForm() {
-  const [uploadFile, setUploadFile] = useState<MockUploadFile | null>(
-    MOCK_UPLOAD_FILE,
-  );
-  const [selectedThumbnailId, setSelectedThumbnailId] = useState(
-    THUMBNAIL_FRAMES[0]?.id ?? "",
-  );
+function mapPlacementsToApi(placements: string[]): string {
+  if (placements.includes("home-screen-hero")) return "HOME_HERO_VIDEO";
+  if (placements.includes("product-detail-pages")) return "PRODUCT";
+  if (placements.includes("category-landing-pages")) return "CATEGORY";
+  if (placements.includes("featured-videos")) return "HOME";
+  return "HOME_HERO_VIDEO";
+}
 
-  const { control, handleSubmit, watch } = useForm<VideoUploadSchema>({
-    resolver: zodResolver(videoUploadSchema),
-    defaultValues: {
-      title: "",
-      description: "",
-      category: "brand-story",
-      targetAudience: "all-users",
-      placements: ["home-screen-hero", "product-detail-pages"],
-      priorityLevel: 8,
-      publishImmediately: false,
-      scheduledAt: "",
-      ctaEnabled: true,
+function mapApiPlacementToForm(placement?: string | null): string[] {
+  switch ((placement || "").toUpperCase()) {
+    case "PRODUCT":
+      return ["product-detail-pages"];
+    case "CATEGORY":
+      return ["category-landing-pages"];
+    case "HOME":
+    case "HOME_SECONDARY":
+      return ["featured-videos"];
+    default:
+      return ["home-screen-hero"];
+  }
+}
+
+function toDatetimeLocal(value?: string | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function firstFormError(errors: FieldErrors<VideoUploadSchema>): string {
+  const walk = (value: unknown): string | null => {
+    if (!value || typeof value !== "object") return null;
+    if (
+      "message" in value &&
+      typeof (value as { message?: unknown }).message === "string"
+    ) {
+      return (value as { message: string }).message;
+    }
+    for (const child of Object.values(value as Record<string, unknown>)) {
+      const found = walk(child);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(errors) ?? "Fix the highlighted fields before saving";
+}
+
+function buildCtaFields(data: VideoUploadSchema) {
+  if (!data.ctaEnabled) {
+    return {
+      linkUrl: "",
+      linkType: "",
+      linkTarget: "",
       ctaLabel: "",
-      ctaPath: "",
-      ctaDestinationType: "category",
-    },
-  });
+    };
+  }
+  const path = (data.ctaPath || "").trim();
+  return {
+    linkUrl: path,
+    linkType: data.linkType || data.ctaDestination || "PRODUCT",
+    linkTarget: path,
+    ctaLabel: data.ctaLabel?.trim() || "Shop Now",
+  };
+}
+
+const DEFAULT_FORM: VideoUploadSchema = {
+  title: "",
+  description: "",
+  category: "brand-story",
+  targetAudience: "all-users",
+  placements: ["home-screen-hero"],
+  priorityLevel: 8,
+  publishImmediately: true,
+  scheduledAt: "",
+  ctaEnabled: true,
+  ctaLabel: "Shop Now",
+  ctaDestination: "PRODUCT",
+  linkType: "PRODUCT",
+  ctaPath: "",
+  ctaTargetLabel: "",
+};
+
+export function VideoUploadForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("edit");
+  const isEdit = Boolean(editId);
+  const invalidateVideos = useInvalidateCmsVideos();
+  const [uploadFile, setUploadFile] = useState<MockUploadFile | null>(null);
+  const [rawFile, setRawFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [existingVideoUrl, setExistingVideoUrl] = useState<string | null>(null);
+  const [loadingVideo, setLoadingVideo] = useState(isEdit);
+  const [saving, setSaving] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const { control, handleSubmit, watch, setValue, reset } =
+    useForm<VideoUploadSchema>({
+      resolver: zodResolver(videoUploadSchema) as Resolver<VideoUploadSchema>,
+      defaultValues: DEFAULT_FORM,
+    });
 
   const ctaEnabled = watch("ctaEnabled");
-  const ctaPath = watch("ctaPath");
-  const showCustomPath = ctaPath === "custom";
+  const ctaDestination = watch("ctaDestination");
+  const ctaPath = watch("ctaPath") ?? "";
+  const linkType = watch("linkType") ?? "PRODUCT";
+  const ctaTargetLabel = watch("ctaTargetLabel") ?? "";
 
-  const onSubmit = (data: VideoUploadSchema) => {
-    console.log("Publish video:", { ...data, uploadFile, selectedThumbnailId });
+  useEffect(() => {
+    if (!editId) {
+      setLoadingVideo(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingVideo(true);
+
+    void videosService
+      .getById(editId)
+      .then((video) => {
+        if (cancelled) return;
+        const cta = inferBannerCtaDestination(
+          video.linkType,
+          video.linkTarget || video.linkUrl,
+        );
+        reset({
+          title: video.title ?? "",
+          description: video.description ?? "",
+          category: "brand-story",
+          targetAudience: "all-users",
+          placements: mapApiPlacementToForm(video.placement),
+          priorityLevel: clampVideoPriority(video.priority),
+          publishImmediately: Boolean(video.published ?? video.isVisible),
+          scheduledAt: toDatetimeLocal(video.scheduledAt),
+          ctaEnabled: Boolean(
+            video.ctaLabel || video.linkTarget || video.linkUrl,
+          ),
+          ctaLabel: video.ctaLabel || "Shop Now",
+          ctaDestination: cta.ctaDestination,
+          linkType: cta.linkType,
+          ctaPath: cta.ctaPath,
+          ctaTargetLabel: cta.ctaTargetLabel ?? "",
+        });
+        const url = (video.publicUrl || video.videoUrl || "").trim();
+        if (url) {
+          setExistingVideoUrl(url);
+          setPreviewUrl(url);
+          setUploadFile({ name: "current-video.mp4", progress: 100 });
+        }
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        notify.error(
+          error instanceof Error ? error.message : "Failed to load video",
+        );
+        router.push("/customer-app-cms/videos");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingVideo(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editId, reset, router]);
+
+  useEffect(() => {
+    if (!rawFile) {
+      setPreviewUrl(existingVideoUrl);
+      if (existingVideoUrl) {
+        setUploadFile({ name: "current-video.mp4", progress: 100 });
+      }
+      return;
+    }
+    const objectUrl = URL.createObjectURL(rawFile);
+    setPreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [rawFile, existingVideoUrl]);
+
+  const restoreExistingPreview = () => {
+    setRawFile(null);
+    if (existingVideoUrl) {
+      setPreviewUrl(existingVideoUrl);
+      setUploadFile({ name: "current-video.mp4", progress: 100 });
+    } else {
+      setPreviewUrl(null);
+      setUploadFile(null);
+    }
   };
 
+  const onInvalid = (errors: FieldErrors<VideoUploadSchema>) => {
+    notify.error(firstFormError(errors));
+  };
+
+  const onSubmit = async (data: VideoUploadSchema) => {
+    if (!isEdit && !rawFile) {
+      notify.error("Select an MP4 / MOV / WEBM file to upload");
+      return;
+    }
+
+    setSaving(true);
+    setUploadProgress(0);
+    const cta = buildCtaFields(data);
+
+    try {
+      if (isEdit && editId) {
+        if (rawFile) {
+          await videosService.replaceFile(editId, rawFile, (percent) => {
+            setUploadProgress(percent);
+            setUploadFile((prev) =>
+              prev ? { ...prev, progress: percent } : prev,
+            );
+          });
+        }
+        await videosService.update(editId, {
+          title: data.title,
+          description: data.description ?? "",
+          placement: mapPlacementsToApi(data.placements),
+          ...cta,
+          priority: clampVideoPriority(data.priorityLevel),
+          published: data.publishImmediately,
+        });
+        await invalidateVideos();
+        notify.success(
+          "Changes saved — the Customer App will refresh this video",
+        );
+        router.push("/customer-app-cms/videos");
+        return;
+      }
+
+      if (!rawFile) {
+        notify.error("Select an MP4 / MOV / WEBM file to upload");
+        return;
+      }
+
+      await videosService.upload(
+        {
+          file: rawFile,
+          title: data.title,
+          description: data.description,
+          placement: mapPlacementsToApi(data.placements),
+          ...cta,
+          priority: clampVideoPriority(data.priorityLevel),
+          publish: data.publishImmediately,
+        },
+        (percent) => {
+          setUploadProgress(percent);
+          setUploadFile((prev) =>
+            prev ? { ...prev, progress: percent } : prev,
+          );
+        },
+      );
+
+      await invalidateVideos();
+      notify.success("Video published — the Customer App will refresh it now");
+      router.push("/customer-app-cms/videos");
+    } catch (error) {
+      notify.error(
+        error instanceof Error ? error.message : "Failed to save video",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loadingVideo) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <p className="text-sm text-[#64748B]">Loading video…</p>
+      </div>
+    );
+  }
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-6">
       <Breadcrumbs
         items={[
           { label: "Customer App CMS", href: "/customer-app-cms" },
           { label: "Video Management", href: "/customer-app-cms/videos" },
-          { label: "Upload New Video" },
+          { label: isEdit ? "Edit Video" : "Upload New Video" },
         ]}
       />
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold text-[#1A1A1A]">
-          Upload New Video Asset
-        </h1>
+        <div>
+          <h1 className="text-2xl font-bold text-[#1A1A1A]">
+            {isEdit ? "Edit Video" : "Upload New Video"}
+          </h1>
+          <p className="mt-1 text-sm text-[#64748B]">
+            Set Shop Now to open a product in the Customer App. Search and pick
+            the catalog item shoppers should land on.
+          </p>
+        </div>
         <div className="flex items-center gap-3">
-          <Button type="button" variant="outline" className="h-10 px-5">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 px-5"
+            onClick={() => router.push("/customer-app-cms/videos")}
+          >
             Discard
           </Button>
-          <Button type="submit" className="h-10 px-5">
-            Publish Video
+          <Button
+            type="button"
+            nativeButton
+            className="h-10 px-5"
+            disabled={saving}
+            onClick={() => void handleSubmit(onSubmit, onInvalid)()}
+          >
+            {saving
+              ? uploadProgress > 0 && uploadProgress < 100
+                ? `Uploading ${uploadProgress}%…`
+                : "Saving…"
+              : isEdit
+                ? "Save changes"
+                : "Publish Video"}
           </Button>
         </div>
       </div>
 
-      <FormSectionCard icon={Clapperboard} title="Video Asset Ingestion">
-        <FileDropzone selectedFile={uploadFile} onFileSelect={setUploadFile} />
+      <FormSectionCard icon={Clapperboard} title="Video file">
+        <FileDropzone
+          selectedFile={uploadFile}
+          previewUrl={previewUrl}
+          onFileSelect={setUploadFile}
+          onFileChange={(file) => {
+            setRawFile(file);
+            if (file) {
+              setUploadFile({ name: file.name, progress: 0 });
+            }
+          }}
+          onClear={restoreExistingPreview}
+          accept={{
+            "video/mp4": [".mp4"],
+            "video/quicktime": [".mov"],
+            "video/webm": [".webm"],
+          }}
+          helperText={
+            isEdit
+              ? "Optional. Leave the current file to only change Shop Now or other details."
+              : "MP4, MOV, or WEBM up to 500MB. Stored on Cloudflare R2 and streamed in the app."
+          }
+        />
       </FormSectionCard>
 
       <FormSectionCard icon={FileText} title="Content Details">
@@ -127,7 +416,7 @@ export function VideoUploadForm() {
                 <Input
                   {...field}
                   id="title"
-                  placeholder="e.g. Revolutionizing Warehouse Procurement"
+                  placeholder="e.g. Materials Delivered Right to Your Site"
                   aria-invalid={!!fieldState.error}
                 />
                 {fieldState.error && (
@@ -151,7 +440,7 @@ export function VideoUploadForm() {
                   {...field}
                   id="description"
                   rows={4}
-                  placeholder="Describe the content for SEO and accessibility..."
+                  placeholder="Shown under the title in the Customer App"
                   aria-invalid={!!fieldState.error}
                 />
                 {fieldState.error && (
@@ -223,27 +512,7 @@ export function VideoUploadForm() {
         </div>
       </FormSectionCard>
 
-      <FormSectionCard
-        icon={ImageIcon}
-        title="Thumbnail Selection"
-        headerAction={
-          <button
-            type="button"
-            className="text-primary hover:text-primary/80 inline-flex items-center gap-1.5 text-sm font-medium"
-          >
-            <Upload className="size-3.5" />
-            Upload Custom
-          </button>
-        }
-      >
-        <ThumbnailPicker
-          frames={THUMBNAIL_FRAMES}
-          selectedId={selectedThumbnailId}
-          onSelect={setSelectedThumbnailId}
-        />
-      </FormSectionCard>
-
-      <FormSectionCard icon={MousePointerClick} title="Customer App CTA Button">
+      <FormSectionCard icon={MousePointerClick} title="Customer App button">
         <div className="space-y-5">
           <Controller
             control={control}
@@ -255,10 +524,10 @@ export function VideoUploadForm() {
                     htmlFor="cta-enabled"
                     className="text-sm font-medium text-[#1A1A1A]"
                   >
-                    Show CTA on Customer App
+                    Show button on Customer App
                   </Label>
                   <p className="mt-0.5 text-sm text-[#64748B]">
-                    Display a call-to-action button below this video in the app.
+                    Shop Now opens a product page when you pick Product below.
                   </p>
                 </div>
                 <Switch
@@ -283,7 +552,7 @@ export function VideoUploadForm() {
                     <Input
                       {...field}
                       id="cta-label"
-                      placeholder="e.g. Shop Now, Get Quote"
+                      placeholder="Shop Now"
                       aria-invalid={!!fieldState.error}
                     />
                     {fieldState.error && (
@@ -295,73 +564,56 @@ export function VideoUploadForm() {
                 )}
               />
 
-              <Controller
-                control={control}
-                name="ctaDestinationType"
-                render={({ field, fieldState }) => (
-                  <div className="space-y-2">
-                    <Label className={fieldLabelClassName}>
-                      Destination Type
-                    </Label>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger aria-invalid={!!fieldState.error}>
-                        <SelectValue placeholder="Select destination type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CTA_DESTINATION_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              />
-
-              <Controller
-                control={control}
-                name="ctaPath"
-                render={({ field, fieldState }) => (
-                  <div className="space-y-2 lg:col-span-2">
-                    <Label className={fieldLabelClassName}>
-                      Redirect Destination
-                    </Label>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger aria-invalid={!!fieldState.error}>
-                        <SelectValue placeholder="Select where the button redirects" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CTA_REDIRECT_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {fieldState.error && (
-                      <p className="text-destructive text-sm">
-                        {fieldState.error.message}
-                      </p>
-                    )}
-                  </div>
-                )}
-              />
-
-              {showCustomPath && (
-                <div className="space-y-2 lg:col-span-2">
-                  <Label
-                    htmlFor="custom-cta-path"
-                    className={fieldLabelClassName}
-                  >
-                    Custom Path
-                  </Label>
-                  <Input
-                    id="custom-cta-path"
-                    placeholder="/category/your-path"
-                  />
-                </div>
-              )}
+              <div className="lg:col-span-2">
+                <Controller
+                  control={control}
+                  name="ctaPath"
+                  render={({ fieldState }) => (
+                    <div>
+                      <BannerCtaDestinationPicker
+                        preferProduct
+                        value={{
+                          ctaDestination,
+                          linkType,
+                          ctaPath,
+                          ctaTargetLabel,
+                        }}
+                        onChange={(next) => {
+                          setValue("ctaDestination", next.ctaDestination, {
+                            shouldValidate: true,
+                          });
+                          setValue("linkType", next.linkType, {
+                            shouldValidate: true,
+                          });
+                          setValue("ctaPath", next.ctaPath, {
+                            shouldValidate: true,
+                          });
+                          setValue(
+                            "ctaTargetLabel",
+                            next.ctaTargetLabel ?? "",
+                            {
+                              shouldDirty: true,
+                            },
+                          );
+                        }}
+                        error={fieldState.error?.message}
+                      />
+                      {ctaDestination !== "PRODUCT" ? (
+                        <p className="mt-2 text-sm text-amber-800">
+                          Shop Now currently opens{" "}
+                          {ctaDestination === "CATALOG"
+                            ? "Catalog"
+                            : ctaDestination.toLowerCase()}
+                          . Choose{" "}
+                          <span className="font-semibold">Product</span> and
+                          pick an item so the Customer App opens that product
+                          page.
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
+                />
+              </div>
             </div>
           )}
         </div>

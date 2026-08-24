@@ -42,6 +42,19 @@ export const CUSTOMER_EXECUTIVE_NAV_GROUPS: NavChildGroup[] = [
         label: "Complaints",
         href: `${ROUTES.CUSTOMER_EXECUTIVE}/complaints`,
       },
+      {
+        label: "Expert Callbacks",
+        href: ROUTES.CUSTOMER_EXECUTIVE_EXPERT_CALLBACKS,
+      },
+    ],
+  },
+  {
+    label: "Procurement",
+    items: [
+      {
+        label: "Bulk Procurement",
+        href: ROUTES.CUSTOMER_EXECUTIVE_BULK_PROCUREMENT,
+      },
     ],
   },
 ];

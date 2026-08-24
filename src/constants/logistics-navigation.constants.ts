@@ -24,6 +24,10 @@ export const LOGISTICS_NAV_GROUPS: NavChildGroup[] = [
         label: "Customer Logistics",
         href: `${ROUTES.LOGISTICS}/customer`,
       },
+      {
+        label: "Delivery Pricing",
+        href: `${ROUTES.LOGISTICS}/delivery-pricing`,
+      },
     ],
   },
   {

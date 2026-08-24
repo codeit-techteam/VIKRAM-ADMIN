@@ -1,6 +1,8 @@
 import {
+  Award,
   ClipboardList,
   IndianRupee,
+  MessageSquareQuote,
   Package,
   Truck,
   Users,
@@ -18,6 +20,7 @@ import {
   getExecutiveKpiOrderPool,
 } from "@/features/dashboard/utils/executive-kpi-metrics";
 import type {
+  CustomerFeaturesDashboardData,
   DashboardDateFilter,
   DashboardDateRange,
   DashboardNotification,
@@ -35,6 +38,19 @@ import {
   computePendingDispatchCount,
   DISPATCH_LOG_LIST,
 } from "@/mock/dispatch-logs";
+import {
+  computeTestimonialStats,
+  MOCK_TESTIMONIALS,
+} from "@/mock/mockTestimonials";
+import { formatCurrency } from "@/utils/format-currency";
+
+/** Safe defaults — production bulk data comes from CE `/bulk` APIs, not mocks. */
+const EMPTY_BULK_STATS = {
+  openRequests: 0,
+  assigned: 0,
+  completed: 0,
+  revenuePotential: 0,
+};
 
 export type {
   DashboardDateFilter,
@@ -122,11 +138,32 @@ function buildRecentOrders(): RecentOrder[] {
 
 export interface ExecutiveDashboardData {
   statCards: StatCardData[];
+  customerFeatureCards: StatCardData[];
   pendingActions: PendingAction[];
   quickActions: QuickActionItem[];
   recentOrders: RecentOrder[];
   notifications: DashboardNotification[];
+  customerFeatures: CustomerFeaturesDashboardData;
 }
+
+const MOCK_REFUNDS = [
+  {
+    id: "ref-1",
+    customerName: "Rajesh Kumar",
+    orderNumber: "BJW-1042",
+    amount: 2500,
+    status: "PENDING",
+    requestedDate: "2026-07-20",
+  },
+  {
+    id: "ref-2",
+    customerName: "Amit Builders",
+    orderNumber: "BJW-1038",
+    amount: 1800,
+    status: "APPROVED",
+    requestedDate: "2026-07-19",
+  },
+];
 
 export function fetchExecutiveDashboardData(
   filter: DashboardDateFilter = { range: "quarter" },
@@ -136,6 +173,10 @@ export function fetchExecutiveDashboardData(
   const ordersInTransit = computeOrdersInTransit(kpiOrders, filter);
   const quarterRevenue = computeQuarterRevenue(kpiOrders, filter);
   const activeCustomers = computeActiveCustomers(kpiOrders, filter);
+
+  const bulkStats = EMPTY_BULK_STATS;
+  const testimonialStats = computeTestimonialStats(MOCK_TESTIMONIALS);
+  const loyaltyMembersCount = 0;
 
   return {
     statCards: [
@@ -176,6 +217,83 @@ export function fetchExecutiveDashboardData(
         iconClassName: "text-emerald-600",
       },
     ],
+    customerFeatureCards: [
+      {
+        label: "Loyalty Members",
+        value: String(loyaltyMembersCount),
+        subtext: "Enrolled in loyalty program",
+        href: ROUTES.USER_MANAGEMENT_CUSTOMER_LOYALTY,
+        icon: Award,
+        iconContainerClassName: "bg-purple-50",
+        iconClassName: "text-purple-600",
+      },
+      {
+        label: "Bulk Procurement Leads",
+        value: String(bulkStats.openRequests + bulkStats.assigned),
+        subtext: formatCompactRupee(bulkStats.revenuePotential) + " pipeline",
+        href: ROUTES.CUSTOMER_EXECUTIVE_BULK_PROCUREMENT,
+        icon: ClipboardList,
+        iconContainerClassName: "bg-amber-50",
+        iconClassName: "text-amber-600",
+      },
+      {
+        label: "Customer Testimonials",
+        value: String(testimonialStats.published),
+        subtext: `${testimonialStats.draft} drafts pending`,
+        href: ROUTES.CUSTOMER_APP_CMS_TESTIMONIALS,
+        icon: MessageSquareQuote,
+        iconContainerClassName: "bg-green-50",
+        iconClassName: "text-green-600",
+      },
+    ],
+    customerFeatures: {
+      membershipRevenue: formatCurrency(0),
+      loyaltyMembers: loyaltyMembersCount,
+      bulkProcurementLeads: bulkStats.openRequests + bulkStats.assigned,
+      testimonialCount: testimonialStats.published,
+      recentMembershipPurchases: [],
+      latestRefunds: [...MOCK_REFUNDS]
+        .sort(
+          (a, b) =>
+            new Date(b.requestedDate).getTime() -
+            new Date(a.requestedDate).getTime(),
+        )
+        .slice(0, 5)
+        .map((r) => ({
+          id: r.id,
+          customer: r.customerName,
+          orderNumber: r.orderNumber,
+          amount: formatCurrency(r.amount),
+          status: r.status,
+          date: r.requestedDate,
+          href: ROUTES.FINANCE_PAYMENTS,
+        })),
+      bulkLeads: [] as Array<{
+        id: string;
+        company: string;
+        project: string;
+        value: string;
+        status: string;
+        href: string;
+      }>,
+      latestTestimonials: [...MOCK_TESTIMONIALS]
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        )
+        .slice(0, 4)
+        .map((t) => ({
+          id: t.id,
+          customerName: t.customerName,
+          city: t.city,
+          type: t.type,
+          rating: t.rating,
+          review: t.review,
+          mediaUrl: t.thumbnailUrl ?? t.mediaUrl,
+          status: t.status,
+          href: ROUTES.CUSTOMER_APP_CMS_TESTIMONIALS,
+        })),
+    },
     pendingActions: [
       {
         id: "exec-orders",

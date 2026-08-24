@@ -32,7 +32,6 @@ import {
 } from "@/components/ui/table";
 import {
   formatAllocationQuantity,
-  getMaterialAvailableForAllocation,
 } from "@/mock/allocations";
 import type { MaterialAllocationItem } from "@/types/warehouse.types";
 import { cn } from "@/lib/utils";
@@ -193,21 +192,20 @@ export function MaterialAllocationTable({
         id: "stockInfo",
         header: "Stock Info",
         cell: ({ row }) => {
-          const stock = getMaterialAvailableForAllocation(
-            row.original.materialId,
-            undefined,
-            row.original.id,
-          );
+          const available =
+            typeof row.original.availableStock === "number"
+              ? row.original.availableStock
+              : null;
 
-          if (!stock) {
+          if (available === null) {
             return <span className="text-sm text-[#64748B]">—</span>;
           }
 
           return (
             <StockIndicator
-              available={stock.available}
+              available={available}
               requestedQty={row.original.requestedQty}
-              unit={stock.unit}
+              unit={row.original.unit}
             />
           );
         },

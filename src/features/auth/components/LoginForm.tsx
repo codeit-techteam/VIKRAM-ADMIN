@@ -17,16 +17,19 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { AUTH_COPY, AUTH_ASSETS } from "@/constants/auth.constants";
 import { ROUTES } from "@/constants/routes";
+import { getDefaultRouteForRole } from "@/constants/route-access";
 import {
   loginSchema,
   type LoginSchema,
 } from "@/features/auth/schema/login.schema";
+import { authService } from "@/services/auth";
 import {
   getDevAuthResponse,
   validateDevCredentials,
 } from "@/services/dev-auth";
 import { useAuthStore } from "@/store/auth-store";
 import { notify } from "@/utils/notify";
+import { getApiErrorMessage } from "@/services/api";
 
 const defaultValues: z.input<typeof loginSchema> = {
   email: "",
@@ -54,6 +57,14 @@ export function LoginForm() {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (searchParams.get("reason") === "live-api") {
+      notify.error(
+        "Your session cannot call live APIs. Sign in again with the backend running.",
+      );
+    }
+  }, [searchParams]);
+
   const {
     control,
     handleSubmit,
@@ -66,22 +77,73 @@ export function LoginForm() {
   const onSubmit = handleSubmit(async (values) => {
     setIsSubmitting(true);
 
-    try {
-      if (!validateDevCredentials(values)) {
-        notify.error("Invalid email or password");
-        return;
-      }
+    const finishLogin = (
+      user: Parameters<typeof login>[0],
+      accessToken: string,
+      refreshToken: string,
+      usedDevAuth: boolean,
+    ) => {
+      login(user, accessToken, refreshToken);
+      notify.success(
+        usedDevAuth
+          ? "Signed in offline (dev mode) — live hub APIs need the backend"
+          : "Signed in successfully",
+      );
 
-      const { user, tokens } = getDevAuthResponse();
-      login(user, tokens.accessToken, tokens.refreshToken);
-
-      notify.success("Signed in successfully");
-
-      const callbackUrl = searchParams.get("callbackUrl") ?? ROUTES.DASHBOARD;
-      router.push(callbackUrl);
+      const callbackUrl = searchParams.get("callbackUrl");
+      const destination =
+        callbackUrl && callbackUrl !== ROUTES.DASHBOARD
+          ? callbackUrl
+          : getDefaultRouteForRole(user.role);
+      router.push(destination);
       router.refresh();
-    } catch {
-      notify.error("Unable to sign in. Please try again.");
+    };
+
+    try {
+      // Always prefer live backend tokens so /admin/hubs and provision work.
+      // Mock tokens only when the API is unreachable (offline fallback).
+      try {
+        const response = await authService.login({
+          email: values.email,
+          password: values.password,
+          rememberMe: values.rememberMe,
+        });
+        finishLogin(
+          response.user,
+          response.tokens.accessToken,
+          response.tokens.refreshToken,
+          false,
+        );
+        return;
+      } catch (apiError) {
+        const message = getApiErrorMessage(apiError);
+        const isOffline =
+          message === "Network Error" ||
+          message.includes("ERR_CONNECTION") ||
+          message.includes("timeout");
+
+        if (isOffline && validateDevCredentials(values)) {
+          const devResponse = getDevAuthResponse(values);
+          finishLogin(
+            devResponse.user,
+            devResponse.tokens.accessToken,
+            devResponse.tokens.refreshToken,
+            true,
+          );
+          return;
+        }
+
+        throw apiError;
+      }
+    } catch (error) {
+      const message = getApiErrorMessage(error);
+      if (message === "Network Error" || message.includes("ERR_CONNECTION")) {
+        notify.error(
+          "Cannot reach the server. Start the backend on port 8000, then sign in with superadmin@bajriwala.in / Admin@1234.",
+        );
+      } else {
+        notify.error(message || "Unable to sign in. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }

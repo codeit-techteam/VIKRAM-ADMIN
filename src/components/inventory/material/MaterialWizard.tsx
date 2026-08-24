@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { isAxiosError } from "axios";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Check, ChevronRight, Clock } from "lucide-react";
 import Link from "next/link";
@@ -29,6 +30,7 @@ import {
   type MaterialFormSchema,
 } from "@/schema/material-form.schema";
 import type { MaterialWizardStep } from "@/types/material.types";
+import { catalogService } from "@/services/catalog.service";
 import { notify } from "@/utils/notify";
 import { cn } from "@/lib/utils";
 
@@ -116,6 +118,7 @@ export function MaterialWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   const methods = useForm<MaterialFormSchema>({
     resolver: zodResolver(materialFormSchema),
@@ -232,15 +235,74 @@ export function MaterialWizard() {
     setCurrentStep((step) => Math.max(step - 1, 1));
   };
 
-  const onPublish = (data: MaterialFormSchema) => {
-    console.log("Publish material:", data);
-    localStorage.removeItem(MATERIAL_DRAFT_STORAGE_KEY);
-    localStorage.removeItem(MATERIAL_DRAFT_SAVED_AT_KEY);
-    notify.success(
-      "Material published",
-      `${data.materialName} is ready for backend integration.`,
-    );
-    router.push(INVENTORY_ROUTE);
+  const onPublish = async (data: MaterialFormSchema) => {
+    setIsPublishing(true);
+    try {
+      const categories = await catalogService.listCategories();
+      const normalized = data.category.trim().toLowerCase();
+      const category = categories.find(
+        (item) =>
+          item.id === data.category ||
+          item.slug?.toLowerCase() === normalized ||
+          item.name.toLowerCase() === normalized,
+      );
+      if (!category) {
+        notify.error(
+          "Category not found",
+          "Select a category that exists in the product catalog.",
+        );
+        return;
+      }
+
+      const firstSku = data.skus[0];
+      const imageUrls = [
+        data.mainImage?.url,
+        ...data.galleryImages.map((image) => image.url),
+      ].filter((url): url is string => Boolean(url));
+      const name = data.materialName.trim();
+      await catalogService.createProduct({
+        name,
+        slug: name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, ""),
+        sku: firstSku.skuCode.trim().toUpperCase(),
+        categoryId: category.id,
+        brand: data.brand.trim() || undefined,
+        description: data.longDescription || data.shortDescription || undefined,
+        retailPrice: data.sellingPrice || data.purchasePrice,
+        unit: firstSku.unit,
+        gst: data.gstPercent,
+        imageUrls,
+        initialStock: data.openingStock,
+        lowStockThreshold: data.reorderLevel || data.warehouseMinimumStock,
+        minimumStock: firstSku.minimumStock || data.warehouseMinimumStock,
+        maximumStock: firstSku.maximumStock || data.warehouseMaximumStock,
+        isVisible: data.productStatus === "active",
+      });
+
+      localStorage.removeItem(MATERIAL_DRAFT_STORAGE_KEY);
+      localStorage.removeItem(MATERIAL_DRAFT_SAVED_AT_KEY);
+      notify.success("Material published", `${name} has been added.`);
+      router.push(INVENTORY_ROUTE);
+    } catch (error) {
+      const responseMessage = isAxiosError<{ message?: string }>(error)
+        ? error.response?.data?.message
+        : undefined;
+      const message =
+        responseMessage ??
+        (error instanceof Error ? error.message : String(error));
+      if (message.toLowerCase().includes("sku")) {
+        notify.error(
+          "SKU already exists",
+          "Use a unique SKU code and publish again.",
+        );
+      } else {
+        notify.error("Publish failed", "Unable to create this material.");
+      }
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   const renderStep = () => {
@@ -360,8 +422,12 @@ export function MaterialWizard() {
                 Next
               </Button>
             ) : (
-              <Button type="submit" className="h-10 px-5">
-                Publish Material
+              <Button
+                type="submit"
+                className="h-10 px-5"
+                disabled={isPublishing}
+              >
+                {isPublishing ? "Publishing..." : "Publish Material"}
               </Button>
             )}
           </div>

@@ -9,6 +9,7 @@ import {
   Truck,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Pagination } from "@/components/shared/Pagination";
@@ -27,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ROUTES } from "@/constants/routes";
 import { AssignDriverDialog } from "@/features/logistics/components/AssignDriverDialog";
 import { AssignVehicleDialog } from "@/features/logistics/components/AssignVehicleDialog";
 import { LogisticsFilterBar } from "@/features/logistics/components/LogisticsFilterBar";
@@ -35,37 +37,56 @@ import {
   type LogisticsMetricCardData,
 } from "@/features/logistics/components/LogisticsMetricCard";
 import { LogisticsStatusBadge } from "@/features/logistics/components/LogisticsStatusBadge";
-import { useLogisticsLoading } from "@/features/logistics/hooks/use-logistics-loading";
+import {
+  useCustomerLogistics,
+  useLogisticsFilters,
+} from "@/features/logistics/hooks/use-logistics";
 import {
   EMPTY_CUSTOMER_FILTERS,
   formatLogisticsDateTime,
-  getCustomerStats,
-  LOGISTICS_HUBS,
   LOGISTICS_PAGE_SIZE,
-  queryCustomerDeliveries,
-} from "@/mock/logistics";
-import { useLogisticsStore } from "@/store/logistics-store";
+} from "@/features/logistics/utils/logistics-formatters";
 import type {
   CustomerDelivery,
   CustomerDeliveryFilters,
 } from "@/types/logistics.types";
-import { notify } from "@/utils/notify";
 
 export function CustomerLogisticsPage() {
-  const { isLoading } = useLogisticsLoading();
-  const customerDeliveries = useLogisticsStore((s) => s.customerDeliveries);
+  const router = useRouter();
   const [filters, setFilters] = useState<CustomerDeliveryFilters>(
-    EMPTY_CUSTOMER_FILTERS,
+    EMPTY_CUSTOMER_FILTERS as CustomerDeliveryFilters,
   );
   const [currentPage, setCurrentPage] = useState(1);
   const [assignVehicleOpen, setAssignVehicleOpen] = useState(false);
   const [assignDriverOpen, setAssignDriverOpen] = useState(false);
   const [assignTargetId, setAssignTargetId] = useState("");
+  const [assignTargetLabel, setAssignTargetLabel] = useState("");
+  const [assignDriverId, setAssignDriverId] = useState<string | null>(null);
+  const [assignVehicleId, setAssignVehicleId] = useState<string | null>(null);
 
-  const stats = useMemo(
-    () => getCustomerStats(customerDeliveries),
-    [customerDeliveries],
+  const { data: filterOptions } = useLogisticsFilters();
+
+  const queryParams = useMemo(
+    () => ({
+      search: filters.search || undefined,
+      hubId: filters.hub !== "all" ? filters.hub : undefined,
+      status: filters.status !== "all" ? filters.status : undefined,
+      page: currentPage,
+      limit: LOGISTICS_PAGE_SIZE,
+    }),
+    [filters, currentPage],
   );
+
+  const { data, isLoading, isError, refetch, isFetching } =
+    useCustomerLogistics(queryParams);
+
+  const stats = data?.stats ?? {
+    ordersReady: 0,
+    outForDelivery: 0,
+    delivered: 0,
+    failed: 0,
+    returned: 0,
+  };
 
   const kpiCards = useMemo<LogisticsMetricCardData[]>(
     () => [
@@ -106,17 +127,6 @@ export function CustomerLogisticsPage() {
     [stats],
   );
 
-  const queryResult = useMemo(
-    () =>
-      queryCustomerDeliveries(
-        customerDeliveries,
-        currentPage,
-        LOGISTICS_PAGE_SIZE,
-        filters,
-      ),
-    [customerDeliveries, currentPage, filters],
-  );
-
   const filterConfigs = [
     {
       label: "Hub",
@@ -124,7 +134,10 @@ export function CustomerLogisticsPage() {
       onChange: (v: string) => setFilters((f) => ({ ...f, hub: v })),
       options: [
         { value: "all", label: "All Hubs" },
-        ...LOGISTICS_HUBS.map((h) => ({ value: h, label: h })),
+        ...(filterOptions?.hubs ?? []).map((h) => ({
+          value: h.id,
+          label: h.name,
+        })),
       ],
     },
     {
@@ -144,18 +157,52 @@ export function CustomerLogisticsPage() {
     },
   ];
 
+  const openAssign = (
+    item: CustomerDelivery,
+    type: "vehicle" | "driver",
+  ) => {
+    setAssignTargetId(item.id);
+    setAssignTargetLabel(item.orderId);
+    setAssignDriverId(item.driverId);
+    setAssignVehicleId(item.vehicleId);
+    if (type === "vehicle") setAssignVehicleOpen(true);
+    else setAssignDriverOpen(true);
+  };
+
   const handleAction = (action: string, item: CustomerDelivery) => {
     if (action === "assign-vehicle" || action === "change-vehicle") {
-      setAssignTargetId(item.orderId);
-      setAssignVehicleOpen(true);
+      openAssign(item, "vehicle");
     } else if (action === "assign-driver") {
-      setAssignTargetId(item.orderId);
-      setAssignDriverOpen(true);
-    } else if (action === "track") {
-      notify.info("Tracking Delivery", `Opening tracker for ${item.orderId}`);
-    } else if (action === "view") {
-      notify.info("Order Details", `${item.orderId} — ${item.customer}`);
+      openAssign(item, "driver");
+    } else if (action === "track" || action === "view") {
+      router.push(
+        `${ROUTES.LOGISTICS}/tracking?id=${encodeURIComponent(item.orderId)}`,
+      );
     }
+  };
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-red-100 bg-white p-10 text-center">
+        <p className="text-sm font-medium">Unable to load customer deliveries.</p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void refetch()}
+          disabled={isFetching}
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  const rows = data?.data ?? [];
+  const meta = data?.meta ?? {
+    page: 1,
+    limit: LOGISTICS_PAGE_SIZE,
+    total: 0,
+    totalPages: 1,
   };
 
   return (
@@ -179,7 +226,7 @@ export function CustomerLogisticsPage() {
         }}
         filters={filterConfigs}
         onReset={() => {
-          setFilters(EMPTY_CUSTOMER_FILTERS);
+          setFilters(EMPTY_CUSTOMER_FILTERS as CustomerDeliveryFilters);
           setCurrentPage(1);
         }}
       />
@@ -191,10 +238,10 @@ export function CustomerLogisticsPage() {
               <div key={i} className="h-12 animate-pulse rounded bg-gray-100" />
             ))}
           </div>
-        ) : queryResult.data.length === 0 ? (
+        ) : rows.length === 0 ? (
           <div className="p-6">
             <EmptyState
-              title="No Deliveries"
+              title="No customer deliveries found."
               description="No customer deliveries match your filters."
               icon={<Package className="size-8" />}
             />
@@ -231,7 +278,7 @@ export function CustomerLogisticsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {queryResult.data.map((item) => (
+                {rows.map((item) => (
                   <TableRow key={item.id} className="hover:bg-gray-50/50">
                     <TableCell className="font-medium">
                       {item.orderId}
@@ -310,12 +357,12 @@ export function CustomerLogisticsPage() {
           </div>
         )}
 
-        {!isLoading && queryResult.meta.total > 0 ? (
+        {!isLoading && meta.total > 0 ? (
           <Pagination
             currentPage={currentPage}
-            totalPages={queryResult.meta.totalPages}
+            totalPages={meta.totalPages}
             pageSize={LOGISTICS_PAGE_SIZE}
-            totalItems={queryResult.meta.total}
+            totalItems={meta.total}
             onPageChange={setCurrentPage}
             itemLabel="orders"
           />
@@ -326,13 +373,19 @@ export function CustomerLogisticsPage() {
         open={assignVehicleOpen}
         onOpenChange={setAssignVehicleOpen}
         targetId={assignTargetId}
+        targetLabel={assignTargetLabel}
         targetType="customer"
+        driverId={assignDriverId}
+        onAssigned={() => void refetch()}
       />
       <AssignDriverDialog
         open={assignDriverOpen}
         onOpenChange={setAssignDriverOpen}
         targetId={assignTargetId}
+        targetLabel={assignTargetLabel}
         targetType="customer"
+        vehicleId={assignVehicleId}
+        onAssigned={() => void refetch()}
       />
     </div>
   );

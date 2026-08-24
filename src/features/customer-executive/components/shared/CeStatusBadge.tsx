@@ -38,6 +38,7 @@ const ceStatusBadgeVariants = cva(
         EXECUTIVE: "bg-orange-50 text-orange-600 border border-orange-100",
         PENDING: "bg-red-100 text-red-700",
         PAID: "bg-green-100 text-green-700",
+        COLLECTED: "bg-green-100 text-green-700",
         PARTIAL: "bg-blue-100 text-blue-700",
         EXPIRED: "bg-gray-100 text-gray-600",
         NOT_SENT: "bg-red-50 text-red-600",

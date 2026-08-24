@@ -14,7 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -33,9 +33,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { ExecutiveAssignedCustomerRow } from "@/features/user-management/types/support-executive.types";
+import type {
+  ExecutiveAssignedCustomerRow,
+  ExecutiveProfileDetail,
+} from "@/features/user-management/types/support-executive.types";
 import { ROUTES } from "@/constants/routes";
-import { useCustomerStore } from "@/store/customer-store";
+import { getApiErrorMessage } from "@/services/api";
+import { fetchAdminUser } from "@/services/admin-users";
+import { fetchAdminCustomers } from "@/services/customers";
 import { formatDate } from "@/utils/format-date";
 import { notify } from "@/utils/notify";
 import { cn } from "@/lib/utils";
@@ -108,33 +113,69 @@ function CustomerStatusDot({
 export function ExecutiveProfileContent({
   executiveId,
 }: ExecutiveProfileContentProps) {
-  const getExecutiveProfile = useCustomerStore(
-    (state) => state.getExecutiveProfile,
-  );
-  const customers = useCustomerStore((state) => state.customers);
-  const orders = useCustomerStore((state) => state.orders);
-  const supportExecutiveAssignmentHistory = useCustomerStore(
-    (state) => state.supportExecutiveAssignmentHistory,
-  );
-
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [executive, setExecutive] = useState<ExecutiveProfileDetail | null>(
+    null,
+  );
   const [customerPage, setCustomerPage] = useState(1);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 450);
-    return () => window.clearTimeout(timer);
+  const loadExecutive = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const [user, assignedCustomers] = await Promise.all([
+        fetchAdminUser(executiveId),
+        fetchAdminCustomers({
+          executiveId,
+          page: 1,
+          limit: 50,
+        }),
+      ]);
+
+      const isActive = user.isActive || user.status === "ACTIVE";
+      const assignedCustomerRows: ExecutiveAssignedCustomerRow[] =
+        assignedCustomers.data.map((customer) => ({
+          id: customer.id,
+          customerName: customer.name?.trim() || customer.phone,
+          phone: customer.phone,
+          city: customer.company ?? "—",
+          lastOrderDate: null,
+          assignedSince: customer.createdAt,
+          status: customer.status === "ACTIVE" ? "ACTIVE" : "INACTIVE",
+        }));
+
+      setExecutive({
+        id: user.id,
+        employeeId: user.id.slice(0, 8).toUpperCase(),
+        name: user.fullName || user.email,
+        phone: user.phone ?? "Not available",
+        email: user.email,
+        hubId: "",
+        hub: "Not available",
+        region: "Not available",
+        assignedCustomers:
+          user.assignedCustomers ?? assignedCustomerRows.length,
+        todayOrders: 0,
+        totalOrders: 0,
+        todayCalls: 0,
+        status: isActive ? "AVAILABLE" : "OFFLINE",
+        joiningDate: user.createdAt,
+        assignedRegions: [],
+        recentOrders: [],
+        assignedCustomerRows,
+      });
+    } catch (error) {
+      setExecutive(null);
+      setLoadError(getApiErrorMessage(error));
+    } finally {
+      setIsLoading(false);
+    }
   }, [executiveId]);
 
-  const executive = useMemo(
-    () => getExecutiveProfile(executiveId),
-    [
-      getExecutiveProfile,
-      executiveId,
-      customers,
-      orders,
-      supportExecutiveAssignmentHistory,
-    ],
-  );
+  useEffect(() => {
+    void loadExecutive();
+  }, [loadExecutive]);
 
   if (isLoading) {
     return <ProfileSkeleton />;
@@ -155,7 +196,10 @@ export function ExecutiveProfileContent({
         />
         <EmptyState
           title="Executive not found"
-          description="The requested executive profile could not be located."
+          description={
+            loadError ??
+            "The requested executive profile could not be located."
+          }
         />
       </div>
     );

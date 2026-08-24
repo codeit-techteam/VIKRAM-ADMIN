@@ -11,12 +11,12 @@ import {
   Package,
   Tag,
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, type Resolver } from "react-hook-form";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
+import { SafeRemoteImage } from "@/components/shared/SafeRemoteImage";
 import {
   FileDropzone,
   type MockUploadFile,
@@ -37,10 +37,10 @@ import { OfferMobilePreview } from "@/features/cms/components/OfferMobilePreview
 import { OfferProductSelector } from "@/features/cms/components/OfferProductSelector";
 import { PrioritySlider } from "@/features/cms/components/PrioritySlider";
 import {
+  OFFER_AUDIENCE_OPTIONS,
+  OFFER_BADGE_OPTIONS,
   OFFER_CTA_OPTIONS,
-  OFFER_PRODUCT_CATALOG,
   OFFER_TYPE_OPTIONS,
-  slugifyOfferName,
 } from "@/features/cms/constants/offer.mock";
 import {
   offerFormSchema,
@@ -48,9 +48,17 @@ import {
 } from "@/features/cms/schema/offer-form.schema";
 import {
   createOffer,
+  findDuplicateOffers,
+  getOfferProductsCatalog,
+  getOffers,
   updateOffer,
 } from "@/features/cms/services/offer.mock-api";
 import type { Offer, OfferProduct } from "@/features/cms/types/offer.types";
+import {
+  assertRemoteMediaUrl,
+  uploadMediaFile,
+} from "@/services/media.service";
+import { notify } from "@/utils/notify";
 
 const fieldLabelClassName =
   "text-[11px] font-semibold tracking-wider text-gray-400 uppercase";
@@ -63,13 +71,15 @@ interface OfferFormProps {
 function offerToFormValues(offer: Offer): OfferFormSchema {
   return {
     name: offer.name,
-    slug: offer.slug,
     description: offer.description,
+    startingFrom: offer.startingFrom ?? null,
     status: offer.status,
     priority: offer.priority,
     offerType: offer.offerType,
     productIds: offer.products.map((product) => product.id),
     ctaLabel: offer.ctaLabel,
+    badge: offer.badge || "",
+    targetAudience: offer.targetAudience || "ALL",
     startDate: offer.startDate,
     endDate: offer.endDate,
     desktopBanner: offer.desktopBanner,
@@ -79,13 +89,15 @@ function offerToFormValues(offer: Offer): OfferFormSchema {
 
 const CREATE_DEFAULTS: OfferFormSchema = {
   name: "",
-  slug: "",
   description: "",
+  startingFrom: null,
   status: "DRAFT",
   priority: 5,
   offerType: "home-carousel",
   productIds: [],
   ctaLabel: "Shop Now",
+  badge: "",
+  targetAudience: "ALL",
   startDate: "",
   endDate: "",
   desktopBanner: "",
@@ -98,43 +110,67 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
     null,
   );
   const [mobileUpload, setMobileUpload] = useState<MockUploadFile | null>(null);
+  const [desktopFile, setDesktopFile] = useState<File | null>(null);
+  const [mobileFile, setMobileFile] = useState<File | null>(null);
   const [desktopPreviewUrl, setDesktopPreviewUrl] = useState(
     initialOffer?.desktopBanner ?? "",
   );
   const [mobilePreviewUrl, setMobilePreviewUrl] = useState(
     initialOffer?.mobileBanner ?? "",
   );
-  const [slugTouched, setSlugTouched] = useState(mode === "edit");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [productCatalog, setProductCatalog] = useState<OfferProduct[]>(
+    initialOffer?.products ?? [],
+  );
 
   const { control, handleSubmit, watch, setValue } = useForm<OfferFormSchema>({
-    resolver: zodResolver(offerFormSchema),
+    resolver: zodResolver(offerFormSchema) as Resolver<OfferFormSchema>,
     defaultValues: initialOffer
       ? offerToFormValues(initialOffer)
       : CREATE_DEFAULTS,
   });
 
   const watchedName = watch("name");
-  const watchedSlug = watch("slug");
   const watchedCta = watch("ctaLabel");
+  const watchedBadge = watch("badge");
+  const watchedDescription = watch("description");
+  const watchedStartingFrom = watch("startingFrom");
   const watchedOfferType = watch("offerType");
   const watchedProductIds = watch("productIds");
   const watchedDesktopBanner = watch("desktopBanner");
   const watchedMobileBanner = watch("mobileBanner");
 
   useEffect(() => {
-    if (!slugTouched && mode === "create") {
-      setValue("slug", slugifyOfferName(watchedName), {
-        shouldValidate: false,
-      });
-    }
-  }, [watchedName, slugTouched, mode, setValue]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const products = await getOfferProductsCatalog();
+        if (cancelled) return;
+        const byId = new Map(products.map((p) => [p.id, p]));
+        for (const product of initialOffer?.products ?? []) {
+          if (!byId.has(product.id)) byId.set(product.id, product);
+        }
+        setProductCatalog(Array.from(byId.values()));
+      } catch (error) {
+        if (!cancelled) {
+          notify.error(
+            error instanceof Error
+              ? error.message
+              : "Failed to load product catalog",
+          );
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialOffer?.products]);
 
   const selectedProducts = useMemo(() => {
     return watchedProductIds
-      .map((id) => OFFER_PRODUCT_CATALOG.find((product) => product.id === id))
+      .map((id) => productCatalog.find((product) => product.id === id))
       .filter((product): product is OfferProduct => Boolean(product));
-  }, [watchedProductIds]);
+  }, [watchedProductIds, productCatalog]);
 
   const previewBanner =
     mobilePreviewUrl ||
@@ -145,39 +181,120 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
 
   const handleDesktopFile = (file: File | null) => {
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setDesktopPreviewUrl(url);
-    setValue("desktopBanner", url, { shouldValidate: true });
+    if (desktopPreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(desktopPreviewUrl);
+    }
+    setDesktopFile(file);
+    setDesktopPreviewUrl(URL.createObjectURL(file));
+    setDesktopUpload({ name: file.name, progress: 0 });
   };
 
   const handleMobileFile = (file: File | null) => {
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setMobilePreviewUrl(url);
-    setValue("mobileBanner", url, { shouldValidate: true });
+    if (mobilePreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(mobilePreviewUrl);
+    }
+    setMobileFile(file);
+    setMobilePreviewUrl(URL.createObjectURL(file));
+    setMobileUpload({ name: file.name, progress: 0 });
   };
 
   const onSave = async (data: OfferFormSchema, publish: boolean) => {
     setIsSubmitting(true);
-    const payload: OfferFormSchema = {
-      ...data,
-      status: publish
-        ? "ACTIVE"
-        : data.status === "ACTIVE"
-          ? "ACTIVE"
-          : "DRAFT",
-      desktopBanner: data.desktopBanner || desktopPreviewUrl,
-      mobileBanner: data.mobileBanner || mobilePreviewUrl,
-    };
-
     try {
+      let desktopBanner = data.desktopBanner || desktopPreviewUrl;
+      let mobileBanner = data.mobileBanner || mobilePreviewUrl;
+
+      if (desktopFile) {
+        const uploaded = await uploadMediaFile(desktopFile, "offers", {
+          replaceKey: mode === "edit" ? initialOffer?.desktopBanner : undefined,
+          onProgress: (percent) => {
+            setDesktopUpload({ name: desktopFile.name, progress: percent });
+          },
+        });
+        desktopBanner = uploaded.publicUrl;
+        setDesktopPreviewUrl(uploaded.publicUrl);
+        setValue("desktopBanner", uploaded.publicUrl, { shouldValidate: true });
+        setDesktopFile(null);
+      }
+
+      if (mobileFile) {
+        const uploaded = await uploadMediaFile(mobileFile, "offers", {
+          replaceKey: mode === "edit" ? initialOffer?.mobileBanner : undefined,
+          onProgress: (percent) => {
+            setMobileUpload({ name: mobileFile.name, progress: percent });
+          },
+        });
+        mobileBanner = uploaded.publicUrl;
+        setMobilePreviewUrl(uploaded.publicUrl);
+        setValue("mobileBanner", uploaded.publicUrl, { shouldValidate: true });
+        setMobileFile(null);
+      }
+
+      if (publish && !desktopBanner && !mobileBanner) {
+        notify.error(
+          "Banner required",
+          "Upload a desktop or mobile banner before publishing.",
+        );
+        return;
+      }
+
+      if (publish) {
+        const existing = await getOffers();
+        const duplicates = findDuplicateOffers(
+          existing,
+          {
+            name: data.name,
+            offerType: data.offerType,
+            startDate: data.startDate,
+            endDate: data.endDate,
+          },
+          initialOffer?.id,
+        );
+        if (duplicates.length > 0) {
+          const proceed = window.confirm(
+            `An offer with the same name, placement, and overlapping schedule already exists (${duplicates[0].name}). Publish anyway?`,
+          );
+          if (!proceed) return;
+        }
+      }
+
+      const payload: OfferFormSchema = {
+        ...data,
+        status: publish
+          ? data.startDate &&
+            new Date(`${data.startDate}T00:00:00+05:30`).getTime() > Date.now()
+            ? "SCHEDULED"
+            : "ACTIVE"
+          : "DRAFT",
+        desktopBanner: desktopBanner
+          ? assertRemoteMediaUrl(desktopBanner)
+          : undefined,
+        mobileBanner: mobileBanner
+          ? assertRemoteMediaUrl(mobileBanner)
+          : desktopBanner
+            ? assertRemoteMediaUrl(desktopBanner)
+            : undefined,
+      };
+
       if (mode === "edit" && initialOffer) {
         await updateOffer(initialOffer.id, payload);
       } else {
         await createOffer(payload);
       }
+      notify.success(
+        publish ? "Offer published successfully" : "Draft saved",
+        publish
+          ? "Eligible customers will see this offer without an app update."
+          : "You can come back and publish this offer later.",
+      );
       router.push("/customer-app-cms/offers");
       router.refresh();
+    } catch (error) {
+      notify.error(
+        "Save failed",
+        error instanceof Error ? error.message : "Could not save offer",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -266,24 +383,32 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
 
               <Controller
                 control={control}
-                name="slug"
+                name="startingFrom"
                 render={({ field, fieldState }) => (
                   <div className="space-y-2">
-                    <Label htmlFor="offer-slug" className={fieldLabelClassName}>
-                      Slug
+                    <Label
+                      htmlFor="offer-starting-from"
+                      className={fieldLabelClassName}
+                    >
+                      Starting from (₹)
                     </Label>
                     <Input
-                      {...field}
-                      id="offer-slug"
-                      placeholder="monsoon-cement-mega-sale"
-                      aria-invalid={!!fieldState.error}
+                      id="offer-starting-from"
+                      type="number"
+                      min={1}
+                      step="1"
+                      inputMode="numeric"
+                      placeholder="e.g. 8"
+                      value={field.value ?? ""}
                       onChange={(event) => {
-                        setSlugTouched(true);
-                        field.onChange(event.target.value);
+                        const value = event.target.value;
+                        field.onChange(value === "" ? null : Number(value));
                       }}
+                      aria-invalid={!!fieldState.error}
                     />
                     <p className="text-xs text-[#64748B]">
-                      URL path: /offers/{watchedSlug || "your-slug"}
+                      Shown as “From ₹…” on the offer card. Leave blank to use
+                      the cheapest included product.
                     </p>
                     {fieldState.error ? (
                       <p className="text-destructive text-sm">
@@ -341,6 +466,7 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
                           <SelectItem value="DRAFT">Draft</SelectItem>
                           <SelectItem value="ACTIVE">Active</SelectItem>
                           <SelectItem value="SCHEDULED">Scheduled</SelectItem>
+                          <SelectItem value="INACTIVE">Inactive</SelectItem>
                           <SelectItem value="EXPIRED">Expired</SelectItem>
                         </SelectContent>
                       </Select>
@@ -394,17 +520,12 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
                 />
                 {desktopPreviewUrl || watchedDesktopBanner ? (
                   <div className="relative aspect-[3/1] overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
-                    <Image
-                      src={desktopPreviewUrl || watchedDesktopBanner || ""}
+                    <SafeRemoteImage
+                      src={desktopPreviewUrl || watchedDesktopBanner || null}
                       alt="Desktop banner preview"
                       fill
                       className="object-cover"
                       sizes="600px"
-                      unoptimized={(
-                        desktopPreviewUrl ||
-                        watchedDesktopBanner ||
-                        ""
-                      ).startsWith("blob:")}
                     />
                   </div>
                 ) : null}
@@ -437,17 +558,12 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
                 />
                 {mobilePreviewUrl || watchedMobileBanner ? (
                   <div className="relative aspect-[4/3] overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
-                    <Image
-                      src={mobilePreviewUrl || watchedMobileBanner || ""}
+                    <SafeRemoteImage
+                      src={mobilePreviewUrl || watchedMobileBanner || null}
                       alt="Mobile banner preview"
                       fill
                       className="object-cover"
                       sizes="400px"
-                      unoptimized={(
-                        mobilePreviewUrl ||
-                        watchedMobileBanner ||
-                        ""
-                      ).startsWith("blob:")}
                     />
                   </div>
                 ) : null}
@@ -505,14 +621,71 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
           </FormSectionCard>
 
           <FormSectionCard icon={MousePointerClick} title="CTA Button">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <Controller
+                control={control}
+                name="ctaLabel"
+                render={({ field }) => (
+                  <div className="space-y-2">
+                    <Label className={fieldLabelClassName}>CTA Label</Label>
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) => {
+                        if (value) field.onChange(value);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 border-gray-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {OFFER_CTA_OPTIONS.map((label) => (
+                          <SelectItem key={label} value={label}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              />
+              <Controller
+                control={control}
+                name="badge"
+                render={({ field }) => (
+                  <div className="space-y-2">
+                    <Label className={fieldLabelClassName}>Offer Badge</Label>
+                    <Select
+                      value={field.value || "none"}
+                      onValueChange={(value) =>
+                        field.onChange(value === "none" ? "" : value)
+                      }
+                    >
+                      <SelectTrigger className="h-9 border-gray-200">
+                        <SelectValue placeholder="None" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {OFFER_BADGE_OPTIONS.map((option) => (
+                          <SelectItem
+                            key={option.value || "none"}
+                            value={option.value || "none"}
+                          >
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              />
+            </div>
             <Controller
               control={control}
-              name="ctaLabel"
+              name="targetAudience"
               render={({ field }) => (
-                <div className="space-y-2">
-                  <Label className={fieldLabelClassName}>CTA Label</Label>
+                <div className="mt-5 space-y-2">
+                  <Label className={fieldLabelClassName}>Target Audience</Label>
                   <Select
-                    value={field.value}
+                    value={field.value || "ALL"}
                     onValueChange={(value) => {
                       if (value) field.onChange(value);
                     }}
@@ -521,13 +694,17 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {OFFER_CTA_OPTIONS.map((label) => (
-                        <SelectItem key={label} value={label}>
-                          {label}
+                      {OFFER_AUDIENCE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-[#64748B]">
+                    Stored for future segmentation. Customer App currently shows
+                    All Customers offers.
+                  </p>
                 </div>
               )}
             />
@@ -587,10 +764,13 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
           <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
             <OfferMobilePreview
               name={watchedName}
+              description={watchedDescription}
               bannerUrl={previewBanner}
               ctaLabel={watchedCta}
+              badge={watchedBadge}
               products={selectedProducts}
               offerType={watchedOfferType}
+              startingFrom={watchedStartingFrom}
             />
           </div>
         </aside>

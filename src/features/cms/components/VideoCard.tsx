@@ -9,10 +9,11 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
-import Image from "next/image";
+import Link from "next/link";
 
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
+import { VideoMediaPreview } from "@/features/cms/components/VideoMediaPreview";
 import type { Video, VideoStatus } from "@/features/cms/types/video.types";
 import { cn } from "@/lib/utils";
 
@@ -20,12 +21,15 @@ interface VideoCardProps {
   video: Video;
   layout?: "grid" | "list";
   onClick?: (video: Video) => void;
+  onDelete?: (video: Video) => void;
 }
 
 const VIDEO_STATUS_OVERLAY: Record<VideoStatus, string> = {
   PUBLISHED: "bg-emerald-600 text-white",
   SCHEDULED: "bg-blue-600 text-white",
   DRAFT: "bg-gray-500 text-white",
+  INACTIVE: "bg-slate-600 text-white",
+  EXPIRED: "bg-red-600 text-white",
 };
 
 function formatCount(value: number): string {
@@ -36,7 +40,12 @@ function formatCount(value: number): string {
   return value.toLocaleString();
 }
 
-export function VideoCard({ video, layout = "grid", onClick }: VideoCardProps) {
+export function VideoCard({
+  video,
+  layout = "grid",
+  onClick,
+  onDelete,
+}: VideoCardProps) {
   const isList = layout === "list";
   const isInteractive = Boolean(onClick);
 
@@ -72,17 +81,11 @@ export function VideoCard({ video, layout = "grid", onClick }: VideoCardProps) {
     >
       <div
         className={cn(
-          "relative overflow-hidden bg-gray-100",
+          "relative overflow-hidden bg-slate-900 pointer-events-none",
           isList ? "h-24 w-40 shrink-0 rounded-lg" : "aspect-video w-full",
         )}
       >
-        <Image
-          src={video.thumbnailUrl}
-          alt={video.title}
-          fill
-          className="object-cover"
-          sizes={isList ? "160px" : "(max-width: 768px) 100vw, 33vw"}
-        />
+        <VideoMediaPreview src={video.videoUrl} title={video.title} />
         <StatusBadge
           status={video.status}
           className={cn(
@@ -90,6 +93,11 @@ export function VideoCard({ video, layout = "grid", onClick }: VideoCardProps) {
             VIDEO_STATUS_OVERLAY[video.status],
           )}
         />
+        {video.liveOnApp ? (
+          <span className="bg-primary absolute top-2 right-2 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white uppercase">
+            Live on App
+          </span>
+        ) : null}
         <span className="absolute right-2 bottom-2 rounded bg-black/70 px-2 py-0.5 text-xs font-medium text-white">
           {video.duration}
         </span>
@@ -124,6 +132,11 @@ export function VideoCard({ video, layout = "grid", onClick }: VideoCardProps) {
               size="icon"
               className="size-8 text-gray-400 hover:text-gray-600"
               aria-label="Edit video"
+              render={
+                <Link
+                  href={`/customer-app-cms/videos/upload?edit=${video.id}`}
+                />
+              }
             >
               <Pencil className="size-4" />
             </Button>
@@ -132,14 +145,18 @@ export function VideoCard({ video, layout = "grid", onClick }: VideoCardProps) {
               size="icon"
               className="size-8 text-gray-400 hover:text-gray-600"
               aria-label="Duplicate video"
+              disabled
+              title="Duplicate coming soon"
             >
               <Copy className="size-4" />
             </Button>
             <Button
+              type="button"
               variant="ghost"
               size="icon"
               className="size-8 text-gray-400 hover:text-red-500"
               aria-label="Delete video"
+              onClick={() => onDelete?.(video)}
             >
               <Trash2 className="size-4" />
             </Button>

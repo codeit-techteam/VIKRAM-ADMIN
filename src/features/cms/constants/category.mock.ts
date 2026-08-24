@@ -15,8 +15,8 @@ export const CATEGORY_MOCK_ROWS: Category[] = [
   },
   {
     id: "cat-002",
-    thumbnailUrl: "https://picsum.photos/seed/steel-category/80/80",
-    name: "Steel",
+    thumbnailUrl: "https://picsum.photos/seed/rmc-category/80/80",
+    name: "RMC",
     displayOrder: 2,
     productCount: 86,
     isVisible: true,
@@ -25,7 +25,7 @@ export const CATEGORY_MOCK_ROWS: Category[] = [
   {
     id: "cat-003",
     thumbnailUrl: "https://picsum.photos/seed/bricks-category/80/80",
-    name: "Bricks & Masonry",
+    name: "Bricks",
     displayOrder: 3,
     productCount: 54,
     isVisible: true,

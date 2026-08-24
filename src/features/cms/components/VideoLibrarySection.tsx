@@ -20,12 +20,14 @@ interface VideoLibrarySectionProps {
   videos: Video[];
   activeFilter?: VideoStatFilter;
   onClearFilter?: () => void;
+  onDelete?: (video: Video) => void;
 }
 
 export function VideoLibrarySection({
   videos,
   activeFilter = "all",
   onClearFilter,
+  onDelete,
 }: VideoLibrarySectionProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
@@ -85,6 +87,7 @@ export function VideoLibrarySection({
               video={video}
               layout={viewMode}
               onClick={handleVideoSelect}
+              onDelete={onDelete}
             />
           ))}
         </div>

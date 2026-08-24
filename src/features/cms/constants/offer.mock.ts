@@ -23,7 +23,7 @@ export const OFFER_PRODUCT_CATALOG: OfferProduct[] = [
     name: "TATA Tiscon TMT Bar",
     sku: "TT-S-442",
     brand: "TATA Tiscon",
-    category: "Steel",
+    category: "RMC",
     price: 68500,
     priceUnit: "ton",
     thumbnailUrl: "https://picsum.photos/seed/tata-tiscon/80/80",
@@ -63,7 +63,7 @@ export const OFFER_PRODUCT_CATALOG: OfferProduct[] = [
     name: "JSW NeoSteel",
     sku: "JSW-NS-12",
     brand: "JSW",
-    category: "Steel",
+    category: "RMC",
     price: 67200,
     priceUnit: "ton",
     thumbnailUrl: "https://picsum.photos/seed/jsw-neosteel/80/80",
@@ -112,6 +112,9 @@ export const INITIAL_OFFERS: Offer[] = [
     startDate: "2026-06-01",
     endDate: "2026-08-31",
     ctaLabel: "Shop Now",
+    ctaAction: "OFFER_DETAILS",
+    badge: "",
+    targetAudience: "ALL",
   },
   {
     id: "offer-002",
@@ -128,6 +131,9 @@ export const INITIAL_OFFERS: Offer[] = [
     startDate: "2026-07-01",
     endDate: "2026-07-31",
     ctaLabel: "Buy Now",
+    ctaAction: "BUY_NOW",
+    badge: "",
+    targetAudience: "ALL",
   },
   {
     id: "offer-003",
@@ -143,7 +149,10 @@ export const INITIAL_OFFERS: Offer[] = [
     status: "SCHEDULED",
     startDate: "2026-08-01",
     endDate: "2026-09-15",
-    ctaLabel: "View Offer",
+    ctaLabel: "View Details",
+    ctaAction: "VIEW_DETAILS",
+    badge: "",
+    targetAudience: "ALL",
   },
   {
     id: "offer-004",
@@ -159,7 +168,10 @@ export const INITIAL_OFFERS: Offer[] = [
     status: "SCHEDULED",
     startDate: "2026-07-20",
     endDate: "2026-07-25",
-    ctaLabel: "Explore",
+    ctaLabel: "Explore Offer",
+    ctaAction: "OFFER_DETAILS",
+    badge: "",
+    targetAudience: "ALL",
   },
   {
     id: "offer-005",
@@ -176,6 +188,9 @@ export const INITIAL_OFFERS: Offer[] = [
     startDate: "2025-12-01",
     endDate: "2026-02-28",
     ctaLabel: "Shop Now",
+    ctaAction: "OFFER_DETAILS",
+    badge: "",
+    targetAudience: "ALL",
   },
   {
     id: "offer-006",
@@ -192,6 +207,9 @@ export const INITIAL_OFFERS: Offer[] = [
     startDate: "2026-08-10",
     endDate: "2026-09-10",
     ctaLabel: "Buy Now",
+    ctaAction: "BUY_NOW",
+    badge: "",
+    targetAudience: "ALL",
   },
   {
     id: "offer-007",
@@ -208,6 +226,9 @@ export const INITIAL_OFFERS: Offer[] = [
     startDate: "2026-06-15",
     endDate: "2026-09-30",
     ctaLabel: "Shop Now",
+    ctaAction: "OFFER_DETAILS",
+    badge: "",
+    targetAudience: "ALL",
   },
   {
     id: "offer-008",
@@ -223,7 +244,10 @@ export const INITIAL_OFFERS: Offer[] = [
     status: "EXPIRED",
     startDate: "2026-03-01",
     endDate: "2026-05-31",
-    ctaLabel: "View Offer",
+    ctaLabel: "View Details",
+    ctaAction: "VIEW_DETAILS",
+    badge: "",
+    targetAudience: "ALL",
   },
 ];
 
@@ -237,14 +261,38 @@ export const OFFER_STATUS_LABELS: Record<OfferStatus, string> = {
   SCHEDULED: "Scheduled",
   EXPIRED: "Expired",
   DRAFT: "Draft",
+  INACTIVE: "Inactive",
 };
 
 export const OFFER_CTA_OPTIONS: OfferCtaLabel[] = [
   "Shop Now",
+  "View Products",
+  "Explore Offer",
   "Buy Now",
-  "Explore",
-  "View Offer",
+  "View Details",
 ];
+
+export const OFFER_BADGE_OPTIONS = [
+  { value: "", label: "None" },
+  { value: "HOT DEAL", label: "Hot Deal" },
+  { value: "LIMITED TIME", label: "Limited Time" },
+  { value: "BULK OFFER", label: "Bulk Offer" },
+  { value: "BEST VALUE", label: "Best Value" },
+] as const;
+
+export const OFFER_AUDIENCE_OPTIONS = [
+  { value: "ALL", label: "All Customers" },
+  { value: "NEW_CUSTOMERS", label: "New Customers" },
+  { value: "EXISTING_CUSTOMERS", label: "Existing Customers" },
+  { value: "CONTRACTORS", label: "Contractors" },
+  { value: "MASONS", label: "Masons" },
+  { value: "INTERIOR_DESIGNERS", label: "Interior Designers" },
+  { value: "ARCHITECTS", label: "Architects" },
+  { value: "BUILDERS", label: "Builders" },
+  { value: "DEVELOPERS", label: "Developers" },
+  { value: "MEMBERSHIP_TIER", label: "Membership Plan" },
+  { value: "CUSTOM_SEGMENT", label: "Custom Segment" },
+] as const;
 
 export const OFFER_TYPE_OPTIONS: { value: OfferType; label: string }[] = [
   { value: "home-carousel", label: "Home Carousel" },
@@ -260,6 +308,7 @@ export const OFFER_STATUS_OPTIONS: {
   { value: "SCHEDULED", label: "Scheduled" },
   { value: "EXPIRED", label: "Expired" },
   { value: "DRAFT", label: "Draft" },
+  { value: "INACTIVE", label: "Inactive" },
 ];
 
 export function computeOfferStats(offers: Offer[]): OfferStats {

@@ -4,31 +4,43 @@ import { MapPin, Pencil, Star, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { CustomerDeliveryAddress } from "@/features/user-management/types/customer.types";
+import {
+  DELIVERY_SITE_TYPE_LABELS,
+  type DeliverySite,
+} from "@/features/user-management/types/customer.types";
 import { cn } from "@/lib/utils";
+import { formatDate } from "@/utils/format-date";
 
 interface CustomerAddressCardProps {
-  address: CustomerDeliveryAddress;
-  onView: (address: CustomerDeliveryAddress) => void;
-  onEdit: (address: CustomerDeliveryAddress) => void;
-  onSetDefault: (addressId: string) => void;
-  onDelete: (addressId: string) => void;
+  site: DeliverySite;
+  onView: (site: DeliverySite) => void;
+  onEdit: (site: DeliverySite) => void;
+  onSetPrimary: (siteId: string) => void;
+  onDelete: (siteId: string) => void;
   className?: string;
 }
 
+function formatCoords(latitude: number, longitude: number): string {
+  return `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+}
+
 export function CustomerAddressCard({
-  address,
+  site,
   onView,
   onEdit,
-  onSetDefault,
+  onSetPrimary,
   onDelete,
   className,
 }: CustomerAddressCardProps) {
+  const siteTypeLabel = site.siteType
+    ? DELIVERY_SITE_TYPE_LABELS[site.siteType]
+    : null;
+
   return (
     <article
       className={cn(
         "hover:border-primary/20 rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition-colors",
-        address.isDefault && "border-primary/20 ring-primary/10 ring-1",
+        site.isPrimary && "border-primary/20 ring-primary/10 ring-1",
         className,
       )}
     >
@@ -39,29 +51,46 @@ export function CustomerAddressCard({
           </div>
           <div>
             <p className="text-sm font-semibold text-[#1A1A1A]">
-              {address.recipient}
+              {site.siteName}
             </p>
-            <p className="text-xs text-[#64748B]">{address.phone}</p>
+            {siteTypeLabel ? (
+              <p className="text-xs text-[#64748B]">{siteTypeLabel}</p>
+            ) : null}
           </div>
         </div>
-        {address.isDefault ? (
+        {site.isPrimary ? (
           <Badge className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/10">
-            Default
+            Primary
           </Badge>
         ) : null}
       </div>
 
       <div className="mt-4 space-y-2 text-sm text-[#64748B]">
-        <p className="text-[#1A1A1A]">{address.address}</p>
+        <p className="text-[#1A1A1A]">{site.fullAddress}</p>
         <p>
-          {address.city}, {address.state} — {address.pincode}
+          {site.city}, {site.state}
+          {site.pincode ? ` — ${site.pincode}` : ""}
         </p>
         <p>
-          Service Hub:{" "}
+          Coords:{" "}
           <span className="font-medium text-[#1A1A1A]">
-            {address.serviceHubName}
+            {formatCoords(site.latitude, site.longitude)}
           </span>
         </p>
+        <p>
+          Created:{" "}
+          <span className="font-medium text-[#1A1A1A]">
+            {formatDate(site.createdAt)}
+          </span>
+        </p>
+        {typeof site.ordersDelivered === "number" ? (
+          <p>
+            Orders delivered:{" "}
+            <span className="font-medium text-[#1A1A1A]">
+              {site.ordersDelivered}
+            </span>
+          </p>
+        ) : null}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
@@ -70,7 +99,7 @@ export function CustomerAddressCard({
           variant="outline"
           size="sm"
           className="h-8"
-          onClick={() => onView(address)}
+          onClick={() => onView(site)}
         >
           View
         </Button>
@@ -79,21 +108,21 @@ export function CustomerAddressCard({
           variant="outline"
           size="sm"
           className="h-8 gap-1.5"
-          onClick={() => onEdit(address)}
+          onClick={() => onEdit(site)}
         >
           <Pencil className="size-3.5" />
           Edit
         </Button>
-        {!address.isDefault ? (
+        {!site.isPrimary ? (
           <Button
             type="button"
             variant="outline"
             size="sm"
             className="h-8 gap-1.5"
-            onClick={() => onSetDefault(address.id)}
+            onClick={() => onSetPrimary(site.id)}
           >
             <Star className="size-3.5" />
-            Set Default
+            Set Primary
           </Button>
         ) : null}
         <Button
@@ -101,7 +130,7 @@ export function CustomerAddressCard({
           variant="ghost"
           size="sm"
           className="h-8 gap-1.5 text-red-600 hover:bg-red-50 hover:text-red-700"
-          onClick={() => onDelete(address.id)}
+          onClick={() => onDelete(site.id)}
         >
           <Trash2 className="size-3.5" />
           Delete

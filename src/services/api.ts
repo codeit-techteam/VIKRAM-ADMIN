@@ -5,6 +5,7 @@ import axios, {
 } from "axios";
 
 import { env } from "@/config/env";
+import { isDevMockToken } from "@/constants/dev-auth.constants";
 import { ROUTES } from "@/constants/routes";
 import {
   clearStoredTokens,
@@ -14,6 +15,15 @@ import {
   useAuthStore,
 } from "@/store/auth-store";
 import type { ApiErrorResponse } from "@/types/api";
+
+const AUTH_PATHS = [
+  "/admin/auth/login",
+  "/admin/auth/refresh",
+  "/admin/auth/logout",
+];
+
+const isAuthRequest = (url?: string): boolean =>
+  AUTH_PATHS.some((path) => url?.includes(path));
 
 let isRefreshing = false;
 let failedQueue: Array<{
@@ -60,6 +70,21 @@ api.interceptors.response.use(
     };
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // Never run refresh-token flow for login/auth endpoints
+      if (isAuthRequest(originalRequest.url)) {
+        return Promise.reject(error);
+      }
+
+      // Offline mock session cannot call live APIs — force re-login
+      if (isDevMockToken(getStoredAccessToken())) {
+        useAuthStore.getState().logout();
+        clearStoredTokens();
+        if (typeof window !== "undefined") {
+          window.location.href = `${ROUTES.LOGIN}?reason=live-api`;
+        }
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -88,7 +113,7 @@ api.interceptors.response.use(
       try {
         const { data } = await axios.post<{
           data: { accessToken: string; refreshToken: string };
-        }>(`${env.apiBaseUrl}/auth/refresh`, { refreshToken });
+        }>(`${env.apiBaseUrl}/admin/auth/refresh`, { refreshToken });
 
         const { accessToken, refreshToken: newRefreshToken } = data.data;
         setStoredTokens(accessToken, newRefreshToken);
@@ -119,12 +144,23 @@ api.interceptors.response.use(
 
 export default api;
 
-export const getApiErrorMessage = (error: unknown): string => {
-  if (axios.isAxiosError<ApiErrorResponse>(error)) {
-    return (
-      error.response?.data?.message ?? error.message ?? "An error occurred"
-    );
+export const getApiErrorMessage = (
+  error: unknown,
+  fallback = "An unexpected error occurred",
+): string => {
+  if (axios.isAxiosError(error)) {
+    const payload = error.response?.data as
+      | { message?: string | string[]; errors?: Record<string, string[]> }
+      | undefined;
+    const message = payload?.message;
+    if (Array.isArray(message)) return message.filter(Boolean).join(". ");
+    if (typeof message === "string" && message.trim()) return message;
+    const fieldErrors = payload?.errors
+      ? Object.values(payload.errors).flat().filter(Boolean)
+      : [];
+    if (fieldErrors.length > 0) return fieldErrors.join(". ");
+    return error.message ?? fallback;
   }
   if (error instanceof Error) return error.message;
-  return "An unexpected error occurred";
+  return fallback;
 };

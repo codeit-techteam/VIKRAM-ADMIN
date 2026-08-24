@@ -26,16 +26,14 @@ import {
   WorkflowAllocationForm,
 } from "@/components/allocation/workflow/WorkflowAllocationForm";
 import { getStockAvailabilityLevel } from "@/mock/allocations";
-import {
-  formatWorkflowDate as formatWorkflowReqDate,
-  getMaterialBatches,
-} from "@/mock/allocation-workflow";
+import { formatWorkflowDate as formatWorkflowReqDate } from "@/mock/allocation-workflow";
 import {
   getWorkflowMaterialDetail,
   useAllocationWorkflowStore,
 } from "@/store/allocation-workflow-store";
 import { ROUTES } from "@/constants/routes";
 import { notify } from "@/utils/notify";
+import { getCentralStockBatches } from "@/utils/allocation-stock";
 import { resolveWorkflowRequisitionFromAllocationId } from "@/utils/allocation-workflow-bridge";
 
 const stepVariants = {
@@ -77,24 +75,37 @@ export function AllocationWorkflow() {
   } = useAllocationWorkflowStore();
 
   useEffect(() => {
-    if (allocationId) {
-      const requisition =
-        resolveWorkflowRequisitionFromAllocationId(allocationId);
-      if (requisition) {
-        startWithRequisition(requisition, { autoAdvance: true });
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      setInitialLoading(true);
+
+      if (allocationId) {
+        const requisition =
+          await resolveWorkflowRequisitionFromAllocationId(allocationId);
+
+        if (cancelled) return;
+
+        if (requisition) {
+          startWithRequisition(requisition, { autoAdvance: true });
+        } else {
+          reset();
+          notify.error(
+            "Requisition unavailable",
+            "This request cannot be allocated or was not found.",
+          );
+        }
       } else {
         reset();
-        notify.error(
-          "Requisition unavailable",
-          "This request cannot be allocated or was not found.",
-        );
       }
-    } else {
-      reset();
-    }
 
-    const timer = window.setTimeout(() => setInitialLoading(false), 500);
-    return () => window.clearTimeout(timer);
+      if (!cancelled) setInitialLoading(false);
+    };
+
+    void bootstrap();
+    return () => {
+      cancelled = true;
+    };
   }, [allocationId, reset, startWithRequisition]);
 
   const materialDetail = useMemo(
@@ -135,14 +146,13 @@ export function AllocationWorkflow() {
   );
 
   const selectedBatchLabel = useMemo(() => {
-    if (!selectedRequisition || !form.batchId) return "";
-    const batches = getMaterialBatches(
-      selectedRequisition.materialId,
-      form.warehouseSourceId,
-      inventory,
+    if (!selectedWarehouse || !form.batchId) return "";
+    const batches = getCentralStockBatches(
+      selectedWarehouse.id,
+      selectedWarehouse.stock,
     );
     return batches.find((batch) => batch.id === form.batchId)?.label ?? "";
-  }, [selectedRequisition, form, inventory]);
+  }, [selectedWarehouse, form.batchId]);
 
   const handleRefreshWarehouses = useCallback(async () => {
     setIsRefreshing(true);

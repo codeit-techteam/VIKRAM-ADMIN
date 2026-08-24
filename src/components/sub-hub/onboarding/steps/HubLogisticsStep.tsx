@@ -42,8 +42,9 @@ export function HubLogisticsStep() {
       {
         id: `drv-draft-${Date.now()}`,
         name: "New Driver",
-        phone: "+91 90000 00000",
-        licenseNo: "TEMP-LICENSE",
+        phone: "9000000000",
+        licenseNo: "TEMP-REG",
+        vehicleType: "Bike",
         avatarInitials: "ND",
       },
     ];
@@ -111,7 +112,8 @@ export function HubLogisticsStep() {
               <thead className="bg-gray-50 text-left text-xs tracking-wider text-gray-500 uppercase">
                 <tr>
                   <th className="px-4 py-3">Driver Name</th>
-                  <th className="px-4 py-3">License No.</th>
+                  <th className="px-4 py-3">Vehicle</th>
+                  <th className="px-4 py-3">Vehicle No.</th>
                   <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
@@ -142,6 +144,21 @@ export function HubLogisticsStep() {
                           </p>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Input
+                        className="h-8 w-28"
+                        value={driver.vehicleType || "Bike"}
+                        onChange={(event) => {
+                          const next = drivers.map((item, idx) =>
+                            idx === index
+                              ? { ...item, vehicleType: event.target.value }
+                              : item,
+                          );
+                          setValue("fleet.drivers", next);
+                          updateFleet({ drivers: next });
+                        }}
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <Input

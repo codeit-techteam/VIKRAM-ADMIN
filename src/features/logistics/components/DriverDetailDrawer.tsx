@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/sheet";
 import { FleetTimeline } from "@/features/logistics/components/shared/FleetTimeline";
 import { LogisticsStatusBadge } from "@/features/logistics/components/LogisticsStatusBadge";
-import { formatLogisticsDate } from "@/mock/logistics";
+import { formatLogisticsDate } from "@/features/logistics/utils/logistics-formatters";
 import type { LogisticsDriver } from "@/types/logistics.types";
 
 interface DriverDetailDrawerProps {
@@ -69,8 +69,6 @@ export function DriverDetailDrawer({
     { label: "Driving License", doc: driver.documents?.drivingLicense },
     { label: "Aadhaar", doc: driver.documents?.aadhaar },
     { label: "PAN", doc: driver.documents?.pan },
-    { label: "Police Verification", doc: driver.documents?.policeVerification },
-    { label: "Medical Certificate", doc: driver.documents?.medicalCertificate },
   ].filter((d) => d.doc);
 
   return (

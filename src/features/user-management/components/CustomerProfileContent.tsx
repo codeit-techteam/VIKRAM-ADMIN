@@ -10,7 +10,7 @@ import {
   ShoppingBag,
   XCircle,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -18,8 +18,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { CustomerActivityTimeline } from "@/features/user-management/components/CustomerActivityTimeline";
 import { CustomerAddressCard } from "@/features/user-management/components/CustomerAddressCard";
 import { CustomerConfirmationModal } from "@/features/user-management/components/CustomerConfirmationModal";
@@ -31,13 +39,33 @@ import { EditCustomerDrawer } from "@/features/user-management/components/EditCu
 import {
   CUSTOMER_BLOCK_REASON_LABELS,
   CUSTOMER_TYPE_LABELS,
+  DELIVERY_SITE_TYPE_LABELS,
   type CustomerBlockReason,
-  type CustomerDeliveryAddress,
   type CustomerEditPayload,
+  type DeliverySite,
+  type DeliverySiteType,
+  type UpdateDeliverySitePayload,
 } from "@/features/user-management/types/customer.types";
-import { buildCustomerActivityTimeline } from "@/mock/customer-service";
 import { ROUTES } from "@/constants/routes";
-import { useCustomerStore } from "@/store/customer-store";
+import {
+  buildCustomerTimelineFromDetail,
+  mapAdminCustomerToDetail,
+  mapUiStatusToApiStatus,
+} from "@/features/user-management/utils/map-admin-customer";
+import { getApiErrorMessage } from "@/services/api";
+import {
+  activateAdminCustomer,
+  deleteCustomerSite,
+  disableAdminCustomer,
+  fetchAdminCustomer,
+  fetchCustomerSites,
+  setPrimaryCustomerSite,
+  updateAdminCustomer,
+  updateCustomerSite,
+  type AdminCustomerDetail,
+} from "@/services/customers";
+import type { CustomerDetail } from "@/features/user-management/types/customer.types";
+import { formatDate } from "@/utils/format-date";
 import { notify } from "@/utils/notify";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +81,29 @@ const BLOCK_REASONS: CustomerBlockReason[] = [
   "FRAUD",
   "MANUAL",
 ];
+
+const SITE_TYPE_OPTIONS = Object.keys(
+  DELIVERY_SITE_TYPE_LABELS,
+) as DeliverySiteType[];
+
+const EMPTY_SITE_DRAFT: UpdateDeliverySitePayload = {
+  siteName: "",
+  siteType: "CONSTRUCTION_SITE",
+  contactPerson: "",
+  phone: "",
+  fullAddress: "",
+  landmark: "",
+  gateNumber: "",
+  floor: "",
+  city: "",
+  state: "",
+  country: "India",
+  pincode: "",
+  latitude: 0,
+  longitude: 0,
+  deliveryNotes: "",
+  isPrimary: false,
+};
 
 function ProfileSkeleton() {
   return (
@@ -77,32 +128,23 @@ function ProfileSkeleton() {
   );
 }
 
+function SitesSkeleton() {
+  return (
+    <div className="grid gap-4">
+      <Skeleton className="h-48 rounded-xl" />
+      <Skeleton className="h-48 rounded-xl" />
+    </div>
+  );
+}
+
 export function CustomerProfileContent({
   customerId,
 }: CustomerProfileContentProps) {
-  const getCustomer = useCustomerStore((state) => state.getCustomer);
-  const getOrder = useCustomerStore((state) => state.getOrder);
-  const customers = useCustomerStore((state) => state.customers);
-  const orders = useCustomerStore((state) => state.orders);
-  const addresses = useCustomerStore((state) => state.addresses);
-  const supportExecutiveAssignmentHistory = useCustomerStore(
-    (state) => state.supportExecutiveAssignmentHistory,
-  );
-  const updateCustomer = useCustomerStore((state) => state.updateCustomer);
-  const blockCustomer = useCustomerStore((state) => state.blockCustomer);
-  const unblockCustomer = useCustomerStore((state) => state.unblockCustomer);
-  const resetPassword = useCustomerStore((state) => state.resetPassword);
-  const updateDeliveryAddress = useCustomerStore(
-    (state) => state.updateDeliveryAddress,
-  );
-  const deleteDeliveryAddress = useCustomerStore(
-    (state) => state.deleteDeliveryAddress,
-  );
-  const setDefaultAddress = useCustomerStore(
-    (state) => state.setDefaultAddress,
-  );
-
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [customer, setCustomer] = useState<CustomerDetail | null>(null);
+  const [rawDetail, setRawDetail] = useState<AdminCustomerDetail | null>(null);
+  const [isMutating, setIsMutating] = useState(false);
   const [activeTab, setActiveTab] = useState<ProfileTab>("orders");
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isResetOpen, setIsResetOpen] = useState(false);
@@ -110,44 +152,112 @@ export function CustomerProfileContent({
   const [blockReason, setBlockReason] = useState<CustomerBlockReason>("MANUAL");
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [isOrderDrawerOpen, setIsOrderDrawerOpen] = useState(false);
-  const [editingAddress, setEditingAddress] =
-    useState<CustomerDeliveryAddress | null>(null);
-  const [viewingAddress, setViewingAddress] =
-    useState<CustomerDeliveryAddress | null>(null);
-  const [addressDraft, setAddressDraft] = useState({
-    recipient: "",
-    phone: "",
-    address: "",
-    city: "",
-    state: "",
-    pincode: "",
-  });
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 450);
-    return () => window.clearTimeout(timer);
+  const [sites, setSites] = useState<DeliverySite[]>([]);
+  const [isSitesLoading, setIsSitesLoading] = useState(true);
+  const [isSiteActionPending, setIsSiteActionPending] = useState(false);
+  const [editingSite, setEditingSite] = useState<DeliverySite | null>(null);
+  const [viewingSite, setViewingSite] = useState<DeliverySite | null>(null);
+  const [siteDraft, setSiteDraft] =
+    useState<UpdateDeliverySitePayload>(EMPTY_SITE_DRAFT);
+
+  const loadCustomer = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const detail = await fetchAdminCustomer(customerId);
+      setRawDetail(detail);
+      setCustomer(mapAdminCustomerToDetail(detail));
+    } catch (error) {
+      setRawDetail(null);
+      setCustomer(null);
+      setLoadError(getApiErrorMessage(error));
+    } finally {
+      setIsLoading(false);
+    }
   }, [customerId]);
 
-  const customer = useMemo(
-    () => getCustomer(customerId),
-    [
-      getCustomer,
-      customerId,
-      customers,
-      orders,
-      addresses,
-      supportExecutiveAssignmentHistory,
-    ],
-  );
+  const loadSites = useCallback(async () => {
+    setIsSitesLoading(true);
+    try {
+      const data = await fetchCustomerSites(customerId);
+      setSites(data);
+    } catch (error) {
+      setSites([]);
+      notify.error("Failed to load delivery sites", getApiErrorMessage(error));
+    } finally {
+      setIsSitesLoading(false);
+    }
+  }, [customerId]);
+
+  useEffect(() => {
+    void loadCustomer();
+  }, [loadCustomer]);
+
+  useEffect(() => {
+    void loadSites();
+  }, [loadSites]);
 
   const timeline = useMemo(
-    () => (customer ? buildCustomerActivityTimeline(customer) : []),
-    [customer],
+    () =>
+      customer && rawDetail
+        ? buildCustomerTimelineFromDetail(rawDetail, customer)
+        : [],
+    [customer, rawDetail],
   );
 
-  const selectedOrder = useMemo(
-    () => (selectedOrderId ? getOrder(selectedOrderId) : null),
-    [getOrder, selectedOrderId, orders],
+  const selectedOrder = useMemo(() => {
+    const order = customer?.orders.find((item) => item.id === selectedOrderId);
+    if (!order || !customer) return null;
+
+    return {
+      ...order,
+      customerName: customer.name,
+      products: [],
+      timeline: [
+        {
+          status: order.status,
+          label: order.status.replaceAll("_", " "),
+          timestamp: order.date,
+        },
+      ],
+      deliveryAddress: customer.deliveryAddresses[0] ?? {
+        id: "na",
+        customerId: customer.id,
+        recipient: customer.name,
+        phone: customer.phone,
+        address: customer.address.primaryAddress || "Not available",
+        city: customer.address.city || "Not available",
+        state: customer.address.state || "Not available",
+        pincode: customer.address.pincode || "—",
+        serviceHubId: customer.assignedOperations.hubId ?? "",
+        serviceHubName: customer.assignedOperations.hubName,
+        isDefault: true,
+      },
+      hub: {
+        id: customer.assignedOperations.hubId ?? "",
+        name: customer.assignedOperations.hubName,
+        city: customer.address.city || "Not available",
+        state: customer.address.state || "Not available",
+        address: "Not available",
+      },
+      executive: {
+        id: customer.assignedOperations.executiveId ?? "",
+        name: customer.assignedOperations.executiveName,
+        phone: "Not available",
+        email: "Not available",
+        hubId: customer.assignedOperations.hubId ?? "",
+      },
+    };
+  }, [customer, selectedOrderId]);
+
+  const primarySites = useMemo(
+    () => sites.filter((site) => site.isPrimary),
+    [sites],
+  );
+  const otherSites = useMemo(
+    () => sites.filter((site) => !site.isPrimary),
+    [sites],
   );
 
   if (isLoading) {
@@ -166,7 +276,10 @@ export function CustomerProfileContent({
         />
         <EmptyState
           title="Customer not found"
-          description="The requested customer profile could not be located."
+          description={
+            loadError ??
+            "The requested customer profile could not be located."
+          }
         />
       </div>
     );
@@ -174,38 +287,56 @@ export function CustomerProfileContent({
 
   const hasOrders = customer.orderSummary.totalOrders > 0;
   const isBlocked = customer.status === "BLOCKED";
-  const primaryAddresses = customer.deliveryAddresses.filter(
-    (address) => address.isDefault,
-  );
-  const otherAddresses = customer.deliveryAddresses.filter(
-    (address) => !address.isDefault,
-  );
 
-  const handleSaveCustomer = (payload: CustomerEditPayload) => {
-    updateCustomer(customer.id, payload);
-    notify.success("Customer updated", "Profile changes saved successfully.");
+  const handleSaveCustomer = async (payload: CustomerEditPayload) => {
+    setIsMutating(true);
+    try {
+      const apiStatus = mapUiStatusToApiStatus(payload.status);
+      const detail = await updateAdminCustomer(customer.id, {
+        fullName: payload.name,
+        email: payload.email || undefined,
+        ...(apiStatus ? { status: apiStatus } : {}),
+        companyName: payload.address.primaryAddress || undefined,
+        businessType: payload.customerType,
+      });
+      setRawDetail(detail);
+      setCustomer(mapAdminCustomerToDetail(detail));
+      notify.success("Customer updated", "Profile changes saved successfully.");
+    } catch (error) {
+      notify.error("Update failed", getApiErrorMessage(error));
+    } finally {
+      setIsMutating(false);
+    }
   };
 
   const handleResetPassword = () => {
-    const password = resetPassword(customer.id);
     setIsResetOpen(false);
-    notify.success("Temporary password generated", `New password: ${password}`);
+    notify.error(
+      "Not available",
+      "Customer app accounts use OTP login. Password reset is not available.",
+    );
   };
 
-  const handleBlockToggle = () => {
-    if (isBlocked) {
-      unblockCustomer(customer.id);
+  const handleBlockToggle = async () => {
+    setIsMutating(true);
+    try {
+      const detail = isBlocked
+        ? await activateAdminCustomer(customer.id)
+        : await disableAdminCustomer(customer.id);
+      setRawDetail(detail);
+      setCustomer(mapAdminCustomerToDetail(detail));
       setIsBlockOpen(false);
-      notify.success("Customer unblocked", "Customer can place orders again.");
-      return;
+      notify.success(
+        isBlocked ? "Customer unblocked" : "Customer blocked",
+        isBlocked
+          ? "Customer can place orders again."
+          : "Customer cannot place new orders. Existing completed orders remain visible.",
+      );
+    } catch (error) {
+      notify.error("Status update failed", getApiErrorMessage(error));
+    } finally {
+      setIsMutating(false);
     }
-
-    blockCustomer(customer.id, blockReason);
-    setIsBlockOpen(false);
-    notify.success(
-      "Customer blocked",
-      "Customer cannot place new orders. Existing completed orders remain visible.",
-    );
   };
 
   const handleViewOrder = (orderId: string) => {
@@ -213,24 +344,85 @@ export function CustomerProfileContent({
     setIsOrderDrawerOpen(true);
   };
 
-  const openAddressEditor = (address: CustomerDeliveryAddress) => {
-    setEditingAddress(address);
-    setAddressDraft({
-      recipient: address.recipient,
-      phone: address.phone,
-      address: address.address,
-      city: address.city,
-      state: address.state,
-      pincode: address.pincode,
+  const openSiteEditor = (site: DeliverySite) => {
+    setEditingSite(site);
+    setSiteDraft({
+      siteName: site.siteName,
+      siteType: site.siteType ?? "CONSTRUCTION_SITE",
+      contactPerson: site.contactPerson ?? "",
+      phone: site.phone ?? "",
+      fullAddress: site.fullAddress,
+      landmark: site.landmark ?? "",
+      gateNumber: site.gateNumber ?? "",
+      floor: site.floor ?? "",
+      city: site.city,
+      state: site.state,
+      country: site.country || "India",
+      pincode: site.pincode,
+      latitude: site.latitude,
+      longitude: site.longitude,
+      deliveryNotes: site.deliveryNotes ?? "",
+      isPrimary: site.isPrimary,
     });
   };
 
-  const handleSaveAddress = () => {
-    if (!editingAddress) return;
+  const handleSaveSite = async () => {
+    if (!editingSite) return;
 
-    updateDeliveryAddress(customer.id, editingAddress.id, addressDraft);
-    setEditingAddress(null);
-    notify.success("Address updated", "Delivery address saved successfully.");
+    setIsSiteActionPending(true);
+    try {
+      await updateCustomerSite(customerId, editingSite.id, {
+        siteName: siteDraft.siteName?.trim() || editingSite.siteName,
+        siteType: siteDraft.siteType,
+        contactPerson: siteDraft.contactPerson?.trim() || undefined,
+        phone: siteDraft.phone?.trim() || undefined,
+        fullAddress: siteDraft.fullAddress?.trim() || editingSite.fullAddress,
+        landmark: siteDraft.landmark?.trim() || undefined,
+        gateNumber: siteDraft.gateNumber?.trim() || undefined,
+        floor: siteDraft.floor?.trim() || undefined,
+        city: siteDraft.city?.trim() || editingSite.city,
+        state: siteDraft.state?.trim() || editingSite.state,
+        country: siteDraft.country?.trim() || undefined,
+        pincode: siteDraft.pincode?.trim() || editingSite.pincode,
+        latitude: Number(siteDraft.latitude ?? editingSite.latitude),
+        longitude: Number(siteDraft.longitude ?? editingSite.longitude),
+        deliveryNotes: siteDraft.deliveryNotes?.trim() || undefined,
+        isPrimary: siteDraft.isPrimary,
+      });
+      setEditingSite(null);
+      notify.success("Site updated", "Delivery site saved successfully.");
+      await loadSites();
+    } catch (error) {
+      notify.error("Failed to update site", getApiErrorMessage(error));
+    } finally {
+      setIsSiteActionPending(false);
+    }
+  };
+
+  const handleSetPrimarySite = async (siteId: string) => {
+    setIsSiteActionPending(true);
+    try {
+      await setPrimaryCustomerSite(customerId, siteId);
+      notify.success("Primary site updated", "Primary delivery site changed.");
+      await loadSites();
+    } catch (error) {
+      notify.error("Failed to set primary site", getApiErrorMessage(error));
+    } finally {
+      setIsSiteActionPending(false);
+    }
+  };
+
+  const handleDeleteSite = async (siteId: string) => {
+    setIsSiteActionPending(true);
+    try {
+      await deleteCustomerSite(customerId, siteId);
+      notify.success("Site deleted", "Delivery site removed.");
+      await loadSites();
+    } catch (error) {
+      notify.error("Failed to delete site", getApiErrorMessage(error));
+    } finally {
+      setIsSiteActionPending(false);
+    }
   };
 
   return (
@@ -309,6 +501,9 @@ export function CustomerProfileContent({
         <CustomerProfileCard
           customer={customer}
           className="xl:sticky xl:top-4 xl:self-start"
+          onCustomerChanged={() => {
+            void loadCustomer();
+          }}
         />
 
         <div className="min-w-0 rounded-xl border border-gray-100 bg-white shadow-sm">
@@ -399,40 +594,34 @@ export function CustomerProfileContent({
               </TabsContent>
 
               <TabsContent value="addresses" className="mt-0 space-y-6">
-                {customer.deliveryAddresses.length === 0 ? (
+                {isSitesLoading ? (
+                  <SitesSkeleton />
+                ) : sites.length === 0 ? (
                   <EmptyState
                     title="No Saved Addresses"
-                    description="This customer has not saved any delivery addresses yet."
+                    description="This customer has not saved any delivery sites yet."
                     icon={<MapPin className="size-10" />}
                     className="py-14"
                   />
                 ) : (
                   <>
-                    {primaryAddresses.length > 0 ? (
+                    {primarySites.length > 0 ? (
                       <section className="space-y-4">
                         <h2 className="text-sm font-semibold text-[#1A1A1A]">
                           Primary Address
                         </h2>
                         <div className="grid gap-4">
-                          {primaryAddresses.map((address) => (
+                          {primarySites.map((site) => (
                             <CustomerAddressCard
-                              key={address.id}
-                              address={address}
-                              onView={setViewingAddress}
-                              onEdit={openAddressEditor}
-                              onSetDefault={(addressId) => {
-                                setDefaultAddress(customer.id, addressId);
-                                notify.success(
-                                  "Default address updated",
-                                  "Primary delivery address changed.",
-                                );
+                              key={site.id}
+                              site={site}
+                              onView={setViewingSite}
+                              onEdit={openSiteEditor}
+                              onSetPrimary={(siteId) => {
+                                void handleSetPrimarySite(siteId);
                               }}
-                              onDelete={(addressId) => {
-                                deleteDeliveryAddress(customer.id, addressId);
-                                notify.success(
-                                  "Address deleted",
-                                  "Delivery address removed.",
-                                );
+                              onDelete={(siteId) => {
+                                void handleDeleteSite(siteId);
                               }}
                             />
                           ))}
@@ -440,31 +629,23 @@ export function CustomerProfileContent({
                       </section>
                     ) : null}
 
-                    {otherAddresses.length > 0 ? (
+                    {otherSites.length > 0 ? (
                       <section className="space-y-4">
                         <h2 className="text-sm font-semibold text-[#1A1A1A]">
                           Other Addresses
                         </h2>
                         <div className="grid gap-4 lg:grid-cols-2">
-                          {otherAddresses.map((address) => (
+                          {otherSites.map((site) => (
                             <CustomerAddressCard
-                              key={address.id}
-                              address={address}
-                              onView={setViewingAddress}
-                              onEdit={openAddressEditor}
-                              onSetDefault={(addressId) => {
-                                setDefaultAddress(customer.id, addressId);
-                                notify.success(
-                                  "Default address updated",
-                                  "Primary delivery address changed.",
-                                );
+                              key={site.id}
+                              site={site}
+                              onView={setViewingSite}
+                              onEdit={openSiteEditor}
+                              onSetPrimary={(siteId) => {
+                                void handleSetPrimarySite(siteId);
                               }}
-                              onDelete={(addressId) => {
-                                deleteDeliveryAddress(customer.id, addressId);
-                                notify.success(
-                                  "Address deleted",
-                                  "Delivery address removed.",
-                                );
+                              onDelete={(siteId) => {
+                                void handleDeleteSite(siteId);
                               }}
                             />
                           ))}
@@ -557,122 +738,269 @@ export function CustomerProfileContent({
       />
 
       <CustomerConfirmationModal
-        open={Boolean(viewingAddress)}
+        open={Boolean(viewingSite)}
         onOpenChange={(open) => {
-          if (!open) setViewingAddress(null);
+          if (!open) setViewingSite(null);
         }}
-        title="Delivery Address"
-        description={viewingAddress?.recipient}
+        title="Delivery Site"
+        description={viewingSite?.siteName}
         confirmLabel="Close"
-        onConfirm={() => setViewingAddress(null)}
+        onConfirm={() => setViewingSite(null)}
       >
-        {viewingAddress ? (
+        {viewingSite ? (
           <div className="space-y-2 text-sm text-[#64748B]">
-            <p className="font-medium text-[#1A1A1A]">
-              {viewingAddress.recipient}
-            </p>
-            <p>{viewingAddress.phone}</p>
-            <p className="text-[#1A1A1A]">{viewingAddress.address}</p>
+            <p className="font-medium text-[#1A1A1A]">{viewingSite.siteName}</p>
+            {viewingSite.siteType ? (
+              <p>{DELIVERY_SITE_TYPE_LABELS[viewingSite.siteType]}</p>
+            ) : null}
+            {viewingSite.contactPerson ? (
+              <p>Contact: {viewingSite.contactPerson}</p>
+            ) : null}
+            {viewingSite.phone ? <p>{viewingSite.phone}</p> : null}
+            <p className="text-[#1A1A1A]">{viewingSite.fullAddress}</p>
+            {viewingSite.landmark ? (
+              <p>Landmark: {viewingSite.landmark}</p>
+            ) : null}
+            {(viewingSite.gateNumber || viewingSite.floor) && (
+              <p>
+                {[viewingSite.gateNumber, viewingSite.floor]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            )}
             <p>
-              {viewingAddress.city}, {viewingAddress.state} —{" "}
-              {viewingAddress.pincode}
+              {viewingSite.city}, {viewingSite.state}
+              {viewingSite.pincode ? ` — ${viewingSite.pincode}` : ""}
             </p>
             <p>
-              Service Hub:{" "}
+              Coords:{" "}
               <span className="font-medium text-[#1A1A1A]">
-                {viewingAddress.serviceHubName}
+                {viewingSite.latitude.toFixed(4)},{" "}
+                {viewingSite.longitude.toFixed(4)}
               </span>
             </p>
+            {viewingSite.deliveryNotes ? (
+              <p>Notes: {viewingSite.deliveryNotes}</p>
+            ) : null}
+            <p>
+              Created:{" "}
+              <span className="font-medium text-[#1A1A1A]">
+                {formatDate(viewingSite.createdAt)}
+              </span>
+            </p>
+            {typeof viewingSite.ordersDelivered === "number" ? (
+              <p>
+                Orders delivered:{" "}
+                <span className="font-medium text-[#1A1A1A]">
+                  {viewingSite.ordersDelivered}
+                </span>
+              </p>
+            ) : null}
+            {viewingSite.isPrimary ? (
+              <Badge className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/10">
+                Primary
+              </Badge>
+            ) : null}
           </div>
         ) : null}
       </CustomerConfirmationModal>
 
       <CustomerConfirmationModal
-        open={Boolean(editingAddress)}
+        open={Boolean(editingSite)}
         onOpenChange={(open) => {
-          if (!open) setEditingAddress(null);
+          if (!open && !isSiteActionPending) setEditingSite(null);
         }}
-        title="Edit Delivery Address"
+        title="Edit Delivery Site"
         confirmLabel="Save"
-        onConfirm={handleSaveAddress}
+        isSubmitting={isSiteActionPending}
+        onConfirm={() => {
+          void handleSaveSite();
+        }}
       >
-        <div className="grid gap-4">
+        <div className="grid max-h-[60vh] gap-4 overflow-y-auto pr-1">
           <div className="space-y-2">
-            <Label htmlFor="addr-recipient">Recipient</Label>
+            <Label htmlFor="site-name">Site Name</Label>
             <Input
-              id="addr-recipient"
-              value={addressDraft.recipient}
+              id="site-name"
+              value={siteDraft.siteName ?? ""}
               onChange={(event) =>
-                setAddressDraft({
-                  ...addressDraft,
-                  recipient: event.target.value,
-                })
+                setSiteDraft({ ...siteDraft, siteName: event.target.value })
               }
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="addr-phone">Phone</Label>
-            <Input
-              id="addr-phone"
-              value={addressDraft.phone}
-              onChange={(event) =>
-                setAddressDraft({ ...addressDraft, phone: event.target.value })
-              }
-            />
+            <Label>Site Type</Label>
+            <Select
+              value={siteDraft.siteType}
+              onValueChange={(value) => {
+                if (!value) return;
+                setSiteDraft({
+                  ...siteDraft,
+                  siteType: value as DeliverySiteType,
+                });
+              }}
+            >
+              <SelectTrigger className="h-10 w-full">
+                <SelectValue placeholder="Select site type" />
+              </SelectTrigger>
+              <SelectContent>
+                {SITE_TYPE_OPTIONS.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {DELIVERY_SITE_TYPE_LABELS[type]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="site-contact">Contact Person</Label>
+              <Input
+                id="site-contact"
+                value={siteDraft.contactPerson ?? ""}
+                onChange={(event) =>
+                  setSiteDraft({
+                    ...siteDraft,
+                    contactPerson: event.target.value,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="site-phone">Phone</Label>
+              <Input
+                id="site-phone"
+                value={siteDraft.phone ?? ""}
+                onChange={(event) =>
+                  setSiteDraft({ ...siteDraft, phone: event.target.value })
+                }
+              />
+            </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="addr-line">Address</Label>
+            <Label htmlFor="site-address">Full Address</Label>
             <Input
-              id="addr-line"
-              value={addressDraft.address}
+              id="site-address"
+              value={siteDraft.fullAddress ?? ""}
               onChange={(event) =>
-                setAddressDraft({
-                  ...addressDraft,
-                  address: event.target.value,
+                setSiteDraft({
+                  ...siteDraft,
+                  fullAddress: event.target.value,
                 })
               }
             />
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor="addr-city">City</Label>
+              <Label htmlFor="site-landmark">Landmark</Label>
               <Input
-                id="addr-city"
-                value={addressDraft.city}
+                id="site-landmark"
+                value={siteDraft.landmark ?? ""}
                 onChange={(event) =>
-                  setAddressDraft({
-                    ...addressDraft,
-                    city: event.target.value,
+                  setSiteDraft({ ...siteDraft, landmark: event.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="site-gate">Gate Number</Label>
+              <Input
+                id="site-gate"
+                value={siteDraft.gateNumber ?? ""}
+                onChange={(event) =>
+                  setSiteDraft({
+                    ...siteDraft,
+                    gateNumber: event.target.value,
                   })
                 }
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="addr-state">State</Label>
+              <Label htmlFor="site-floor">Floor</Label>
               <Input
-                id="addr-state"
-                value={addressDraft.state}
+                id="site-floor"
+                value={siteDraft.floor ?? ""}
                 onChange={(event) =>
-                  setAddressDraft({
-                    ...addressDraft,
-                    state: event.target.value,
+                  setSiteDraft({ ...siteDraft, floor: event.target.value })
+                }
+              />
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="site-city">City</Label>
+              <Input
+                id="site-city"
+                value={siteDraft.city ?? ""}
+                onChange={(event) =>
+                  setSiteDraft({ ...siteDraft, city: event.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="site-state">State</Label>
+              <Input
+                id="site-state"
+                value={siteDraft.state ?? ""}
+                onChange={(event) =>
+                  setSiteDraft({ ...siteDraft, state: event.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="site-pincode">Pincode</Label>
+              <Input
+                id="site-pincode"
+                value={siteDraft.pincode ?? ""}
+                onChange={(event) =>
+                  setSiteDraft({ ...siteDraft, pincode: event.target.value })
+                }
+              />
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="site-lat">Latitude</Label>
+              <Input
+                id="site-lat"
+                type="number"
+                step="any"
+                value={siteDraft.latitude ?? 0}
+                onChange={(event) =>
+                  setSiteDraft({
+                    ...siteDraft,
+                    latitude: Number(event.target.value),
                   })
                 }
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="addr-pincode">Pincode</Label>
+              <Label htmlFor="site-lng">Longitude</Label>
               <Input
-                id="addr-pincode"
-                value={addressDraft.pincode}
+                id="site-lng"
+                type="number"
+                step="any"
+                value={siteDraft.longitude ?? 0}
                 onChange={(event) =>
-                  setAddressDraft({
-                    ...addressDraft,
-                    pincode: event.target.value,
+                  setSiteDraft({
+                    ...siteDraft,
+                    longitude: Number(event.target.value),
                   })
                 }
               />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="site-notes">Delivery Notes</Label>
+            <Textarea
+              id="site-notes"
+              value={siteDraft.deliveryNotes ?? ""}
+              onChange={(event) =>
+                setSiteDraft({
+                  ...siteDraft,
+                  deliveryNotes: event.target.value,
+                })
+              }
+            />
           </div>
         </div>
       </CustomerConfirmationModal>

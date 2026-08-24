@@ -139,7 +139,9 @@ export function LoginForm() {
       const message = getApiErrorMessage(error);
       if (message === "Network Error" || message.includes("ERR_CONNECTION")) {
         notify.error(
-          "Cannot reach the server. Start the backend on port 8000, then sign in with superadmin@bajriwala.in / Admin@1234.",
+          process.env.NODE_ENV === "development"
+            ? "Cannot reach the server. Start the backend, then try signing in again."
+            : "Cannot reach the server. Please try again in a moment.",
         );
       } else {
         notify.error(message || "Unable to sign in. Please try again.");

@@ -12,12 +12,32 @@ import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react";
  * flips to controlled once a string arrives. Coerce explicit `undefined` to
  * `null` so the Select stays controlled for its lifetime.
  */
-function Select(props: SelectPrimitive.Root.Props) {
+type SelectProps<Value> = Omit<
+  SelectPrimitive.Root.Props<Value>,
+  "onValueChange"
+> & {
+  onValueChange?: (
+    value: Value,
+    eventDetails?: SelectPrimitive.Root.ChangeEventDetails,
+  ) => void;
+};
+
+function Select<Value>({ onValueChange, ...props }: SelectProps<Value>) {
   const { value, ...rest } = props;
+
+  const handleValueChange = (
+    nextValue: Value | null,
+    eventDetails: SelectPrimitive.Root.ChangeEventDetails,
+  ) => {
+    if (nextValue == null) return;
+    onValueChange?.(nextValue, eventDetails);
+  };
+
   return (
     <SelectPrimitive.Root
       {...rest}
       {...("value" in props ? { value: value ?? null } : {})}
+      {...(onValueChange ? { onValueChange: handleValueChange } : {})}
     />
   );
 }

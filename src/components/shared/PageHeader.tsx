@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 interface PageHeaderProps {
   title: string;
   subtitle?: string;
+  /** Alias for `subtitle` used by some page layouts. */
+  description?: string;
   actions?: React.ReactNode;
   breadcrumbs?: BreadcrumbItem[];
   className?: string;
@@ -16,11 +18,13 @@ interface PageHeaderProps {
 export function PageHeader({
   title,
   subtitle,
+  description,
   actions,
   breadcrumbs,
   className,
   titleClassName,
 }: PageHeaderProps) {
+  const resolvedSubtitle = subtitle ?? description;
   return (
     <div
       className={cn(
@@ -41,8 +45,8 @@ export function PageHeader({
           >
             {title}
           </h1>
-          {subtitle && (
-            <p className="mt-1 text-sm text-[#64748B]">{subtitle}</p>
+          {resolvedSubtitle && (
+            <p className="mt-1 text-sm text-[#64748B]">{resolvedSubtitle}</p>
           )}
         </div>
       </div>

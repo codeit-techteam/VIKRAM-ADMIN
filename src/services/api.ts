@@ -144,7 +144,10 @@ api.interceptors.response.use(
 
 export default api;
 
-export const getApiErrorMessage = (error: unknown): string => {
+export const getApiErrorMessage = (
+  error: unknown,
+  fallback = "An unexpected error occurred",
+): string => {
   if (axios.isAxiosError(error)) {
     const payload = error.response?.data as
       | { message?: string | string[]; errors?: Record<string, string[]> }
@@ -156,8 +159,8 @@ export const getApiErrorMessage = (error: unknown): string => {
       ? Object.values(payload.errors).flat().filter(Boolean)
       : [];
     if (fieldErrors.length > 0) return fieldErrors.join(". ");
-    return error.message ?? "An error occurred";
+    return error.message ?? fallback;
   }
   if (error instanceof Error) return error.message;
-  return "An unexpected error occurred";
+  return fallback;
 };

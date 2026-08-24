@@ -229,10 +229,10 @@ export function CustomersPageContent() {
 
   const filterOptions = useMemo(
     () => ({
-      hubs: [] as Array<{ id: string; label: string }>,
-      executives: [] as Array<{ id: string; label: string }>,
-      states: [] as string[],
-      cities: [] as string[],
+      hubs: [] as Array<{ value: string; label: string }>,
+      executives: [] as Array<{ value: string; label: string }>,
+      states: [] as Array<{ value: string; label: string }>,
+      cities: [] as Array<{ value: string; label: string }>,
     }),
     [],
   );

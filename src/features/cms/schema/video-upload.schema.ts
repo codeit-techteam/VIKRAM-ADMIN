@@ -46,7 +46,7 @@ export const videoUploadSchema = z
       });
     }
 
-    if (data.ctaDestination === "PRODUCT" && !data.ctaPath.trim()) {
+    if (data.ctaDestination === "PRODUCT" && !data.ctaPath?.trim()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Select a product to open",
@@ -54,7 +54,7 @@ export const videoUploadSchema = z
       });
     }
 
-    if (data.ctaDestination === "CATEGORY" && !data.ctaPath.trim()) {
+    if (data.ctaDestination === "CATEGORY" && !data.ctaPath?.trim()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Select a category to open",

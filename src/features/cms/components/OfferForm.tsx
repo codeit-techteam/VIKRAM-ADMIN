@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, type Resolver } from "react-hook-form";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { SafeRemoteImage } from "@/components/shared/SafeRemoteImage";
@@ -124,7 +124,7 @@ export function OfferForm({ mode, initialOffer }: OfferFormProps) {
   );
 
   const { control, handleSubmit, watch, setValue } = useForm<OfferFormSchema>({
-    resolver: zodResolver(offerFormSchema),
+    resolver: zodResolver(offerFormSchema) as Resolver<OfferFormSchema>,
     defaultValues: initialOffer
       ? offerToFormValues(initialOffer)
       : CREATE_DEFAULTS,

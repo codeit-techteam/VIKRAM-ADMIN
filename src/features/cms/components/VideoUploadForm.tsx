@@ -9,7 +9,12 @@ import {
   LayoutGrid,
   MousePointerClick,
 } from "lucide-react";
-import { Controller, useForm, type FieldErrors } from "react-hook-form";
+import {
+  Controller,
+  useForm,
+  type FieldErrors,
+  type Resolver,
+} from "react-hook-form";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { CheckboxGroup } from "@/components/shared/CheckboxGroup";
@@ -151,7 +156,7 @@ export function VideoUploadForm() {
 
   const { control, handleSubmit, watch, setValue, reset } =
     useForm<VideoUploadSchema>({
-      resolver: zodResolver(videoUploadSchema),
+      resolver: zodResolver(videoUploadSchema) as Resolver<VideoUploadSchema>,
       defaultValues: DEFAULT_FORM,
     });
 
@@ -276,7 +281,9 @@ export function VideoUploadForm() {
           published: data.publishImmediately,
         });
         await invalidateVideos();
-        notify.success("Changes saved — the Customer App will refresh this video");
+        notify.success(
+          "Changes saved — the Customer App will refresh this video",
+        );
         router.push("/customer-app-cms/videos");
         return;
       }
@@ -325,10 +332,7 @@ export function VideoUploadForm() {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit(onSubmit, onInvalid)}
-      className="space-y-6"
-    >
+    <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-6">
       <Breadcrumbs
         items={[
           { label: "Customer App CMS", href: "/customer-app-cms" },
@@ -567,40 +571,45 @@ export function VideoUploadForm() {
                   render={({ fieldState }) => (
                     <div>
                       <BannerCtaDestinationPicker
-                      preferProduct
-                      value={{
-                        ctaDestination,
-                        linkType,
-                        ctaPath,
-                        ctaTargetLabel,
-                      }}
-                      onChange={(next) => {
-                        setValue("ctaDestination", next.ctaDestination, {
-                          shouldValidate: true,
-                        });
-                        setValue("linkType", next.linkType, {
-                          shouldValidate: true,
-                        });
-                        setValue("ctaPath", next.ctaPath, {
-                          shouldValidate: true,
-                        });
-                        setValue("ctaTargetLabel", next.ctaTargetLabel ?? "", {
-                          shouldDirty: true,
-                        });
-                      }}
-                      error={fieldState.error?.message}
-                    />
-                    {ctaDestination !== "PRODUCT" ? (
-                      <p className="mt-2 text-sm text-amber-800">
-                        Shop Now currently opens{" "}
-                        {ctaDestination === "CATALOG"
-                          ? "Catalog"
-                          : ctaDestination.toLowerCase()}
-                        . Choose <span className="font-semibold">Product</span>{" "}
-                        and pick an item so the Customer App opens that product
-                        page.
-                      </p>
-                    ) : null}
+                        preferProduct
+                        value={{
+                          ctaDestination,
+                          linkType,
+                          ctaPath,
+                          ctaTargetLabel,
+                        }}
+                        onChange={(next) => {
+                          setValue("ctaDestination", next.ctaDestination, {
+                            shouldValidate: true,
+                          });
+                          setValue("linkType", next.linkType, {
+                            shouldValidate: true,
+                          });
+                          setValue("ctaPath", next.ctaPath, {
+                            shouldValidate: true,
+                          });
+                          setValue(
+                            "ctaTargetLabel",
+                            next.ctaTargetLabel ?? "",
+                            {
+                              shouldDirty: true,
+                            },
+                          );
+                        }}
+                        error={fieldState.error?.message}
+                      />
+                      {ctaDestination !== "PRODUCT" ? (
+                        <p className="mt-2 text-sm text-amber-800">
+                          Shop Now currently opens{" "}
+                          {ctaDestination === "CATALOG"
+                            ? "Catalog"
+                            : ctaDestination.toLowerCase()}
+                          . Choose{" "}
+                          <span className="font-semibold">Product</span> and
+                          pick an item so the Customer App opens that product
+                          page.
+                        </p>
+                      ) : null}
                     </div>
                   )}
                 />

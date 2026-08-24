@@ -98,6 +98,7 @@ export function CeDashboardPage() {
         status: "ALL",
         statusGroup: "ALL",
         orderSource: "ALL",
+        assignment: "ALL",
       },
     });
   };
@@ -120,6 +121,7 @@ export function CeDashboardPage() {
           status: "ALL",
           statusGroup: "ALL",
           orderSource: "ALL",
+          assignment: "ALL",
         },
       }),
     [queryOrders, orderPage, orders],
@@ -130,7 +132,10 @@ export function CeDashboardPage() {
   const handleSendLink = async (payment: CePayment) => {
     try {
       await sendPaymentLink(payment.id);
-      notify.success("Payment link sent", `Link sent to ${payment.customerName}`);
+      notify.success(
+        "Payment link sent",
+        `Link sent to ${payment.customerName}`,
+      );
     } catch (error) {
       notify.error(
         "Failed to send link",

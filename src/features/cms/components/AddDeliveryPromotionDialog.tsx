@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState } from "react";
-import { Controller, useForm, useWatch } from "react-hook-form";
+import { Controller, useForm, useWatch, type Resolver } from "react-hook-form";
 
 import {
   FileDropzone,
@@ -90,9 +90,8 @@ function promotionToFormValues(
     badge: promo.badge ?? "",
     remainingHeadline: promo.remainingHeadline ?? "",
     exhaustedHeadline: promo.exhaustedHeadline ?? "",
-    exhaustedBehavior: promo.exhaustedBehavior === "SHOW_ALTERNATE"
-      ? "SHOW_ALTERNATE"
-      : "HIDE",
+    exhaustedBehavior:
+      promo.exhaustedBehavior === "SHOW_ALTERNATE" ? "SHOW_ALTERNATE" : "HIDE",
     status: formStatusFromPromo(promo.status),
     priority: promo.priority || 10,
     targetAudience: promo.targetAudience,
@@ -116,9 +115,13 @@ export function AddDeliveryPromotionDialog({
   const isEdit = Boolean(editPromotion);
   const [isSaving, setIsSaving] = useState(false);
   const [mobileUpload, setMobileUpload] = useState<MockUploadFile | null>(null);
-  const [desktopUpload, setDesktopUpload] = useState<MockUploadFile | null>(null);
+  const [desktopUpload, setDesktopUpload] = useState<MockUploadFile | null>(
+    null,
+  );
   const [pendingMobileFile, setPendingMobileFile] = useState<File | null>(null);
-  const [pendingDesktopFile, setPendingDesktopFile] = useState<File | null>(null);
+  const [pendingDesktopFile, setPendingDesktopFile] = useState<File | null>(
+    null,
+  );
   const [mobilePreview, setMobilePreview] = useState<string | null>(null);
   const [desktopPreview, setDesktopPreview] = useState<string | null>(null);
   const [mobileR2Url, setMobileR2Url] = useState<string | null>(null);
@@ -131,7 +134,9 @@ export function AddDeliveryPromotionDialog({
     setValue,
     formState: { errors },
   } = useForm<DeliveryPromotionFormSchema>({
-    resolver: zodResolver(deliveryPromotionFormSchema),
+    resolver: zodResolver(
+      deliveryPromotionFormSchema,
+    ) as Resolver<DeliveryPromotionFormSchema>,
     defaultValues: DELIVERY_PROMOTION_FORM_DEFAULTS,
   });
 
@@ -206,7 +211,8 @@ export function AddDeliveryPromotionDialog({
           }),
       );
 
-      const publishing = data.status === "ACTIVE" || data.status === "SCHEDULED";
+      const publishing =
+        data.status === "ACTIVE" || data.status === "SCHEDULED";
       const resolvedImage = mobileUrl || desktopUrl || data.bannerImage || "";
       if (publishing) {
         assertRemoteMediaUrl(resolvedImage);
@@ -261,7 +267,10 @@ export function AddDeliveryPromotionDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !isSaving && onOpenChange(next)}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => !isSaving && onOpenChange(next)}
+    >
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>
@@ -328,7 +337,10 @@ export function AddDeliveryPromotionDialog({
                     control={control}
                     name="status"
                     render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -343,7 +355,9 @@ export function AddDeliveryPromotionDialog({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="promo-priority">Priority (10 = highest)</Label>
+                  <Label htmlFor="promo-priority">
+                    Priority (10 = highest)
+                  </Label>
                   <Controller
                     control={control}
                     name="priority"
@@ -384,7 +398,9 @@ export function AddDeliveryPromotionDialog({
                 previewUrl={mobilePreview}
                 onFileChange={(file) => {
                   setPendingMobileFile(file);
-                  setMobilePreview(file ? URL.createObjectURL(file) : mobileR2Url);
+                  setMobilePreview(
+                    file ? URL.createObjectURL(file) : mobileR2Url,
+                  );
                   setMobileUpload(
                     file ? { name: file.name, progress: 0 } : null,
                   );
@@ -474,7 +490,11 @@ export function AddDeliveryPromotionDialog({
                     control={control}
                     name="badge"
                     render={({ field }) => (
-                      <Input id="promo-badge" placeholder="FREE DELIVERY" {...field} />
+                      <Input
+                        id="promo-badge"
+                        placeholder="FREE DELIVERY"
+                        {...field}
+                      />
                     )}
                   />
                 </div>
@@ -484,13 +504,18 @@ export function AddDeliveryPromotionDialog({
                     control={control}
                     name="targetAudience"
                     render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="ALL">All customers</SelectItem>
-                          <SelectItem value="NEW_CUSTOMERS">New customers</SelectItem>
+                          <SelectItem value="NEW_CUSTOMERS">
+                            New customers
+                          </SelectItem>
                           <SelectItem value="FREE_BIKE_REMAINING">
                             Free bike remaining
                           </SelectItem>
@@ -516,8 +541,8 @@ export function AddDeliveryPromotionDialog({
                     )}
                   />
                   <p className="mt-1 text-[11px] text-[#64748B]">
-                    Shown when the customer has used some, but not all, free bike
-                    deliveries. Use {"{count}"} and {"{delivery}"}.
+                    Shown when the customer has used some, but not all, free
+                    bike deliveries. Use {"{count}"} and {"{delivery}"}.
                   </p>
                 </div>
               </div>
@@ -582,8 +607,8 @@ export function AddDeliveryPromotionDialog({
                 </>
               ) : (
                 <p className="text-xs text-[#64748B]">
-                  Banner is informational. Customers will not be taken to another
-                  screen.
+                  Banner is informational. Customers will not be taken to
+                  another screen.
                 </p>
               )}
             </section>
@@ -643,7 +668,11 @@ export function AddDeliveryPromotionDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={isSaving}>
-              {isSaving ? "Saving…" : isEdit ? "Save changes" : "Create promotion"}
+              {isSaving
+                ? "Saving…"
+                : isEdit
+                  ? "Save changes"
+                  : "Create promotion"}
             </Button>
           </DialogFooter>
         </form>

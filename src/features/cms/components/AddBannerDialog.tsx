@@ -7,6 +7,7 @@ import {
   useForm,
   useWatch,
   type FieldErrors,
+  type Resolver,
 } from "react-hook-form";
 
 import {
@@ -156,7 +157,7 @@ export function AddBannerDialog({
     setValue,
     formState: { errors },
   } = useForm<BannerFormSchema>({
-    resolver: zodResolver(bannerFormSchema),
+    resolver: zodResolver(bannerFormSchema) as Resolver<BannerFormSchema>,
     defaultValues: BANNER_FORM_DEFAULT_VALUES,
     mode: "onSubmit",
   });
@@ -180,9 +181,7 @@ export function AddBannerDialog({
     if (editBanner) {
       reset(bannerToFormValues(editBanner));
       setMobilePreview(
-        editBanner.mobileUrl ||
-          editBanner.imageUrl ||
-          editBanner.thumbnailUrl,
+        editBanner.mobileUrl || editBanner.imageUrl || editBanner.thumbnailUrl,
       );
       setDesktopPreview(editBanner.desktopUrl || null);
       setMobileR2Url(
@@ -272,10 +271,9 @@ export function AddBannerDialog({
         ...data,
         placement: data.location || data.placement,
         imageUrl: remoteImage,
-        mobileUrl: remoteImage
-          ? mobileUrl || desktopUrl || remoteImage
-          : "",
-        desktopUrl: desktopUrl && !desktopUrl.startsWith("blob:") ? desktopUrl : "",
+        mobileUrl: remoteImage ? mobileUrl || desktopUrl || remoteImage : "",
+        desktopUrl:
+          desktopUrl && !desktopUrl.startsWith("blob:") ? desktopUrl : "",
         badge: data.badge?.trim() || "",
         ctaColor: data.ctaColor?.trim() || "",
         backgroundColor: data.backgroundColor?.trim() || "",
@@ -375,500 +373,527 @@ export function AddBannerDialog({
         >
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
             <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
-          <div className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="banner-name">Banner name</Label>
-                <Controller
-                  name="name"
-                  control={control}
-                  render={({ field }) => (
-                    <Input
-                      id="banner-name"
-                      placeholder={
-                        isHeroBanner
-                          ? "WaterProof Today"
-                          : "3 Free Bike Deliveries"
-                      }
-                      {...field}
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="banner-name">Banner name</Label>
+                    <Controller
+                      name="name"
+                      control={control}
+                      render={({ field }) => (
+                        <Input
+                          id="banner-name"
+                          placeholder={
+                            isHeroBanner
+                              ? "WaterProof Today"
+                              : "3 Free Bike Deliveries"
+                          }
+                          {...field}
+                        />
+                      )}
                     />
-                  )}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Placement</Label>
-                <Controller
-                  name="location"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      value={field.value}
-                      onValueChange={(value: string) => {
-                        if (!value) return;
-                        field.onChange(value);
-                        setValue("placement", value);
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Placement</Label>
+                    <Controller
+                      name="location"
+                      control={control}
+                      render={({ field }) => (
+                        <Select
+                          value={field.value}
+                          onValueChange={(value: string) => {
+                            if (!value) return;
+                            const placement = normalizeBannerPlacement(value);
+                            field.onChange(placement);
+                            setValue("placement", placement);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select placement" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {BANNER_PLACEMENTS.map((placement) => (
+                              <SelectItem key={placement} value={placement}>
+                                {BANNER_PLACEMENT_LABELS[placement]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div id="banner-mobile-image" className="space-y-1.5">
+                    <Label>
+                      {isHeroBanner
+                        ? "Hero banner image"
+                        : "Mobile banner image"}
+                    </Label>
+                    <FileDropzone
+                      variant="compact"
+                      label={
+                        isHeroBanner
+                          ? "Upload full hero banner"
+                          : "Upload mobile image"
+                      }
+                      helperText={
+                        isHeroBanner
+                          ? "Complete artwork · JPG/PNG/WebP · shown edge-to-edge, not as product art"
+                          : "Product or illustration on the right · JPG/PNG/WebP · shown fully, not cropped"
+                      }
+                      accept={{
+                        "image/jpeg": [".jpg", ".jpeg"],
+                        "image/png": [".png"],
+                        "image/webp": [".webp"],
                       }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select placement" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {BANNER_PLACEMENTS.map((placement) => (
-                          <SelectItem key={placement} value={placement}>
-                            {BANNER_PLACEMENT_LABELS[placement]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-            </div>
+                      maxSize={5 * 1024 * 1024}
+                      selectedFile={mobileUpload}
+                      previewUrl={mobilePreview}
+                      onFileSelect={setMobileUpload}
+                      onFileChange={(file) => {
+                        if (mobilePreview?.startsWith("blob:")) {
+                          URL.revokeObjectURL(mobilePreview);
+                        }
+                        if (!file) {
+                          setPendingMobileFile(null);
+                          setMobilePreview(mobileR2Url);
+                          setValue("mobileUrl", mobileR2Url ?? "");
+                          return;
+                        }
+                        const next = URL.createObjectURL(file);
+                        setPendingMobileFile(file);
+                        setMobilePreview(next);
+                        setMobileUpload({ name: file.name, progress: 0 });
+                        setValue("mobileUrl", next, { shouldValidate: true });
+                      }}
+                      onClear={() => {
+                        if (mobilePreview?.startsWith("blob:")) {
+                          URL.revokeObjectURL(mobilePreview);
+                        }
+                        setPendingMobileFile(null);
+                        setMobilePreview(mobileR2Url);
+                        setMobileUpload(null);
+                        setValue("mobileUrl", mobileR2Url ?? "");
+                      }}
+                    />
+                    {errors.mobileUrl ? (
+                      <p className="text-xs text-red-500">
+                        {errors.mobileUrl.message}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Desktop banner image</Label>
+                    <FileDropzone
+                      variant="compact"
+                      label="Upload desktop image"
+                      helperText={
+                        isHeroBanner
+                          ? "Optional · used if the hero image above is empty"
+                          : "Optional · used if mobile image is empty"
+                      }
+                      accept={{
+                        "image/jpeg": [".jpg", ".jpeg"],
+                        "image/png": [".png"],
+                        "image/webp": [".webp"],
+                      }}
+                      maxSize={5 * 1024 * 1024}
+                      selectedFile={desktopUpload}
+                      previewUrl={desktopPreview}
+                      onFileSelect={setDesktopUpload}
+                      onFileChange={(file) => {
+                        if (desktopPreview?.startsWith("blob:")) {
+                          URL.revokeObjectURL(desktopPreview);
+                        }
+                        if (!file) {
+                          setPendingDesktopFile(null);
+                          setDesktopPreview(desktopR2Url);
+                          setValue("desktopUrl", desktopR2Url ?? "");
+                          return;
+                        }
+                        const next = URL.createObjectURL(file);
+                        setPendingDesktopFile(file);
+                        setDesktopPreview(next);
+                        setDesktopUpload({ name: file.name, progress: 0 });
+                        setValue("desktopUrl", next, { shouldValidate: true });
+                      }}
+                      onClear={() => {
+                        if (desktopPreview?.startsWith("blob:")) {
+                          URL.revokeObjectURL(desktopPreview);
+                        }
+                        setPendingDesktopFile(null);
+                        setDesktopPreview(desktopR2Url);
+                        setDesktopUpload(null);
+                        setValue("desktopUrl", desktopR2Url ?? "");
+                      }}
+                    />
+                  </div>
+                </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div id="banner-mobile-image" className="space-y-1.5">
-                <Label>
-                  {isHeroBanner ? "Hero banner image" : "Mobile banner image"}
-                </Label>
-                <FileDropzone
-                  variant="compact"
-                  label={
-                    isHeroBanner
-                      ? "Upload full hero banner"
-                      : "Upload mobile image"
-                  }
-                  helperText={
-                    isHeroBanner
-                      ? "Complete artwork · JPG/PNG/WebP · shown edge-to-edge, not as product art"
-                      : "Product or illustration on the right · JPG/PNG/WebP · shown fully, not cropped"
-                  }
-                  accept={{
-                    "image/jpeg": [".jpg", ".jpeg"],
-                    "image/png": [".png"],
-                    "image/webp": [".webp"],
-                  }}
-                  maxSize={5 * 1024 * 1024}
-                  selectedFile={mobileUpload}
-                  previewUrl={mobilePreview}
-                  onFileSelect={setMobileUpload}
-                  onFileChange={(file) => {
-                    if (mobilePreview?.startsWith("blob:")) {
-                      URL.revokeObjectURL(mobilePreview);
-                    }
-                    if (!file) {
-                      setPendingMobileFile(null);
-                      setMobilePreview(mobileR2Url);
-                      setValue("mobileUrl", mobileR2Url ?? "");
-                      return;
-                    }
-                    const next = URL.createObjectURL(file);
-                    setPendingMobileFile(file);
-                    setMobilePreview(next);
-                    setMobileUpload({ name: file.name, progress: 0 });
-                    setValue("mobileUrl", next, { shouldValidate: true });
-                  }}
-                  onClear={() => {
-                    if (mobilePreview?.startsWith("blob:")) {
-                      URL.revokeObjectURL(mobilePreview);
-                    }
-                    setPendingMobileFile(null);
-                    setMobilePreview(mobileR2Url);
-                    setMobileUpload(null);
-                    setValue("mobileUrl", mobileR2Url ?? "");
-                  }}
-                />
-                {errors.mobileUrl ? (
-                  <p className="text-xs text-red-500">
-                    {errors.mobileUrl.message}
-                  </p>
-                ) : null}
-              </div>
-              <div className="space-y-1.5">
-                <Label>Desktop banner image</Label>
-                <FileDropzone
-                  variant="compact"
-                  label="Upload desktop image"
-                  helperText={
-                    isHeroBanner
-                      ? "Optional · used if the hero image above is empty"
-                      : "Optional · used if mobile image is empty"
-                  }
-                  accept={{
-                    "image/jpeg": [".jpg", ".jpeg"],
-                    "image/png": [".png"],
-                    "image/webp": [".webp"],
-                  }}
-                  maxSize={5 * 1024 * 1024}
-                  selectedFile={desktopUpload}
-                  previewUrl={desktopPreview}
-                  onFileSelect={setDesktopUpload}
-                  onFileChange={(file) => {
-                    if (desktopPreview?.startsWith("blob:")) {
-                      URL.revokeObjectURL(desktopPreview);
-                    }
-                    if (!file) {
-                      setPendingDesktopFile(null);
-                      setDesktopPreview(desktopR2Url);
-                      setValue("desktopUrl", desktopR2Url ?? "");
-                      return;
-                    }
-                    const next = URL.createObjectURL(file);
-                    setPendingDesktopFile(file);
-                    setDesktopPreview(next);
-                    setDesktopUpload({ name: file.name, progress: 0 });
-                    setValue("desktopUrl", next, { shouldValidate: true });
-                  }}
-                  onClear={() => {
-                    if (desktopPreview?.startsWith("blob:")) {
-                      URL.revokeObjectURL(desktopPreview);
-                    }
-                    setPendingDesktopFile(null);
-                    setDesktopPreview(desktopR2Url);
-                    setDesktopUpload(null);
-                    setValue("desktopUrl", desktopR2Url ?? "");
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="banner-description">Internal description</Label>
-              <Controller
-                name="description"
-                control={control}
-                render={({ field }) => (
-                  <Input
-                    id="banner-description"
-                    placeholder="First 3 eligible bike deliveries promotion"
-                    {...field}
-                  />
-                )}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="banner-title">
-                {isHeroBanner ? "Banner title" : "Headline on the app"}
-              </Label>
-              <Controller
-                name="title"
-                control={control}
-                render={({ field }) => (
-                  <Input
-                    id="banner-title"
-                    placeholder={
-                      isHeroBanner
-                        ? "WaterProof Today"
-                        : "BULK ORDER | BIGGER SAVINGS!"
-                    }
-                    {...field}
-                  />
-                )}
-              />
-              <p className="text-[11px] text-[#64748B]">
-                {isHeroBanner
-                  ? "Used in the admin list and for accessibility. Customers see the uploaded image."
-                  : "Use | to split the headline, e.g. BULK ORDER | BIGGER SAVINGS!"}
-              </p>
-              {errors.title ? (
-                <p className="text-xs text-red-500">{errors.title.message}</p>
-              ) : null}
-            </div>
-
-            {!isHeroBanner ? (
-              <>
                 <div className="space-y-1.5">
-                  <Label htmlFor="banner-subtitle">Subtitle</Label>
+                  <Label htmlFor="banner-description">
+                    Internal description
+                  </Label>
                   <Controller
-                    name="subtitle"
+                    name="description"
                     control={control}
                     render={({ field }) => (
                       <Input
-                        id="banner-subtitle"
-                        placeholder="Quality you trust, strength you build on."
+                        id="banner-description"
+                        placeholder="First 3 eligible bike deliveries promotion"
                         {...field}
                       />
                     )}
                   />
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="banner-badge">Badge</Label>
-                    <Controller
-                      name="badge"
-                      control={control}
-                      render={({ field }) => (
-                        <Input
-                          id="banner-badge"
-                          placeholder="Ideal for contractors"
-                          {...field}
-                        />
-                      )}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="banner-cta-label">CTA label</Label>
-                    <Controller
-                      name="ctaLabel"
-                      control={control}
-                      render={({ field }) => (
-                        <Input
-                          id="banner-cta-label"
-                          placeholder="Shop Now"
-                          {...field}
-                        />
-                      )}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label>Background</Label>
-                    <Controller
-                      name="backgroundColor"
-                      control={control}
-                      render={({ field }) => (
-                        <div className="flex flex-wrap items-center gap-2">
-                          {["#FFF6E8", "#FFE082", "#FFD7A8", "#FFFFFF"].map(
-                            (color) => (
-                              <button
-                                key={color}
-                                type="button"
-                                aria-label={color}
-                                onClick={() => field.onChange(color)}
-                                className="size-7 rounded-full border border-black/10"
-                                style={{
-                                  backgroundColor: color,
-                                  outline:
-                                    field.value === color
-                                      ? "2px solid #111111"
-                                      : undefined,
-                                  outlineOffset: 2,
-                                }}
-                              />
-                            ),
-                          )}
-                          <Input
-                            className="h-9 w-28"
-                            placeholder="#FFF6E8"
-                            value={field.value ?? ""}
-                            onChange={field.onChange}
-                          />
-                        </div>
-                      )}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>CTA color</Label>
-                    <Controller
-                      name="ctaColor"
-                      control={control}
-                      render={({ field }) => (
-                        <div className="flex flex-wrap items-center gap-2">
-                          {["#111111", "#C62828", "#FFFFFF"].map((color) => (
-                            <button
-                              key={color}
-                              type="button"
-                              aria-label={color}
-                              onClick={() => field.onChange(color)}
-                              className="size-7 rounded-full border border-black/10"
-                              style={{
-                                backgroundColor: color,
-                                outline:
-                                  field.value === color
-                                    ? "2px solid #111111"
-                                    : undefined,
-                                outlineOffset: 2,
-                              }}
-                            />
-                          ))}
-                          <Input
-                            className="h-9 w-28"
-                            placeholder="#111111"
-                            value={field.value ?? ""}
-                            onChange={field.onChange}
-                          />
-                        </div>
-                      )}
-                    />
-                  </div>
-                </div>
-              </>
-            ) : null}
-
-            <p className="text-[11px] text-[#64748B]">
-              {isHeroBanner
-                ? "Tapping the hero banner in the app opens this destination."
-                : "Tapping the banner on the app opens this destination."}
-            </p>
-            <div id="banner-cta">
-              <BannerCtaDestinationPicker
-                value={{
-                  ctaDestination: ctaDestination || "CATALOG",
-                  linkType: linkType || "ROUTE",
-                  ctaPath: ctaPath || "",
-                  ctaTargetLabel: ctaTargetLabel || "",
-                }}
-                onChange={(next) => {
-                  setValue("ctaDestination", next.ctaDestination, {
-                    shouldValidate: true,
-                  });
-                  setValue("linkType", next.linkType, { shouldValidate: true });
-                  setValue("ctaPath", next.ctaPath, { shouldValidate: true });
-                  setValue("ctaTargetLabel", next.ctaTargetLabel || "", {
-                    shouldValidate: true,
-                  });
-
-                  const remoteImage = next.previewImageUrl?.trim() || "";
-                  const isRemote =
-                    remoteImage.startsWith("http://") ||
-                    remoteImage.startsWith("https://");
-                  if (
-                    !isHeroBanner &&
-                    isRemote &&
-                    !pendingMobileFile &&
-                    !mobileR2Url
-                  ) {
-                    setMobilePreview(remoteImage);
-                    setMobileR2Url(remoteImage);
-                    setValue("imageUrl", remoteImage, { shouldValidate: true });
-                    setValue("mobileUrl", remoteImage, { shouldValidate: true });
-                  }
-                }}
-                error={errors.ctaPath?.message}
-              />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="banner-starts">Start date</Label>
-                <Controller
-                  name="startsAt"
-                  control={control}
-                  render={({ field }) => (
-                    <Input id="banner-starts" type="datetime-local" {...field} />
-                  )}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="banner-ends">End date</Label>
-                <Controller
-                  name="endsAt"
-                  control={control}
-                  render={({ field }) => (
-                    <Input id="banner-ends" type="datetime-local" {...field} />
-                  )}
-                />
-                {errors.endsAt ? (
-                  <p className="text-xs text-red-500">{errors.endsAt.message}</p>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="space-y-1.5">
-                <Label>Status</Label>
-                <Controller
-                  name="status"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      value={field.value}
-                      onValueChange={(value: string) => {
-                        if (
-                          value === "ACTIVE" ||
-                          value === "DRAFT" ||
-                          value === "INACTIVE"
-                        ) {
-                          field.onChange(value);
+                <div className="space-y-1.5">
+                  <Label htmlFor="banner-title">
+                    {isHeroBanner ? "Banner title" : "Headline on the app"}
+                  </Label>
+                  <Controller
+                    name="title"
+                    control={control}
+                    render={({ field }) => (
+                      <Input
+                        id="banner-title"
+                        placeholder={
+                          isHeroBanner
+                            ? "WaterProof Today"
+                            : "BULK ORDER | BIGGER SAVINGS!"
                         }
-                      }}
-                    >
-                      <SelectTrigger className="h-10 w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ACTIVE">Active</SelectItem>
-                        <SelectItem value="DRAFT">Draft</SelectItem>
-                        <SelectItem value="INACTIVE">Inactive</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="banner-priority">Priority</Label>
-                <Controller
-                  name="priority"
-                  control={control}
-                  render={({ field }) => (
-                    <Input
-                      id="banner-priority"
-                      type="number"
-                      min={1}
-                      value={field.value}
-                      onChange={(event) =>
-                        field.onChange(Number(event.target.value) || 1)
-                      }
-                    />
-                  )}
-                />
-                <p className="text-[11px] text-[#64748B]">1 = highest</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Target audience</Label>
-                <Controller
-                  name="targetAudience"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      value={field.value}
-                      onValueChange={(value: string) => {
-                        if (value) field.onChange(value);
-                      }}
-                    >
-                      <SelectTrigger className="h-10 w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ALL">All customers</SelectItem>
-                        <SelectItem value="NEW_CUSTOMERS">
-                          New customers
-                        </SelectItem>
-                        <SelectItem value="FREE_BIKE_REMAINING">
-                          Remaining free bike deliveries
-                        </SelectItem>
-                        <SelectItem value="FREE_BIKE_EXHAUSTED">
-                          0 remaining free bike deliveries
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-            </div>
-          </div>
+                        {...field}
+                      />
+                    )}
+                  />
+                  <p className="text-[11px] text-[#64748B]">
+                    {isHeroBanner
+                      ? "Used in the admin list and for accessibility. Customers see the uploaded image."
+                      : "Use | to split the headline, e.g. BULK ORDER | BIGGER SAVINGS!"}
+                  </p>
+                  {errors.title ? (
+                    <p className="text-xs text-red-500">
+                      {errors.title.message}
+                    </p>
+                  ) : null}
+                </div>
 
-          <div>
-            <BannerMobilePreview
-              variant={isHeroBanner ? "hero" : "promo"}
-              title={title}
-              subtitle={subtitle}
-              badge={badge}
-              ctaLabel={ctaLabel}
-              backgroundColor={backgroundColor}
-              ctaColor={ctaColor}
-              imageUrl={
-                mobilePreview ||
-                desktopPreview ||
-                editBanner?.mobileUrl ||
-                editBanner?.imageUrl ||
-                editBanner?.thumbnailUrl
-              }
-            />
-          </div>
+                {!isHeroBanner ? (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="banner-subtitle">Subtitle</Label>
+                      <Controller
+                        name="subtitle"
+                        control={control}
+                        render={({ field }) => (
+                          <Input
+                            id="banner-subtitle"
+                            placeholder="Quality you trust, strength you build on."
+                            {...field}
+                          />
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="banner-badge">Badge</Label>
+                        <Controller
+                          name="badge"
+                          control={control}
+                          render={({ field }) => (
+                            <Input
+                              id="banner-badge"
+                              placeholder="Ideal for contractors"
+                              {...field}
+                            />
+                          )}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="banner-cta-label">CTA label</Label>
+                        <Controller
+                          name="ctaLabel"
+                          control={control}
+                          render={({ field }) => (
+                            <Input
+                              id="banner-cta-label"
+                              placeholder="Shop Now"
+                              {...field}
+                            />
+                          )}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label>Background</Label>
+                        <Controller
+                          name="backgroundColor"
+                          control={control}
+                          render={({ field }) => (
+                            <div className="flex flex-wrap items-center gap-2">
+                              {["#FFF6E8", "#FFE082", "#FFD7A8", "#FFFFFF"].map(
+                                (color) => (
+                                  <button
+                                    key={color}
+                                    type="button"
+                                    aria-label={color}
+                                    onClick={() => field.onChange(color)}
+                                    className="size-7 rounded-full border border-black/10"
+                                    style={{
+                                      backgroundColor: color,
+                                      outline:
+                                        field.value === color
+                                          ? "2px solid #111111"
+                                          : undefined,
+                                      outlineOffset: 2,
+                                    }}
+                                  />
+                                ),
+                              )}
+                              <Input
+                                className="h-9 w-28"
+                                placeholder="#FFF6E8"
+                                value={field.value ?? ""}
+                                onChange={field.onChange}
+                              />
+                            </div>
+                          )}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>CTA color</Label>
+                        <Controller
+                          name="ctaColor"
+                          control={control}
+                          render={({ field }) => (
+                            <div className="flex flex-wrap items-center gap-2">
+                              {["#111111", "#C62828", "#FFFFFF"].map(
+                                (color) => (
+                                  <button
+                                    key={color}
+                                    type="button"
+                                    aria-label={color}
+                                    onClick={() => field.onChange(color)}
+                                    className="size-7 rounded-full border border-black/10"
+                                    style={{
+                                      backgroundColor: color,
+                                      outline:
+                                        field.value === color
+                                          ? "2px solid #111111"
+                                          : undefined,
+                                      outlineOffset: 2,
+                                    }}
+                                  />
+                                ),
+                              )}
+                              <Input
+                                className="h-9 w-28"
+                                placeholder="#111111"
+                                value={field.value ?? ""}
+                                onChange={field.onChange}
+                              />
+                            </div>
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+
+                <p className="text-[11px] text-[#64748B]">
+                  {isHeroBanner
+                    ? "Tapping the hero banner in the app opens this destination."
+                    : "Tapping the banner on the app opens this destination."}
+                </p>
+                <div id="banner-cta">
+                  <BannerCtaDestinationPicker
+                    value={{
+                      ctaDestination: ctaDestination || "CATALOG",
+                      linkType: linkType || "ROUTE",
+                      ctaPath: ctaPath || "",
+                      ctaTargetLabel: ctaTargetLabel || "",
+                    }}
+                    onChange={(next) => {
+                      setValue("ctaDestination", next.ctaDestination, {
+                        shouldValidate: true,
+                      });
+                      setValue("linkType", next.linkType, {
+                        shouldValidate: true,
+                      });
+                      setValue("ctaPath", next.ctaPath, {
+                        shouldValidate: true,
+                      });
+                      setValue("ctaTargetLabel", next.ctaTargetLabel || "", {
+                        shouldValidate: true,
+                      });
+
+                      const remoteImage = next.previewImageUrl?.trim() || "";
+                      const isRemote =
+                        remoteImage.startsWith("http://") ||
+                        remoteImage.startsWith("https://");
+                      if (
+                        !isHeroBanner &&
+                        isRemote &&
+                        !pendingMobileFile &&
+                        !mobileR2Url
+                      ) {
+                        setMobilePreview(remoteImage);
+                        setMobileR2Url(remoteImage);
+                        setValue("imageUrl", remoteImage, {
+                          shouldValidate: true,
+                        });
+                        setValue("mobileUrl", remoteImage, {
+                          shouldValidate: true,
+                        });
+                      }
+                    }}
+                    error={errors.ctaPath?.message}
+                  />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="banner-starts">Start date</Label>
+                    <Controller
+                      name="startsAt"
+                      control={control}
+                      render={({ field }) => (
+                        <Input
+                          id="banner-starts"
+                          type="datetime-local"
+                          {...field}
+                        />
+                      )}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="banner-ends">End date</Label>
+                    <Controller
+                      name="endsAt"
+                      control={control}
+                      render={({ field }) => (
+                        <Input
+                          id="banner-ends"
+                          type="datetime-local"
+                          {...field}
+                        />
+                      )}
+                    />
+                    {errors.endsAt ? (
+                      <p className="text-xs text-red-500">
+                        {errors.endsAt.message}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label>Status</Label>
+                    <Controller
+                      name="status"
+                      control={control}
+                      render={({ field }) => (
+                        <Select
+                          value={field.value}
+                          onValueChange={(value: string) => {
+                            if (
+                              value === "ACTIVE" ||
+                              value === "DRAFT" ||
+                              value === "INACTIVE"
+                            ) {
+                              field.onChange(value);
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-10 w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ACTIVE">Active</SelectItem>
+                            <SelectItem value="DRAFT">Draft</SelectItem>
+                            <SelectItem value="INACTIVE">Inactive</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="banner-priority">Priority</Label>
+                    <Controller
+                      name="priority"
+                      control={control}
+                      render={({ field }) => (
+                        <Input
+                          id="banner-priority"
+                          type="number"
+                          min={1}
+                          value={field.value}
+                          onChange={(event) =>
+                            field.onChange(Number(event.target.value) || 1)
+                          }
+                        />
+                      )}
+                    />
+                    <p className="text-[11px] text-[#64748B]">1 = highest</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Target audience</Label>
+                    <Controller
+                      name="targetAudience"
+                      control={control}
+                      render={({ field }) => (
+                        <Select
+                          value={field.value}
+                          onValueChange={(value: string) => {
+                            if (value) field.onChange(value);
+                          }}
+                        >
+                          <SelectTrigger className="h-10 w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ALL">All customers</SelectItem>
+                            <SelectItem value="NEW_CUSTOMERS">
+                              New customers
+                            </SelectItem>
+                            <SelectItem value="FREE_BIKE_REMAINING">
+                              Remaining free bike deliveries
+                            </SelectItem>
+                            <SelectItem value="FREE_BIKE_EXHAUSTED">
+                              0 remaining free bike deliveries
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <BannerMobilePreview
+                  variant={isHeroBanner ? "hero" : "promo"}
+                  title={title}
+                  subtitle={subtitle}
+                  badge={badge}
+                  ctaLabel={ctaLabel}
+                  backgroundColor={backgroundColor}
+                  ctaColor={ctaColor}
+                  imageUrl={
+                    mobilePreview ||
+                    desktopPreview ||
+                    editBanner?.mobileUrl ||
+                    editBanner?.imageUrl ||
+                    editBanner?.thumbnailUrl
+                  }
+                />
+              </div>
             </div>
           </div>
 

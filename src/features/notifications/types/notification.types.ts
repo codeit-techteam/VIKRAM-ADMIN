@@ -53,6 +53,7 @@ export interface AudienceOption {
 }
 
 export interface PushComposerOptions {
+  fcmConfigured?: boolean;
   hubs: AudienceOption[];
   cities: AudienceOption[];
   segments: AudienceOption[];

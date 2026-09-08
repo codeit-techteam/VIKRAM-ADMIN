@@ -9,6 +9,7 @@ import {
   History,
   Plus,
   Send,
+  TriangleAlert,
   Users,
 } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
@@ -27,6 +28,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { PillRadioGroup } from "@/components/shared/PillRadioGroup";
 import { StatCard } from "@/components/shared/StatCard";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -234,6 +236,13 @@ export function PushNotificationsPageContent() {
   };
 
   const onSubmit = async (data: PushNotificationSchema) => {
+    if (composerOptions?.fcmConfigured === false) {
+      notify.error(
+        "Push delivery is not configured",
+        "Firebase Admin credentials are missing on the API. Save as draft until FCM is enabled.",
+      );
+      return;
+    }
     setIsSubmitting(true);
     try {
       const imageUrl = await uploadImageIfNeeded();
@@ -316,6 +325,13 @@ export function PushNotificationsPageContent() {
   };
 
   const onSendTest = async () => {
+    if (composerOptions?.fcmConfigured === false) {
+      notify.error(
+        "Push delivery is not configured",
+        "Firebase Admin credentials are missing on the API.",
+      );
+      return;
+    }
     const data = getValues();
     if (!data.title.trim() || !data.message.trim()) {
       notify.error("Test incomplete", "Title and message are required.");
@@ -362,6 +378,7 @@ export function PushNotificationsPageContent() {
   }, [composerOptions, deepLinkTarget]);
 
   const busy = isSubmitting || isSavingDraft || isTesting;
+  const fcmConfigured = composerOptions?.fcmConfigured !== false;
 
   return (
     <div className="space-y-6">
@@ -395,6 +412,19 @@ export function PushNotificationsPageContent() {
           </>
         }
       />
+
+      {!fcmConfigured ? (
+        <Alert className="border-amber-200 bg-amber-50 text-amber-950">
+          <TriangleAlert className="size-4 text-amber-700" />
+          <AlertTitle>Push delivery is not configured</AlertTitle>
+          <AlertDescription>
+            Firebase Admin credentials are missing on the API, so campaigns
+            cannot be sent. Add FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and
+            FIREBASE_PRIVATE_KEY on the DigitalOcean vikram-backend app, then
+            redeploy. Drafts can still be saved.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -659,7 +689,7 @@ export function PushNotificationsPageContent() {
                   type="button"
                   variant="outline"
                   className="sm:flex-1"
-                  disabled={busy}
+                  disabled={busy || !fcmConfigured}
                   onClick={() => void onSendTest()}
                 >
                   {isTesting ? "Sending test..." : "Send Test to Me"}
@@ -667,7 +697,7 @@ export function PushNotificationsPageContent() {
                 <Button
                   type="submit"
                   className="sm:flex-1"
-                  disabled={busy}
+                  disabled={busy || !fcmConfigured}
                 >
                   {isSubmitting
                     ? deliveryMode === "scheduled"
@@ -711,7 +741,7 @@ export function PushNotificationsPageContent() {
           ) : (
             <NotificationHistoryTable
               notifications={history}
-              onSendDraft={onSendDraft}
+              onSendDraft={fcmConfigured ? onSendDraft : undefined}
               sendingDraftId={sendingDraftId}
             />
           )}

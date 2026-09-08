@@ -37,6 +37,7 @@ interface ExecutiveTableProps {
   isLoading?: boolean;
   onAssignCustomers?: (executive: CustomerExecutiveRecord) => void;
   onEdit?: (executive: CustomerExecutiveRecord) => void;
+  onAssignHub?: (executive: CustomerExecutiveRecord) => void;
 }
 
 const columnHelper = createColumnHelper<CustomerExecutiveRecord>();
@@ -67,6 +68,7 @@ export function ExecutiveTable({
   isLoading = false,
   onAssignCustomers,
   onEdit,
+  onAssignHub,
 }: ExecutiveTableProps) {
   const router = useRouter();
 
@@ -223,6 +225,9 @@ export function ExecutiveTable({
                   >
                     Assign Customers
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onAssignHub?.(executive)}>
+                    Assign Hub / Region
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -230,7 +235,7 @@ export function ExecutiveTable({
         },
       }),
     ],
-    [onAssignCustomers, onEdit, router],
+    [onAssignCustomers, onEdit, onAssignHub, router],
   );
 
   const table = useReactTable({

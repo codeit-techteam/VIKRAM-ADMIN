@@ -21,7 +21,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { SubHubManager } from "@/features/user-management/types/sub-hub-manager.types";
-import { MANAGER_HUBS } from "@/mock/sub-hub-manager-service";
+import {
+  hubManagerService,
+  type ApiHubOption,
+} from "@/services/hubManager.service";
 
 interface AssignManagerHubDialogProps {
   open: boolean;
@@ -40,18 +43,21 @@ export function AssignManagerHubDialog({
 }: AssignManagerHubDialogProps) {
   const [managerId, setManagerId] = useState(initialManagerId ?? "");
   const [hubId, setHubId] = useState("");
+  const [hubs, setHubs] = useState<ApiHubOption[]>([]);
 
   useEffect(() => {
     if (open) {
       setManagerId(initialManagerId ?? "");
       setHubId("");
+      hubManagerService
+        .listHubs()
+        .then(setHubs)
+        .catch(() => setHubs([]));
     }
   }, [open, initialManagerId]);
 
   const selectedManager = managers.find((m) => m.id === managerId);
-  const availableHubs = MANAGER_HUBS.filter(
-    (hub) => hub.hubId !== selectedManager?.hubId,
-  );
+  const availableHubs = hubs.filter((hub) => hub.id !== selectedManager?.hubId);
 
   function handleSubmit() {
     if (!managerId || !hubId) return;
@@ -119,8 +125,8 @@ export function AssignManagerHubDialog({
               </SelectTrigger>
               <SelectContent>
                 {availableHubs.map((hub) => (
-                  <SelectItem key={hub.hubId} value={hub.hubId}>
-                    {hub.hubName} · {hub.city}
+                  <SelectItem key={hub.id} value={hub.id}>
+                    {hub.name} · {hub.city}
                   </SelectItem>
                 ))}
               </SelectContent>

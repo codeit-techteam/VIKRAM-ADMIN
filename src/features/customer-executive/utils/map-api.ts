@@ -67,16 +67,13 @@ function mapCustomerType(value?: string | null): CustomerType {
 
 function mapCustomerStatus(
   status?: string | null,
-  membership?: string | null,
+  isMember?: boolean,
 ): CustomerStatus {
   const normalized = (status ?? "").toUpperCase();
   if (normalized === "SUSPENDED" || normalized === "INACTIVE") {
     return "INACTIVE";
   }
-  const tier = (membership ?? "").toUpperCase();
-  if (tier.includes("GOLD") || tier.includes("PLATINUM") || tier.includes("VIP")) {
-    return "VIP";
-  }
+  if (normalized === "VIP" || isMember) return "VIP";
   return "ACTIVE";
 }
 
@@ -103,9 +100,6 @@ export function mapApiCustomer(raw: Record<string, unknown>): CeCustomer {
     (raw.defaultAddress as ApiAddress | null | undefined) ??
     ((raw.addresses as ApiAddress[] | undefined)?.[0] ?? null);
 
-  const membership =
-    (raw.membership as string | null | undefined) ?? null;
-
   const name =
     (raw.fullName as string | null | undefined) ??
     (raw.name as string | null | undefined) ??
@@ -115,6 +109,16 @@ export function mapApiCustomer(raw: Record<string, unknown>): CeCustomer {
     (profile.companyName as string | null | undefined) ??
     (raw.company as string | null | undefined) ??
     "";
+
+  const lastOrder =
+    (raw.lastOrderAt as string | undefined) ??
+    (raw.lastOrderDate as string | undefined) ??
+    ((raw.orders as Array<{ createdAt?: string }> | undefined)?.[0]?.createdAt);
+
+  const assignedHub =
+    (raw.assignedHub as { id?: string; name?: string } | undefined) ?? null;
+
+  const count = raw._count as { orders?: number } | undefined;
 
   return {
     id: String(raw.id ?? ""),
@@ -136,26 +140,59 @@ export function mapApiCustomer(raw: Record<string, unknown>): CeCustomer {
       (role.slug as string | undefined) ??
         (raw.customerType as string | undefined),
     ),
-    status: mapCustomerStatus(raw.status as string | undefined, membership),
+    status: mapCustomerStatus(
+      raw.status as string | undefined,
+      Boolean(raw.isMember),
+    ),
     assignedExecutiveId: String(
       raw.assignedExecutiveId ??
         (raw.assignedExecutive as { id?: string } | undefined)?.id ??
         "",
     ),
-    creditLimit: toNumber(raw.creditLimit ?? profile.creditLimit ?? 100000),
+    assignedHubId: String(
+      raw.assignedHubId ?? assignedHub?.id ?? "",
+    ),
+    assignedHubName:
+      (raw.assignedHubName as string | undefined) ?? assignedHub?.name,
+    creditLimit: toNumber(raw.creditLimit ?? profile.creditLimit),
     lifetimePurchase: toNumber(
       raw.lifetimePurchase ?? raw.totalSpent ?? raw.ordersTotal ?? 0,
     ),
     createdAt: toIso(raw.createdAt),
-    lastOrderAt:
-      (raw.lastOrderAt as string | undefined) ??
-      (raw.lastOrderDate as string | undefined) ??
+    lastOrderAt: lastOrder,
+    lastLoginAt:
+      (raw.lastLogin as string | undefined) ??
+      (raw.lastLoginAt as string | undefined) ??
       undefined,
+    orderCount: toNumber(raw.orders ?? count?.orders ?? raw.orderCount),
+    adminNotes:
+      (profile.adminNotes as string | null | undefined) ??
+      (raw.adminNotes as string | undefined) ??
+      undefined,
+    isMember: Boolean(raw.isMember),
   };
 }
 
 export function mapApiProduct(product: CatalogProduct): CeProduct {
-  const variant = product.variants?.[0];
+  const variants = (product.variants ?? [])
+    .filter((variant) => variant.isActive !== false)
+    .map((variant) => ({
+      id: variant.id,
+      label:
+        variant.label ||
+        [variant.value, variant.size != null ? `${variant.size}${variant.sizeUnit ?? ""}` : null]
+          .filter(Boolean)
+          .join(" ") ||
+        "Default",
+      sku: variant.sku ?? product.sku ?? product.id.slice(0, 8).toUpperCase(),
+      unit: variant.displayUnit ?? variant.unit ?? product.unit ?? "Unit",
+      unitPrice: toNumber(variant.price ?? variant.sellingPrice ?? product.retailPrice ?? 0),
+      inStock: variant.inStock !== false && toNumber(variant.stock) !== 0,
+    }));
+
+  const defaultVariant =
+    variants.find((variant) => variant.id === product.defaultVariantId) ??
+    variants[0];
   const imageUrl =
     product.images?.find((img) => img.isPrimary)?.url ??
     product.images?.[0]?.url;
@@ -164,10 +201,11 @@ export function mapApiProduct(product: CatalogProduct): CeProduct {
     id: product.id,
     sku: product.sku ?? product.id.slice(0, 8).toUpperCase(),
     name: product.name,
-    unit: variant?.displayUnit ?? product.unit ?? "Unit",
-    unitPrice: toNumber(variant?.price ?? product.retailPrice ?? 0),
+    unit: defaultVariant?.unit ?? product.unit ?? "Unit",
+    unitPrice: defaultVariant?.unitPrice ?? toNumber(product.retailPrice ?? 0),
     imageUrl,
     category: product.category?.name ?? "Uncategorized",
+    variants,
   };
 }
 
@@ -404,6 +442,9 @@ export function mapAuthUserToExecutive(user: {
   name: string;
   email: string;
   phone?: string;
+  assignedHubId?: string | null;
+  assignedHubName?: string | null;
+  isActive?: boolean;
 }): CeExecutiveProfile {
   return {
     id: user.id,
@@ -413,6 +454,9 @@ export function mapAuthUserToExecutive(user: {
     phone: user.phone ?? "",
     shift: "Day Shift",
     avatarInitials: initialsFromName(user.name),
+    assignedHubId: user.assignedHubId,
+    assignedHubName: user.assignedHubName,
+    isActive: user.isActive,
   };
 }
 

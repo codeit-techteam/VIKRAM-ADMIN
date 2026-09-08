@@ -18,6 +18,10 @@ interface AdminLoginData {
     permissions?: string[];
     sidebar?: User["sidebar"];
     lastLoginAt?: string | null;
+    phone?: string | null;
+    isActive?: boolean;
+    assignedHubId?: string | null;
+    assignedHub?: User["assignedHub"];
   };
   admin?: {
     id: string;
@@ -27,6 +31,10 @@ interface AdminLoginData {
     permissions?: string[];
     sidebar?: User["sidebar"];
     lastLoginAt?: string | null;
+    phone?: string | null;
+    isActive?: boolean;
+    assignedHubId?: string | null;
+    assignedHub?: User["assignedHub"];
   };
 }
 
@@ -84,6 +92,10 @@ export const authService = {
         permissions?: string[];
         sidebar?: User["sidebar"];
         lastLoginAt?: string | null;
+        phone?: string | null;
+        isActive?: boolean;
+        assignedHubId?: string | null;
+        assignedHub?: User["assignedHub"];
       }>
     >(API_ENDPOINTS.AUTH.ME);
     return mapAdminUser(data.data);

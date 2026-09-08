@@ -43,6 +43,7 @@ export interface BackendAdminOrder {
   updatedAt?: string;
   paymentMethod?: string;
   paymentStatus?: string;
+  orderSource?: string | null;
   expectedDeliveryAt?: string | null;
   invoiceId?: string | null;
   invoiceNumber?: string | null;
@@ -314,7 +315,11 @@ export function mapBackendOrderToCeOrder(order: BackendAdminOrder): CeOrder {
       ? "EXPRESS"
       : "STANDARD";
 
-  const source: OrderSource = "APP";
+  const source: OrderSource =
+    String(order.orderSource ?? "").toUpperCase() === "CUSTOMER_EXECUTIVE" ||
+    String(order.orderSource ?? "").toUpperCase() === "EXECUTIVE"
+      ? "EXECUTIVE"
+      : "APP";
   const tracking = order.tracking;
   const driverFromTracking = tracking?.driver;
   const hubFromTracking = tracking?.hub;

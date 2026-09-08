@@ -4,7 +4,6 @@ import {
   CreditCard,
   Eye,
   MessageSquareWarning,
-  Package,
   Phone,
   Plus,
   ShoppingCart,
@@ -35,6 +34,7 @@ import { CePageShell } from "@/features/customer-executive/components/shared/CeP
 import { CeStatusBadge } from "@/features/customer-executive/components/shared/CeStatusBadge";
 import { CeTimeline } from "@/features/customer-executive/components/shared/CeTimeline";
 import { CeConfirmationDialog } from "@/features/customer-executive/components/shared/CeConfirmationDialog";
+import { CeEditCustomerDialog } from "@/features/customer-executive/components/customer-profile/CeEditCustomerDialog";
 import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
 import { formatCurrency } from "@/utils/format-currency";
 import { notify } from "@/utils/notify";
@@ -87,6 +87,7 @@ export function CeCustomerProfilePage({
   const copyPaymentLink = useCustomerExecutiveStore((s) => s.copyPaymentLink);
 
   const customer = getCustomer(customerId);
+  const [isEditing, setIsEditing] = useState(false);
   const [newNote, setNewNote] = useState("");
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
@@ -129,8 +130,18 @@ export function CeCustomerProfilePage({
   useEffect(() => {
     void loadCustomerById(customerId);
     void loadOrders({ page: 1, limit: 50, customerId });
-    void loadPayments({ page: 1, limit: 50, filters: { search: "", status: "ALL", linkStatus: "ALL", dateRange: "ALL" } });
-    void loadComplaints({ page: 1, limit: 50, filters: { search: "", status: "ALL", priority: "ALL", issueType: "ALL" } });
+    void loadPayments({
+      page: 1,
+      limit: 50,
+      customerId,
+      filters: { search: "", status: "ALL", linkStatus: "ALL", dateRange: "ALL" },
+    });
+    void loadComplaints({
+      page: 1,
+      limit: 50,
+      customerId,
+      filters: { search: "", status: "ALL", priority: "ALL", issueType: "ALL" },
+    });
     void customerExecutiveService
       .getCustomerLoyalty(customerId)
       .then((data) =>
@@ -144,7 +155,13 @@ export function CeCustomerProfilePage({
           freeBikeDeliveriesAllowed: data.freeBikeDeliveriesAllowed,
         }),
       )
-      .catch(() => setLoyalty(null));
+      .catch((error) => {
+        setLoyalty(null);
+        notify.error(
+          "Could not load loyalty",
+          error instanceof Error ? error.message : "Try again later",
+        );
+      });
   }, [customerId, loadCustomerById, loadOrders, loadPayments, loadComplaints]);
 
   if (!customer && !customersLoading) {
@@ -183,25 +200,46 @@ export function CeCustomerProfilePage({
       ? currentExecutive.name
       : "Assigned Executive";
 
-  const handleAddNote = () => {
+  const handleAddNote = async () => {
     if (!newNote.trim()) return;
-    addNote(customerId, newNote.trim());
-    setNewNote("");
-    notify.success("Note added");
+    try {
+      await addNote(customerId, newNote.trim());
+      setNewNote("");
+      notify.success("Note saved");
+    } catch (error) {
+      notify.error(
+        "Could not save note",
+        error instanceof Error ? error.message : "Try again",
+      );
+    }
   };
 
-  const handleUpdateNote = (noteId: string) => {
+  const handleUpdateNote = async (noteId: string) => {
     if (!editingContent.trim()) return;
-    updateNote(noteId, editingContent.trim());
-    setEditingNoteId(null);
-    notify.success("Note updated");
+    try {
+      await updateNote(noteId, editingContent.trim());
+      setEditingNoteId(null);
+      notify.success("Note updated");
+    } catch (error) {
+      notify.error(
+        "Could not update note",
+        error instanceof Error ? error.message : "Try again",
+      );
+    }
   };
 
-  const handleDeleteNote = () => {
+  const handleDeleteNote = async () => {
     if (!deleteNoteId) return;
-    deleteNote(deleteNoteId);
-    setDeleteNoteId(null);
-    notify.success("Note deleted");
+    try {
+      await deleteNote(deleteNoteId);
+      setDeleteNoteId(null);
+      notify.success("Note deleted");
+    } catch (error) {
+      notify.error(
+        "Could not delete note",
+        error instanceof Error ? error.message : "Try again",
+      );
+    }
   };
 
   const handleGeneratePaymentLink = async () => {
@@ -246,6 +284,14 @@ export function CeCustomerProfilePage({
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-xl font-bold">{customer.name}</h2>
                     <CeStatusBadge status={customer.status} />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsEditing(true)}
+                    >
+                      <Pencil className="size-3.5" />
+                      Edit
+                    </Button>
                     <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
                       {customer.company}
                     </span>
@@ -256,6 +302,9 @@ export function CeCustomerProfilePage({
                       {customer.phone}
                     </span>
                     {customer.gst && <span>GSTIN: {customer.gst}</span>}
+                    {customer.assignedHubName ? (
+                      <span>Hub: {customer.assignedHubName}</span>
+                    ) : null}
                     <span>Executive: {executiveName}</span>
                   </div>
                   <div className="mt-4 flex gap-6">
@@ -267,12 +316,14 @@ export function CeCustomerProfilePage({
                         {formatCurrency(customer.lifetimePurchase)}
                       </p>
                     </div>
+                    {customer.creditLimit > 0 ? (
                     <div>
                       <p className="text-xs text-[#64748B]">Credit Limit</p>
                       <p className="text-lg font-bold">
                         {formatCurrency(customer.creditLimit)}
                       </p>
                     </div>
+                    ) : null}
                     <div>
                       <p className="text-xs text-[#64748B]">Orders</p>
                       <p className="text-lg font-bold">
@@ -655,6 +706,14 @@ export function CeCustomerProfilePage({
           </div>
         </div>
       )}
+
+      {customer ? (
+        <CeEditCustomerDialog
+          open={isEditing}
+          onOpenChange={setIsEditing}
+          customer={customer}
+        />
+      ) : null}
 
       <CeConfirmationDialog
         open={!!deleteNoteId}

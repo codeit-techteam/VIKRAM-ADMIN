@@ -36,11 +36,16 @@ export const PRODUCT_FORM_DEFAULT_VALUES: ProductFormSchema = {
   grade: "",
   description: "",
   images: [],
+  unit: "Bag",
   mrp: 0,
   sellingPrice: 0,
   currentStock: 0,
   bulkTiers: [],
   deliverySla: "same_day",
+  hasVariants: false,
+  variantAttribute: "Size",
+  customAttributeName: "",
+  variants: [],
 };
 
 export const LAST_SAVED_LABEL = "02:45 PM";

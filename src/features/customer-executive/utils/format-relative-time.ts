@@ -12,3 +12,15 @@ export function formatRelativeTime(dateStr: string): string {
     month: "short",
   });
 }
+
+export function formatResolutionHours(hours: number): string {
+  if (!Number.isFinite(hours) || hours <= 0) return "0h";
+  const totalMinutes = Math.round(hours * 60);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const remainingHours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  if (days > 0) {
+    return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
+  }
+  if (hours >= 10) return `${Math.round(hours)}h`;
+  return `${Math.round(hours * 10) / 10}h`;
+}

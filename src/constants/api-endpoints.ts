@@ -33,6 +33,11 @@ export const API_ENDPOINTS = {
   CUSTOMERS: {
     BASE: "/admin/customers",
     STATS: "/admin/customers/stats",
+    FILTER_OPTIONS: "/admin/customers/filter-options",
+    EXPORT: "/admin/customers/export",
+    INVITE: "/admin/customers/invite",
+    BULK_STATUS: "/admin/customers/bulk/status",
+    BULK_ASSIGNMENT: "/admin/customers/bulk/assignment",
     BY_ID: (id: string) => `/admin/customers/${id}`,
     STATUS: (id: string) => `/admin/customers/${id}/status`,
     ACTIVATE: (id: string) => `/admin/customers/${id}/activate`,
@@ -46,10 +51,13 @@ export const API_ENDPOINTS = {
   },
   ADMIN_USERS: {
     BASE: "/admin/users",
+    STATS: "/admin/users/stats",
+    EXPORT: "/admin/users/export",
     BY_ID: (id: string) => `/admin/users/${id}`,
     STATUS: (id: string) => `/admin/users/${id}/status`,
     ROLE: (id: string) => `/admin/users/${id}/role`,
     PASSWORD: (id: string) => `/admin/users/${id}/password`,
+    ASSIGNMENT: (id: string) => `/admin/users/${id}/assignment`,
   },
   CMS: {
     BASE: "/cms",
@@ -108,6 +116,15 @@ export const API_ENDPOINTS = {
     NOTIFICATIONS: "/admin/notifications",
     NOTIFICATION_BY_ID: (id: string) => `/admin/notifications/${id}`,
     NOTIFICATION_BROADCAST: "/admin/notifications/broadcast",
+    NOTIFICATION_CAMPAIGNS: "/admin/notifications/campaigns",
+    NOTIFICATION_CAMPAIGN_BY_ID: (id: string) =>
+      `/admin/notifications/campaigns/${id}`,
+    NOTIFICATION_CAMPAIGN_SEND: (id: string) =>
+      `/admin/notifications/campaigns/${id}/send`,
+    NOTIFICATION_CAMPAIGN_STATS: "/admin/notifications/campaigns/stats",
+    NOTIFICATION_CAMPAIGN_OPTIONS: "/admin/notifications/campaigns/options",
+    NOTIFICATION_CAMPAIGN_CUSTOMERS: "/admin/notifications/campaigns/customers",
+    NOTIFICATION_TEST: "/admin/notifications/test",
     TESTIMONIALS: "/admin/testimonials",
     TESTIMONIAL_BY_ID: (id: string) => `/admin/testimonials/${id}`,
     TESTIMONIAL_PUBLISH: (id: string) => `/admin/testimonials/${id}/publish`,
@@ -166,6 +183,14 @@ export const API_ENDPOINTS = {
   PRODUCTS: {
     BASE: "/admin/products",
     BY_ID: (id: string) => `/admin/products/${id}`,
+    VARIANTS: (id: string) => `/admin/products/${id}/variants`,
+    VARIANT: (id: string, variantId: string) =>
+      `/admin/products/${id}/variants/${variantId}`,
+    VARIANT_STATUS: (id: string, variantId: string) =>
+      `/admin/products/${id}/variants/${variantId}/status`,
+    VARIANT_DUPLICATE: (id: string, variantId: string) =>
+      `/admin/products/${id}/variants/${variantId}/duplicate`,
+    VARIANTS_REORDER: (id: string) => `/admin/products/${id}/variants/reorder`,
   },
   CATEGORIES: {
     BASE: "/admin/categories",
@@ -198,6 +223,7 @@ export const API_ENDPOINTS = {
     ORDER_TRACKING: (id: string) =>
       `/admin/customer-executive/orders/${id}/tracking`,
     TRACKING_SEARCH: "/admin/customer-executive/tracking/search",
+    PRODUCTS: "/admin/customer-executive/products",
     PAYMENTS: "/admin/customer-executive/payments",
     BULK: "/admin/customer-executive/bulk",
     BULK_STATS: "/admin/customer-executive/bulk/stats",
@@ -306,6 +332,8 @@ export const API_ENDPOINTS = {
   HUB_MANAGERS: {
     BASE: "/admin/hub-managers",
     HUBS: "/admin/hub-managers/hubs",
+    STATS: "/admin/hub-managers/stats",
+    EXPORT: "/admin/hub-managers/export",
     BY_ID: (id: string) => `/admin/hub-managers/${id}`,
     TRANSFER: (id: string) => `/admin/hub-managers/${id}/transfer-hub`,
     DEACTIVATE: (id: string) => `/admin/hub-managers/${id}/deactivate`,

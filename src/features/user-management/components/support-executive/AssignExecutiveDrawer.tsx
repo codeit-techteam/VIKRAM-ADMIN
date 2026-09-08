@@ -40,13 +40,15 @@ import {
   type SupportAssignmentReason,
   type SupportExecutiveFilters,
 } from "@/features/user-management/types/support-executive.types";
-import { CUSTOMER_HUBS } from "@/mock/customers";
 import { getApiErrorMessage } from "@/services/api";
 import {
   fetchCustomerExecutives,
   type AdminUserListItem,
 } from "@/services/admin-users";
-import { assignAdminCustomer } from "@/services/customers";
+import {
+  assignAdminCustomer,
+  fetchAdminCustomerFilterOptions,
+} from "@/services/customers";
 import type { SupportExecutive } from "@/features/user-management/types/support-executive.types";
 import { notify } from "@/utils/notify";
 
@@ -79,12 +81,10 @@ function mapUserToSupportExecutive(user: AdminUserListItem): SupportExecutive {
     name: user.fullName || user.email,
     phone: user.phone ?? "Not available",
     email: user.email,
-    hubId: "",
-    hubName: "Not available",
+    hubId: user.assignedHubId ?? "",
+    hubName: user.assignedHubName ?? "Not assigned",
     status: isActive ? "AVAILABLE" : "OFFLINE",
-    activeCustomers:
-      (user as AdminUserListItem & { assignedCustomers?: number })
-        .assignedCustomers ?? 0,
+    activeCustomers: user.assignedCustomers ?? 0,
     openTickets: 0,
   };
 }
@@ -108,6 +108,9 @@ export function AssignExecutiveDrawer({
   const [priority, setPriority] = useState<SupportAssignmentPriority>("MEDIUM");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hubOptions, setHubOptions] = useState<
+    Array<{ value: string; label: string }>
+  >([]);
 
   useEffect(() => {
     if (!open) return;
@@ -116,14 +119,18 @@ export function AssignExecutiveDrawer({
     async function load() {
       setIsLoading(true);
       try {
-        const response = await fetchCustomerExecutives({
-          search: filters.search.trim() || undefined,
-          status: filters.status === "AVAILABLE" ? "ACTIVE" : undefined,
-          page: 1,
-          limit: 50,
-        });
+        const [response, options] = await Promise.all([
+          fetchCustomerExecutives({
+            search: filters.search.trim() || undefined,
+            status: filters.status === "AVAILABLE" ? "ACTIVE" : undefined,
+            page: 1,
+            limit: 50,
+          }),
+          fetchAdminCustomerFilterOptions(),
+        ]);
         if (ignore) return;
         setExecutives(response.data.map(mapUserToSupportExecutive));
+        setHubOptions(options.hubs);
       } catch (error) {
         if (ignore) return;
         setExecutives([]);
@@ -277,9 +284,9 @@ export function AssignExecutiveDrawer({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Hubs</SelectItem>
-                    {CUSTOMER_HUBS.map((hub) => (
-                      <SelectItem key={hub.id} value={hub.id}>
-                        {hub.name}
+                    {hubOptions.map((hub) => (
+                      <SelectItem key={hub.value} value={hub.value}>
+                        {hub.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

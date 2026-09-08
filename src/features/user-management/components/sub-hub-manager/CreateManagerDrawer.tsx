@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -22,26 +22,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { CreateManagerPayload } from "@/features/user-management/types/sub-hub-manager.types";
-import { MANAGER_HUBS } from "@/mock/sub-hub-manager-service";
-
-const REGIONS = [
-  "West Region",
-  "North Region",
-  "North NCR",
-  "Central Region",
-  "South Region",
-];
-
-const WAREHOUSES = [
-  "Mumbai Central Warehouse",
-  "Pune Regional Warehouse",
-  "Delhi Central Warehouse",
-  "NCR Regional Warehouse",
-  "Nagpur Warehouse",
-  "Hyderabad Warehouse",
-  "Chennai Warehouse",
-  "Bangalore Warehouse",
-];
+import {
+  hubManagerService,
+  type ApiHubOption,
+} from "@/services/hubManager.service";
 
 interface CreateManagerDrawerProps {
   open: boolean;
@@ -73,6 +57,15 @@ export function CreateManagerDrawer({
 }: CreateManagerDrawerProps) {
   const [form, setForm] = useState<CreateManagerPayload>(EMPTY_FORM);
   const [isDraft, setIsDraft] = useState(false);
+  const [hubs, setHubs] = useState<ApiHubOption[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    hubManagerService
+      .listHubs()
+      .then(setHubs)
+      .catch(() => setHubs([]));
+  }, [open]);
 
   function handleClose() {
     setForm(EMPTY_FORM);
@@ -168,15 +161,23 @@ export function CreateManagerDrawer({
                 <Label>Assign Hub</Label>
                 <Select
                   value={form.hubId}
-                  onValueChange={(v) => setForm({ ...form, hubId: v ?? "" })}
+                  onValueChange={(v) => {
+                    const hub = hubs.find((item) => item.id === v);
+                    setForm({
+                      ...form,
+                      hubId: v ?? "",
+                      warehouse: hub?.name ?? form.warehouse,
+                      region: hub?.state ?? form.region,
+                    });
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a hub..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {MANAGER_HUBS.map((hub) => (
-                      <SelectItem key={hub.hubId} value={hub.hubId}>
-                        {hub.hubName} · {hub.city}
+                    {hubs.map((hub) => (
+                      <SelectItem key={hub.id} value={hub.id}>
+                        {hub.name} · {hub.city}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -194,9 +195,9 @@ export function CreateManagerDrawer({
                     <SelectValue placeholder="Select a warehouse..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {WAREHOUSES.map((w) => (
-                      <SelectItem key={w} value={w}>
-                        {w}
+                    {hubs.map((hub) => (
+                      <SelectItem key={`wh-${hub.id}`} value={hub.name}>
+                        {hub.name} · {hub.city}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -212,11 +213,13 @@ export function CreateManagerDrawer({
                     <SelectValue placeholder="Select a region..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {REGIONS.map((r) => (
-                      <SelectItem key={r} value={r}>
-                        {r}
-                      </SelectItem>
-                    ))}
+                    {[...new Set(hubs.map((hub) => hub.state).filter(Boolean))].map(
+                      (region) => (
+                        <SelectItem key={region} value={region}>
+                          {region}
+                        </SelectItem>
+                      ),
+                    )}
                   </SelectContent>
                 </Select>
               </div>

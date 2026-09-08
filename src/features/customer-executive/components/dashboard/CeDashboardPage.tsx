@@ -57,6 +57,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import type { CePayment } from "@/features/customer-executive/types";
+import { formatResolutionHours } from "@/features/customer-executive/utils/format-relative-time";
 
 export function CeDashboardPage() {
   const router = useRouter();
@@ -242,7 +243,7 @@ export function CeDashboardPage() {
           <CeMetricCard
             index={3}
             label="Avg Resolution Time"
-            value={`${stats.avgResolutionHours}h`}
+            value={`${formatResolutionHours(stats.avgResolutionHours)}`}
             subtext="Complaint resolution"
             icon={Clock}
             iconContainerClassName="bg-blue-50"

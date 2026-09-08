@@ -288,7 +288,7 @@ export function CustomerLoyaltyPageContent() {
           pageSize={LOYALTY_PAGE_SIZE}
           totalItems={total}
           onPageChange={setCurrentPage}
-          itemLabel="members"
+          itemLabel="customers"
         />
       </div>
 

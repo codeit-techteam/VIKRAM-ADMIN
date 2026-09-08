@@ -1,7 +1,7 @@
 "use client";
 
 import { MapPin } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -16,34 +16,63 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ExecutiveOnboardingSchema } from "@/features/user-management/schema/executive-onboarding.schema";
+import { estimateCoverage } from "@/mock/executive-onboarding";
 import {
-  estimateCoverage,
-  getCitiesByState,
-  getCityById,
-  getHubsByZone,
-  getStateById,
-  getZoneById,
-  getZonesByCity,
-  TERRITORY_DATA,
-} from "@/mock/executive-onboarding";
+  hubManagerService,
+  type ApiHubOption,
+} from "@/services/hubManager.service";
 import { useExecutiveDraftStore } from "@/store/executive-draft-store";
 import { notify } from "@/utils/notify";
 import { ExecutiveWizardPreview } from "../ExecutiveWizardPreview";
 import { FieldWrapper, StepHeader } from "./ExecutiveBasicInfoStep";
 import { cn } from "@/lib/utils";
 
+function uniqueSorted(values: Array<string | null | undefined>): string[] {
+  return [...new Set(values.map((value) => value?.trim()).filter(Boolean) as string[])].sort(
+    (a, b) => a.localeCompare(b),
+  );
+}
+
 export function ExecutiveAreaAssignmentStep() {
   const { control, setValue } = useFormContext<ExecutiveOnboardingSchema>();
   const patchDraft = useExecutiveDraftStore((s) => s.patchDraft);
+  const [apiHubs, setApiHubs] = useState<ApiHubOption[]>([]);
 
   const state = useWatch({ control, name: "state" });
   const city = useWatch({ control, name: "city" });
-  const zone = useWatch({ control, name: "zone" });
   const assignedHubs = useWatch({ control, name: "assignedHubs" }) ?? [];
 
-  const cities = state ? getCitiesByState(state) : [];
-  const zones = city ? getZonesByCity(city) : [];
-  const hubs = zone ? getHubsByZone(zone) : [];
+  const states = useMemo(
+    () => uniqueSorted(apiHubs.map((hub) => hub.state)),
+    [apiHubs],
+  );
+  const cities = useMemo(
+    () =>
+      uniqueSorted(
+        apiHubs
+          .filter((hub) => !state || hub.state === state)
+          .map((hub) => hub.city),
+      ),
+    [apiHubs, state],
+  );
+  const hubs = useMemo(
+    () =>
+      apiHubs.filter((hub) => {
+        if (state && hub.state !== state) return false;
+        if (city && hub.city !== city) return false;
+        return true;
+      }),
+    [apiHubs, state, city],
+  );
+
+  useEffect(() => {
+    hubManagerService
+      .listHubs()
+      .then(setApiHubs)
+      .catch(() => {
+        notify.error("Unable to load hubs", "Hub list could not be fetched.");
+      });
+  }, []);
 
   useEffect(() => {
     if (assignedHubs.length > 0) {
@@ -55,35 +84,40 @@ export function ExecutiveAreaAssignmentStep() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignedHubs.length]);
 
-  const toggleHub = (hubId: string, hubName: string) => {
+  const toggleHub = (hub: ApiHubOption) => {
     const current = assignedHubs ?? [];
-    const isSelected = current.includes(hubId);
+    const isSelected = current.includes(hub.id);
     const next = isSelected
-      ? current.filter((id) => id !== hubId)
-      : [...current, hubId];
+      ? current.filter((id) => id !== hub.id)
+      : [...current, hub.id];
 
-    const hubData = TERRITORY_DATA.hubs.filter((h) => next.includes(h.id));
-    const names = hubData.map((h) => h.name);
+    const names = apiHubs
+      .filter((item) => next.includes(item.id))
+      .map((item) => item.name);
     const estimates = estimateCoverage(next.length);
 
     setValue("assignedHubs", next);
     setValue("assignedHubNames", names);
     setValue("estimatedCustomers", estimates.estimatedCustomers);
     setValue("estimatedDailyOrders", estimates.estimatedDailyOrders);
+    if (hub.state) setValue("state", hub.state);
+    if (hub.city) {
+      setValue("city", hub.city);
+      setValue("zone", hub.city);
+    }
     patchDraft({
       assignedHubs: next,
       assignedHubNames: names,
+      state: hub.state,
+      city: hub.city,
+      zone: hub.city,
       ...estimates,
     });
 
     if (!isSelected) {
-      notify.success("Area Assigned", `${hubName} added to coverage.`);
+      notify.success("Area Assigned", `${hub.name} added to coverage.`);
     }
   };
-
-  const stateName = state ? getStateById(state)?.name : "";
-  const cityName = city ? getCityById(city)?.name : "";
-  const zoneName = zone ? getZoneById(zone)?.name : "";
 
   return (
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_280px]">
@@ -127,9 +161,9 @@ export function ExecutiveAreaAssignmentStep() {
                       <SelectValue placeholder="Select state" />
                     </SelectTrigger>
                     <SelectContent>
-                      {TERRITORY_DATA.states.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
+                      {states.map((item) => (
+                        <SelectItem key={item} value={item}>
+                          {item}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -153,12 +187,12 @@ export function ExecutiveAreaAssignmentStep() {
                     onValueChange={(val) => {
                       if (!val) return;
                       field.onChange(val);
-                      setValue("zone", "");
+                      setValue("zone", val);
                       setValue("assignedHubs", []);
                       setValue("assignedHubNames", []);
                       patchDraft({
                         city: val,
-                        zone: "",
+                        zone: val,
                         assignedHubs: [],
                         assignedHubNames: [],
                       });
@@ -168,9 +202,9 @@ export function ExecutiveAreaAssignmentStep() {
                       <SelectValue placeholder="Select city" />
                     </SelectTrigger>
                     <SelectContent>
-                      {cities.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
+                      {cities.map((item) => (
+                        <SelectItem key={item} value={item}>
+                          {item}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -179,46 +213,7 @@ export function ExecutiveAreaAssignmentStep() {
               )}
             />
 
-            <Controller
-              control={control}
-              name="zone"
-              render={({ field, fieldState }) => (
-                <FieldWrapper
-                  label="Region / Zone"
-                  required
-                  error={fieldState.error?.message}
-                >
-                  <Select
-                    value={field.value}
-                    disabled={!city}
-                    onValueChange={(val) => {
-                      if (!val) return;
-                      field.onChange(val);
-                      setValue("assignedHubs", []);
-                      setValue("assignedHubNames", []);
-                      patchDraft({
-                        zone: val,
-                        assignedHubs: [],
-                        assignedHubNames: [],
-                      });
-                    }}
-                  >
-                    <SelectTrigger className="h-10 w-full">
-                      <SelectValue placeholder="Select zone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {zones.map((z) => (
-                        <SelectItem key={z.id} value={z.id}>
-                          {z.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FieldWrapper>
-              )}
-            />
-
-            {zone ? (
+            {city ? (
               <div className="space-y-3">
                 <Label className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
                   Warehouse / Hub Assignment
@@ -239,7 +234,7 @@ export function ExecutiveAreaAssignmentStep() {
                         >
                           <Checkbox
                             checked={isChecked}
-                            onCheckedChange={() => toggleHub(hub.id, hub.name)}
+                            onCheckedChange={() => toggleHub(hub)}
                             className="mt-0.5"
                           />
                           <div>
@@ -247,7 +242,8 @@ export function ExecutiveAreaAssignmentStep() {
                               {hub.name}
                             </p>
                             <p className="text-xs text-gray-500">
-                              Capacity: {hub.capacity} | Type: {hub.type}
+                              {hub.city}, {hub.state}
+                              {hub.code ? ` · ${hub.code}` : ""}
                             </p>
                           </div>
                         </label>
@@ -257,7 +253,7 @@ export function ExecutiveAreaAssignmentStep() {
                 ) : (
                   <EmptyState
                     title="No Hub Selected"
-                    description="No hubs available for this zone."
+                    description="No hubs available for this city."
                     icon={<MapPin className="size-8" />}
                     className="py-8"
                   />
@@ -266,7 +262,7 @@ export function ExecutiveAreaAssignmentStep() {
             ) : (
               <EmptyState
                 title="No Hub Selected"
-                description="Select state, city, and zone to view available hubs."
+                description="Select state and city to view available hubs."
                 icon={<MapPin className="size-8" />}
                 className="py-8"
               />
@@ -277,7 +273,7 @@ export function ExecutiveAreaAssignmentStep() {
         {assignedHubs.length > 0 && (
           <div className="rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3 text-sm text-blue-800">
             Zone Load Balance: Assigning {assignedHubs.length} hub
-            {assignedHubs.length > 1 ? "s" : ""} in {zoneName || "this zone"} is
+            {assignedHubs.length > 1 ? "s" : ""} in {city || "this city"} is
             within the recommended capacity.
           </div>
         )}
@@ -293,9 +289,8 @@ export function ExecutiveAreaAssignmentStep() {
                 Coverage Card
               </p>
               <div className="space-y-2 text-sm">
-                <CoverageRow label="State" value={stateName ?? "—"} />
-                <CoverageRow label="City" value={cityName ?? "—"} />
-                <CoverageRow label="Zone" value={zoneName ?? "—"} />
+                <CoverageRow label="State" value={state || "—"} />
+                <CoverageRow label="City" value={city || "—"} />
                 <CoverageRow
                   label="Assigned Hubs"
                   value={String(assignedHubs.length)}

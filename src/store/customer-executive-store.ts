@@ -41,10 +41,10 @@ import {
   type ApiPaginationMeta,
 } from "@/features/customer-executive/utils/map-api";
 import { mapBackendOrderToCeOrder } from "@/features/customer-executive/utils/map-backend-order";
-import { catalogService } from "@/services/catalog.service";
 import { customerExecutiveService } from "@/services/customerExecutive";
 import { authService } from "@/services/auth";
 import { useAuthStore } from "@/store/auth-store";
+import type { CatalogProduct } from "@/services/catalog.service";
 
 function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
@@ -84,6 +84,12 @@ interface CustomerExecutiveStore {
   ordersMeta: ApiPaginationMeta | null;
   paymentsMeta: ApiPaginationMeta | null;
   complaintsMeta: ApiPaginationMeta | null;
+  complaintsStats: {
+    open: number;
+    inProgress: number;
+    resolvedToday: number;
+    escalated: number;
+  } | null;
 
   dashboardStats: CeDashboardStats | null;
   dashboardLoading: boolean;
@@ -122,13 +128,15 @@ interface CustomerExecutiveStore {
     page?: number;
     limit?: number;
     filters?: CePaymentFilters;
+    customerId?: string;
   }) => Promise<void>;
   loadComplaints: (params?: {
     page?: number;
     limit?: number;
     filters?: CeComplaintFilters;
+    customerId?: string;
   }) => Promise<void>;
-  loadProducts: () => Promise<void>;
+  loadProducts: (search?: string) => Promise<void>;
   loadCurrentExecutive: () => Promise<void>;
   loadActivities: (limit?: number) => Promise<void>;
 
@@ -181,6 +189,19 @@ interface CustomerExecutiveStore {
     draft: CeNewCustomerDraft,
     verificationToken: string,
   ) => Promise<CeCustomer>;
+  updateCustomer: (
+    customerId: string,
+    payload: {
+      fullName?: string;
+      email?: string;
+      companyName?: string;
+      gstNumber?: string;
+      address?: string;
+      city?: string;
+      state?: string;
+      pincode?: string;
+    },
+  ) => Promise<CeCustomer>;
   createOrder: (draft: CeNewOrderDraft) => Promise<CeOrder>;
   sendPaymentLink: (paymentId: string) => Promise<void>;
   sendPaymentLinkByOrderId: (orderId: string) => Promise<void>;
@@ -188,8 +209,9 @@ interface CustomerExecutiveStore {
   markPaymentPaid: (paymentId: string) => void;
   incrementReminder: (paymentId: string) => Promise<void>;
   addNote: (customerId: string, content: string) => Promise<CeNote>;
-  updateNote: (noteId: string, content: string) => void;
-  deleteNote: (noteId: string) => void;
+  updateNote: (noteId: string, content: string) => Promise<void>;
+  deleteNote: (noteId: string) => Promise<void>;
+  cancelOrder: (orderId: string, reason?: string) => Promise<void>;
   updateComplaintStatus: (
     complaintId: string,
     status: CeComplaint["status"],
@@ -222,6 +244,7 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
     ordersMeta: null,
     paymentsMeta: null,
     complaintsMeta: null,
+    complaintsStats: null,
 
     dashboardStats: null,
     dashboardLoading: false,
@@ -287,7 +310,10 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
           page: params?.page ?? 1,
           limit: params?.limit ?? 10,
           q: filters?.search || undefined,
-          status: filters?.status && filters.status !== "ALL" ? filters.status : undefined,
+          status:
+            filters?.status && filters.status !== "ALL"
+              ? filters.status
+              : undefined,
           city: filters?.city && filters.city !== "ALL" ? filters.city : undefined,
           customerType:
             filters?.customerType && filters.customerType !== "ALL"
@@ -295,21 +321,11 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
               : undefined,
           sortBy: params?.sortBy,
           sortDir: params?.sortDir,
+          membersOnly: filters?.status === "VIP" ? true : undefined,
+          activeThisMonth: filters?.activeThisMonth ? true : undefined,
         });
 
-        let customers = result.data.map((row) => mapApiCustomer(row));
-
-        if (filters?.activeThisMonth) {
-          const now = new Date();
-          customers = customers.filter((customer) => {
-            if (!customer.lastOrderAt) return false;
-            const date = new Date(customer.lastOrderAt);
-            return (
-              date.getMonth() === now.getMonth() &&
-              date.getFullYear() === now.getFullYear()
-            );
-          });
-        }
+        const customers = result.data.map((row) => mapApiCustomer(row));
 
         set({
           customers,
@@ -330,14 +346,30 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
       try {
         const raw = await customerExecutiveService.getCustomerById(id);
         const customer = mapApiCustomer(raw);
+        const noteContent = customer.adminNotes?.trim();
         set((state) => {
           const exists = state.customers.some((c) => c.id === customer.id);
+          const otherNotes = state.notes.filter(
+            (note) => note.customerId !== customer.id,
+          );
           return {
             customers: exists
               ? state.customers.map((c) =>
                   c.id === customer.id ? customer : c,
                 )
               : [customer, ...state.customers],
+            notes: noteContent
+              ? [
+                  {
+                    id: `note-${customer.id}`,
+                    customerId: customer.id,
+                    content: noteContent,
+                    createdAt: customer.createdAt,
+                    createdBy: "Executive",
+                  },
+                  ...otherNotes,
+                ]
+              : otherNotes,
             customersLoading: false,
             customersError: null,
           };
@@ -404,6 +436,22 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
             filters?.linkStatus && filters.linkStatus !== "ALL"
               ? filters.linkStatus
               : undefined,
+          customerId: params?.customerId,
+          dateFrom:
+            filters?.dateRange && filters.dateRange !== "ALL"
+              ? new Date(
+                  Date.now() -
+                    (filters.dateRange === "7d"
+                      ? 7
+                      : filters.dateRange === "30d"
+                        ? 30
+                        : 90) *
+                      24 *
+                      60 *
+                      60 *
+                      1000,
+                ).toISOString()
+              : undefined,
         });
 
         set({
@@ -436,19 +484,19 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
             filters?.priority && filters.priority !== "ALL"
               ? filters.priority
               : undefined,
+          customerId: params?.customerId,
+          reason:
+            filters?.issueType && filters.issueType !== "ALL"
+              ? mapIssueTypeToReason(filters.issueType)
+              : undefined,
         });
 
-        let complaints = result.data.map((row) => mapApiComplaint(row));
-
-        if (filters?.issueType && filters.issueType !== "ALL") {
-          complaints = complaints.filter(
-            (complaint) => complaint.issueType === filters.issueType,
-          );
-        }
+        const complaints = result.data.map((row) => mapApiComplaint(row));
 
         set({
           complaints,
           complaintsMeta: mapPaginationMeta(result.meta, params?.page, params?.limit),
+          complaintsStats: result.stats ?? null,
           complaintsLoading: false,
           complaintsError: null,
         });
@@ -460,16 +508,18 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
       }
     },
 
-    loadProducts: async () => {
+    loadProducts: async (search) => {
       set({ productsLoading: true, productsError: null });
       try {
-        const result = await catalogService.listProducts({
+        const result = await customerExecutiveService.getProducts({
           page: 1,
-          limit: 100,
-          status: "ACTIVE",
+          limit: 50,
+          q: search?.trim() || undefined,
         });
         set({
-          products: result.data.map(mapApiProduct),
+          products: result.data.map((row) =>
+            mapApiProduct(row as unknown as CatalogProduct),
+          ),
           productsLoading: false,
           productsError: null,
         });
@@ -492,6 +542,9 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
               name: authUser.name,
               email: authUser.email,
               phone: authUser.phone,
+              assignedHubId: authUser.assignedHubId,
+              assignedHubName: authUser.assignedHub?.name,
+              isActive: authUser.isActive,
             }),
             executiveLoading: false,
             executiveError: null,
@@ -506,6 +559,9 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
             name: me.name,
             email: me.email,
             phone: me.phone,
+            assignedHubId: me.assignedHubId,
+            assignedHubName: me.assignedHub?.name,
+            isActive: me.isActive,
           }),
           executiveLoading: false,
           executiveError: null,
@@ -672,6 +728,27 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
       const customer = mapApiCustomer(raw);
       set((state) => ({
         customers: [customer, ...state.customers],
+        dashboardStats: state.dashboardStats
+          ? {
+              ...state.dashboardStats,
+              assignedCustomers: state.dashboardStats.assignedCustomers + 1,
+            }
+          : state.dashboardStats,
+      }));
+      void get().loadDashboard();
+      return customer;
+    },
+
+    updateCustomer: async (customerId, payload) => {
+      const raw = await customerExecutiveService.updateCustomer(
+        customerId,
+        payload,
+      );
+      const customer = mapApiCustomer(raw);
+      set((state) => ({
+        customers: state.customers.map((item) =>
+          item.id === customerId ? customer : item,
+        ),
       }));
       return customer;
     },
@@ -680,10 +757,16 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
       const customer = get().getCustomer(draft.customerId);
       if (!customer) throw new Error("Customer not found");
 
+      const noteParts = [
+        draft.deliveryDate ? `Requested delivery: ${draft.deliveryDate}` : null,
+        draft.deliveryPriority !== "STANDARD" ? draft.deliveryPriority : null,
+      ].filter((part): part is string => Boolean(part));
+
       const raw = await customerExecutiveService.createOrder({
         customerId: draft.customerId,
         items: draft.items.map((item) => ({
           productId: item.productId,
+          variantId: item.variantId,
           quantity: item.quantity,
         })),
         paymentMethod: mapPaymentMethodToApi(draft.paymentMethod),
@@ -691,13 +774,15 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
         deliveryPincode: draft.deliveryPincode,
         deliveryCity: customer.city,
         deliveryState: customer.state,
-        notes: draft.deliveryPriority !== "STANDARD" ? draft.deliveryPriority : undefined,
+        deliveryDate: draft.deliveryDate || undefined,
+        notes: noteParts.join("\n") || undefined,
       });
 
       const order = mapApiOrder(raw);
       set((state) => ({
         orders: [order, ...state.orders],
       }));
+      void get().loadDashboard();
       return order;
     },
 
@@ -749,28 +834,63 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
     addNote: async (customerId, content) => {
       await customerExecutiveService.updateCustomerNote(customerId, content);
       const note: CeNote = {
-        id: `note-${Date.now()}`,
+        id: `note-${customerId}`,
         customerId,
         content,
         createdAt: new Date().toISOString(),
         createdBy: get().currentExecutive?.name ?? "Executive",
       };
-      set((state) => ({ notes: [note, ...state.notes] }));
+      set((state) => ({
+        notes: [
+          note,
+          ...state.notes.filter((existing) => existing.customerId !== customerId),
+        ],
+        customers: state.customers.map((customer) =>
+          customer.id === customerId
+            ? { ...customer, adminNotes: content }
+            : customer,
+        ),
+      }));
       return note;
     },
 
-    updateNote: (noteId, content) => {
+    updateNote: async (noteId, content) => {
+      const existing = get().notes.find((note) => note.id === noteId);
+      if (!existing) return;
+      await customerExecutiveService.updateCustomerNote(
+        existing.customerId,
+        content,
+      );
       set((state) => ({
         notes: state.notes.map((note) =>
           note.id === noteId ? { ...note, content } : note,
         ),
+        customers: state.customers.map((customer) =>
+          customer.id === existing.customerId
+            ? { ...customer, adminNotes: content }
+            : customer,
+        ),
       }));
     },
 
-    deleteNote: (noteId) => {
+    deleteNote: async (noteId) => {
+      const existing = get().notes.find((note) => note.id === noteId);
+      if (!existing) return;
+      await customerExecutiveService.updateCustomerNote(existing.customerId, "");
       set((state) => ({
         notes: state.notes.filter((note) => note.id !== noteId),
+        customers: state.customers.map((customer) =>
+          customer.id === existing.customerId
+            ? { ...customer, adminNotes: "" }
+            : customer,
+        ),
       }));
+    },
+
+    cancelOrder: async (orderId, reason) => {
+      await customerExecutiveService.cancelOrder(orderId, reason);
+      await get().loadOrderDetailFromApi(orderId);
+      void get().loadDashboard();
     },
 
     updateComplaintStatus: async (complaintId, status, resolution) => {
@@ -784,6 +904,7 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
           complaint.id === complaintId ? updated : complaint,
         ),
       }));
+      void get().loadDashboard();
     },
 
     addComplaintNote: async (complaintId, content) => {
@@ -819,6 +940,7 @@ export const useCustomerExecutiveStore = create<CustomerExecutiveStore>(
       set((state) => ({
         complaints: [complaint, ...state.complaints],
       }));
+      void get().loadDashboard();
       return complaint;
     },
 

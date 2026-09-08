@@ -22,8 +22,8 @@ export const CUSTOMER_EXECUTIVE_NAV_GROUPS: NavChildGroup[] = [
       },
       {
         label: "Orders",
-        href: ROUTES.ORDERS,
-        aliases: [ROUTES.CUSTOMER_EXECUTIVE_ORDERS],
+        href: ROUTES.CUSTOMER_EXECUTIVE_ORDERS,
+        aliases: [ROUTES.ORDERS],
       },
       {
         label: "Payments",

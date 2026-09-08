@@ -118,7 +118,7 @@ export const NAV_FILTER_PRESETS = {
 
   registerCustomer: () => ROUTES.CUSTOMER_EXECUTIVE_CUSTOMERS_NEW,
 
-  addProduct: () => ROUTES.CENTRAL_WAREHOUSE_PRODUCTS,
+  addProduct: () => `${ROUTES.CUSTOMER_APP_CMS}/catalog/new`,
 
   assignDispatch: () =>
     buildFilteredUrl(ROUTES.HUB_DISPATCH_LOGS, {

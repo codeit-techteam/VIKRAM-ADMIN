@@ -4,71 +4,34 @@ import { API_ENDPOINTS } from "@/constants/api-endpoints";
 import type {
   AudienceType,
   DeepLinkTarget,
+  NotificationStatus,
+  PushComposerOptions,
   PushNotification,
   PushNotificationStats,
 } from "@/features/notifications/types/notification.types";
 import api from "@/services/api";
 import type { ApiResponse } from "@/types/api";
 
-type ListMeta = {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-};
-
-export type AdminNotificationType =
-  | "ORDER"
-  | "OFFER"
-  | "BANNER"
-  | "ADMIN_ANNOUNCEMENT"
-  | "PAYMENT"
-  | "DELIVERY"
-  | "MEMBERSHIP"
-  | "LOYALTY"
-  | "SYSTEM";
-
-export interface AdminNotification {
+export interface PushCampaign {
   id: string;
-  customerId?: string | null;
-  type: AdminNotificationType | string;
-  label: string;
   title: string;
   body: string;
-  actionLabel?: string | null;
-  actionRoute?: string | null;
-  actionVariant?: string | null;
-  isRead: boolean;
-  isGlobal: boolean;
-  priority: number;
-  deletedAt?: string | null;
+  imageUrl?: string | null;
+  audienceType: string;
+  audienceLabel: string;
+  deepLinkTarget: string;
+  deepLinkValue?: string | null;
+  status: NotificationStatus | string;
+  deliveryMode: string;
+  scheduledAt?: string | null;
+  sentAt?: string | null;
   createdAt: string;
-  updatedAt: string;
-  customer?: {
-    id: string;
-    phone?: string | null;
-    fullName?: string | null;
-  } | null;
-}
-
-export interface CreateAdminNotificationInput {
-  title: string;
-  body: string;
-  type: string;
-  label: string;
-  customerId?: string;
-  isGlobal?: boolean;
-  actionLabel?: string;
-  actionRoute?: string;
-}
-
-export interface BroadcastAdminNotificationInput {
-  title: string;
-  body: string;
-  type: string;
-  label: string;
-  actionLabel?: string;
-  actionRoute?: string;
+  totalRecipients: number;
+  totalSent: number;
+  totalDelivered: number;
+  totalOpened: number;
+  totalFailed: number;
+  openRatePercent: number;
 }
 
 export interface SendPushNotificationInput {
@@ -78,259 +41,194 @@ export interface SendPushNotificationInput {
   audienceTargets?: string[];
   deepLinkTarget: DeepLinkTarget;
   deepLinkValue?: string;
-  /** Optional R2 URL — backend Notification model has no image field; ignored for now. */
   imageUrl?: string;
+  deliveryMode: "now" | "scheduled";
+  scheduledAt?: string;
+  saveAsDraft?: boolean;
 }
 
-function buildActionRoute(
-  target: DeepLinkTarget,
-  value?: string,
-): string | undefined {
-  switch (target) {
-    case "home":
-      return "/(tabs)/home";
-    case "product":
-      return value ? `/(tabs)/catalog/${value}` : "/(tabs)/catalog";
-    case "offer":
-      return value ? `/(tabs)/offers/${value}` : "/(tabs)/offers";
-    case "category":
-      return value ? `/(tabs)/catalog?category=${value}` : "/(tabs)/catalog";
-    case "custom_url":
-      return value || undefined;
-    default:
-      return undefined;
-  }
+type ListMeta = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+const AUDIENCE_API: Record<AudienceType, string> = {
+  all: "ALL",
+  city_hub: "CITY_HUB",
+  segment: "SEGMENT",
+  custom_list: "CUSTOM_LIST",
+};
+
+const DEEP_LINK_API: Record<DeepLinkTarget, string> = {
+  home: "HOME",
+  product: "PRODUCT",
+  offer: "OFFER",
+  category: "CATEGORY",
+  order: "ORDER",
+  cart: "CART",
+  notifications: "NOTIFICATIONS",
+  custom_url: "CUSTOM",
+};
+
+function toUiAudience(value: string): AudienceType {
+  const normalized = value.toLowerCase();
+  if (normalized === "city_hub") return "city_hub";
+  if (normalized === "segment") return "segment";
+  if (normalized === "custom_list") return "custom_list";
+  return "all";
 }
 
-function resolveNotificationType(
-  deepLinkTarget: DeepLinkTarget,
-): AdminNotificationType {
-  if (deepLinkTarget === "offer") return "OFFER";
-  return "ADMIN_ANNOUNCEMENT";
-}
-
-function resolveLabel(
-  audienceType: AudienceType,
-  deepLinkTarget: DeepLinkTarget,
-): string {
-  const audience =
-    audienceType === "all"
-      ? "All Users"
-      : audienceType === "city_hub"
-        ? "City / Hub"
-        : audienceType === "segment"
-          ? "Segment"
-          : "Custom List";
-  return `Push · ${audience} · ${deepLinkTarget}`;
-}
-
-function parseDeepLinkTarget(actionRoute?: string | null): DeepLinkTarget {
-  if (!actionRoute) return "home";
-  if (actionRoute.startsWith("http://") || actionRoute.startsWith("https://")) {
-    return "custom_url";
-  }
-  if (actionRoute.includes("/offers")) return "offer";
-  if (actionRoute.includes("category=")) return "category";
-  if (actionRoute.includes("/catalog/")) return "product";
+function toUiDeepLink(value: string): DeepLinkTarget {
+  const normalized = value.toLowerCase();
+  if (normalized === "product") return "product";
+  if (normalized === "offer") return "offer";
+  if (normalized === "category") return "category";
+  if (normalized === "order") return "order";
+  if (normalized === "cart") return "cart";
+  if (normalized === "notifications") return "notifications";
+  if (normalized === "custom") return "custom_url";
   return "home";
 }
 
-function audienceLabelFromNotification(n: AdminNotification): string {
-  if (n.isGlobal) return "All Users";
-  if (n.customer?.fullName) return n.customer.fullName;
-  if (n.customer?.phone) return n.customer.phone;
-  if (n.customerId) return "Targeted user";
-  return n.label || "Audience";
+function splitAudienceTargets(
+  audienceType: AudienceType,
+  targets: string[] = [],
+) {
+  if (audienceType === "city_hub") {
+    return {
+      hubIds: targets.filter((value) => !value.startsWith("city:")),
+      cities: targets
+        .filter((value) => value.startsWith("city:"))
+        .map((value) => value.replace(/^city:/i, "")),
+    };
+  }
+  if (audienceType === "segment") {
+    return { segments: targets };
+  }
+  if (audienceType === "custom_list") {
+    return { customerIds: targets };
+  }
+  return {};
 }
 
-export function toUiPushNotification(n: AdminNotification): PushNotification {
+export function toUiPushNotification(campaign: PushCampaign): PushNotification {
+  const when = campaign.sentAt || campaign.scheduledAt || campaign.createdAt;
   return {
-    id: n.id,
-    title: n.title,
-    message: n.body,
-    audienceType: n.isGlobal ? "all" : "custom_list",
-    audienceLabel: audienceLabelFromNotification(n),
-    deepLinkTarget: parseDeepLinkTarget(n.actionRoute),
-    deepLinkValue: n.actionRoute ?? undefined,
-    status: "SENT",
-    sentOrScheduledAt: format(new Date(n.createdAt), "MMM d, yyyy · h:mm a"),
-    sentCount: n.isGlobal ? undefined : 1,
+    id: campaign.id,
+    title: campaign.title,
+    message: campaign.body,
+    imageUrl: campaign.imageUrl ?? undefined,
+    audienceType: toUiAudience(campaign.audienceType),
+    audienceLabel: campaign.audienceLabel,
+    deepLinkTarget: toUiDeepLink(campaign.deepLinkTarget),
+    deepLinkValue: campaign.deepLinkValue ?? undefined,
+    status: campaign.status as NotificationStatus,
+    sentOrScheduledAt: format(new Date(when), "MMM d, yyyy · h:mm a"),
+    sentCount: campaign.totalSent,
+    recipientCount: campaign.totalRecipients,
+    deliveredCount: campaign.totalDelivered,
+    openedCount: campaign.totalOpened,
+    failedCount: campaign.totalFailed,
+    openRatePercent: campaign.openRatePercent,
   };
 }
 
-function unwrapListPayload(
-  payload:
-    | AdminNotification[]
-    | { data: AdminNotification[]; meta?: ListMeta }
-    | null
-    | undefined,
-): { rows: AdminNotification[]; meta?: ListMeta } {
+function unwrapList(payload: unknown): {
+  rows: PushCampaign[];
+  meta?: ListMeta;
+} {
   if (!payload) return { rows: [] };
-  if (Array.isArray(payload)) return { rows: payload };
-  return {
-    rows: Array.isArray(payload.data) ? payload.data : [],
-    meta: payload.meta,
-  };
+  if (Array.isArray(payload)) return { rows: payload as PushCampaign[] };
+  if (typeof payload === "object" && payload && "data" in payload) {
+    const nested = payload as { data: PushCampaign[]; meta?: ListMeta };
+    return { rows: nested.data ?? [], meta: nested.meta };
+  }
+  return { rows: [] };
 }
 
 export const notificationsService = {
-  list: async (params?: {
-    page?: number;
-    limit?: number;
-    customerId?: string;
-    type?: string;
-  }): Promise<{
-    data: AdminNotification[];
-    meta: { page: number; limit: number; total: number; totalPages: number };
-  }> => {
+  getOptions: async (): Promise<PushComposerOptions> => {
+    const { data } = await api.get<ApiResponse<PushComposerOptions>>(
+      API_ENDPOINTS.ADMIN_CMS.NOTIFICATION_CAMPAIGN_OPTIONS,
+    );
+    return data.data;
+  },
+
+  searchCustomers: async (
+    q: string,
+  ): Promise<Array<{ id: string; label: string; phone?: string }>> => {
     const { data } = await api.get<
-      ApiResponse<
-        | AdminNotification[]
-        | {
-            data: AdminNotification[];
-            meta: {
-              page: number;
-              limit: number;
-              total: number;
-              totalPages: number;
-            };
-          }
-      >
-    >(API_ENDPOINTS.ADMIN_CMS.NOTIFICATIONS, {
-      params: {
-        page: params?.page ?? 1,
-        limit: params?.limit ?? 50,
-        customerId: params?.customerId,
-        type: params?.type,
-      },
+      ApiResponse<Array<{ id: string; label: string; phone?: string }>>
+    >(API_ENDPOINTS.ADMIN_CMS.NOTIFICATION_CAMPAIGN_CUSTOMERS, {
+      params: { q },
     });
-
-    const { rows, meta } = unwrapListPayload(data.data);
-    return {
-      data: rows,
-      meta: meta ?? {
-        page: params?.page ?? 1,
-        limit: params?.limit ?? 50,
-        total: rows.length,
-        totalPages: 1,
-      },
-    };
+    return data.data ?? [];
   },
 
-  get: async (id: string): Promise<AdminNotification> => {
-    const { data } = await api.get<ApiResponse<AdminNotification>>(
-      API_ENDPOINTS.ADMIN_CMS.NOTIFICATION_BY_ID(id),
-    );
-    return data.data;
-  },
-
-  create: async (
-    payload: CreateAdminNotificationInput,
-  ): Promise<AdminNotification> => {
-    const { data } = await api.post<ApiResponse<AdminNotification>>(
-      API_ENDPOINTS.ADMIN_CMS.NOTIFICATIONS,
-      payload,
-    );
-    return data.data;
-  },
-
-  broadcast: async (
-    payload: BroadcastAdminNotificationInput,
-  ): Promise<{ notification: AdminNotification; sentTo: number }> => {
-    const { data } = await api.post<
-      ApiResponse<{ notification: AdminNotification; sentTo: number }>
-    >(API_ENDPOINTS.ADMIN_CMS.NOTIFICATION_BROADCAST, payload);
-    return data.data;
-  },
-
-  update: async (
-    id: string,
-    payload: { title?: string; body?: string },
-  ): Promise<AdminNotification> => {
-    const { data } = await api.patch<ApiResponse<AdminNotification>>(
-      API_ENDPOINTS.ADMIN_CMS.NOTIFICATION_BY_ID(id),
-      payload,
-    );
-    return data.data;
-  },
-
-  remove: async (id: string): Promise<void> => {
-    await api.delete(API_ENDPOINTS.ADMIN_CMS.NOTIFICATION_BY_ID(id));
-  },
-
-  /** Compose UI form → create or broadcast. */
-  send: async (
-    input: SendPushNotificationInput,
-  ): Promise<{ sentTo?: number; notification?: AdminNotification }> => {
-    const actionRoute = buildActionRoute(
-      input.deepLinkTarget,
-      input.deepLinkValue,
-    );
-    const type = resolveNotificationType(input.deepLinkTarget);
-    const label = resolveLabel(input.audienceType, input.deepLinkTarget);
-    const base = {
+  send: async (input: SendPushNotificationInput): Promise<PushCampaign> => {
+    const payload = {
       title: input.title,
       body: input.message,
-      type,
-      label,
-      actionLabel: "Open",
-      actionRoute,
+      imageUrl: input.imageUrl,
+      audienceType: AUDIENCE_API[input.audienceType],
+      deepLinkTarget: DEEP_LINK_API[input.deepLinkTarget],
+      deepLinkValue: input.deepLinkValue,
+      deliveryMode: input.deliveryMode === "scheduled" ? "SCHEDULED" : "NOW",
+      scheduledAt: input.scheduledAt
+        ? new Date(input.scheduledAt).toISOString()
+        : undefined,
+      saveAsDraft: Boolean(input.saveAsDraft),
+      ...splitAudienceTargets(input.audienceType, input.audienceTargets),
     };
 
-    if (input.audienceType === "all") {
-      const result = await notificationsService.broadcast(base);
-      return { sentTo: result.sentTo, notification: result.notification };
-    }
+    const { data } = await api.post<ApiResponse<PushCampaign>>(
+      API_ENDPOINTS.ADMIN_CMS.NOTIFICATION_CAMPAIGNS,
+      payload,
+    );
+    return data.data;
+  },
 
-    const firstTarget = input.audienceTargets?.[0];
-    const looksLikeUuid =
-      !!firstTarget &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        firstTarget,
-      );
-
-    if (input.audienceType === "custom_list" && looksLikeUuid) {
-      const notification = await notificationsService.create({
-        ...base,
-        customerId: firstTarget,
-        isGlobal: false,
-      });
-      return { sentTo: 1, notification };
-    }
-
-    // Backend cannot target city/hub/segment — store as global announcement.
-    const notification = await notificationsService.create({
-      ...base,
-      isGlobal: true,
+  sendTest: async (input: {
+    title: string;
+    message: string;
+    imageUrl?: string;
+    deepLinkTarget: DeepLinkTarget;
+    deepLinkValue?: string;
+  }): Promise<{ sent: number; failed: number; fcmConfigured: boolean }> => {
+    const { data } = await api.post<
+      ApiResponse<{ sent: number; failed: number; fcmConfigured: boolean }>
+    >(API_ENDPOINTS.ADMIN_CMS.NOTIFICATION_TEST, {
+      title: input.title,
+      body: input.message,
+      imageUrl: input.imageUrl,
+      deepLinkTarget: DEEP_LINK_API[input.deepLinkTarget],
+      deepLinkValue: input.deepLinkValue,
     });
-    return { sentTo: undefined, notification };
+    return data.data;
   },
 
   getHistory: async (): Promise<PushNotification[]> => {
-    const { data } = await notificationsService.list({ page: 1, limit: 100 });
-    // Prefer global/broadcast rows so per-customer fan-out does not flood the table.
-    const preferred = data.filter((n) => n.isGlobal);
-    const rows = preferred.length > 0 ? preferred : data;
-    return rows.map(toUiPushNotification);
+    const { data } = await api.get<
+      ApiResponse<{ data: PushCampaign[]; meta?: ListMeta } | PushCampaign[]>
+    >(API_ENDPOINTS.ADMIN_CMS.NOTIFICATION_CAMPAIGNS, {
+      params: { page: 1, limit: 50 },
+    });
+    return unwrapList(data.data).rows.map(toUiPushNotification);
   },
 
   getStats: async (): Promise<PushNotificationStats> => {
-    const { data, meta } = await notificationsService.list({
-      page: 1,
-      limit: 100,
-    });
-    const globals = data.filter((n) => n.isGlobal);
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const totalSentThisMonth = globals.filter(
-      (n) => new Date(n.createdAt) >= monthStart,
-    ).length;
+    const { data } = await api.get<ApiResponse<PushNotificationStats>>(
+      API_ENDPOINTS.ADMIN_CMS.NOTIFICATION_CAMPAIGN_STATS,
+    );
+    return data.data;
+  },
 
-    return {
-      totalSentThisMonth: totalSentThisMonth || globals.length,
-      avgOpenRatePercent: 0,
-      activeSubscribers: meta.total,
-      scheduledCount: 0,
-    };
+  sendDraft: async (id: string): Promise<PushCampaign> => {
+    const { data } = await api.post<ApiResponse<PushCampaign>>(
+      API_ENDPOINTS.ADMIN_CMS.NOTIFICATION_CAMPAIGN_SEND(id),
+    );
+    return data.data;
   },
 };

@@ -1,5 +1,6 @@
 import { API_ENDPOINTS } from "@/constants/api-endpoints";
-import api from "@/services/api";
+import api, { getApiErrorMessage } from "@/services/api";
+import axios from "axios";
 import type {
   ApiResponse,
   PaginatedResponse,
@@ -9,12 +10,26 @@ import type { HubInventorySkuDraft } from "@/types/hub-onboarding.types";
 
 export interface CatalogProductVariant {
   id: string;
+  attributes?: Record<string, string>;
+  attribute?: string | null;
+  value?: string | null;
   label: string;
+  unit?: string | null;
   displayUnit?: string | null;
   size?: number | string | null;
   sizeUnit?: string | null;
+  sku?: string | null;
   price?: number | string;
+  sellingPrice?: number | string;
+  mrp?: number | string | null;
+  discount?: number;
+  discountAmount?: number;
+  discountPercent?: number;
+  stock?: number;
   inStock?: boolean;
+  isActive?: boolean;
+  imageUrl?: string | null;
+  displayOrder?: number;
 }
 
 export interface CatalogProductImage {
@@ -46,6 +61,8 @@ export interface CatalogProduct {
   grade?: string | null;
   images?: CatalogProductImage[];
   variants?: CatalogProductVariant[];
+  hasVariants?: boolean;
+  defaultVariantId?: string | null;
 }
 
 export interface CatalogCategory {
@@ -85,6 +102,22 @@ export interface CreateCatalogProductInput {
   lowStockThreshold?: number;
   minimumStock?: number;
   maximumStock?: number;
+  hasVariants?: boolean;
+}
+
+export interface CatalogVariantInput {
+  attribute: string;
+  customAttribute?: string;
+  attributes?: Record<string, string>;
+  value: string;
+  unit?: string;
+  sku?: string;
+  price: number;
+  mrp?: number;
+  stock?: number;
+  isActive?: boolean;
+  imageUrl?: string;
+  displayOrder?: number;
 }
 
 function mapProductToSku(
@@ -118,6 +151,50 @@ function mapProductToSku(
     maxStock: Math.max(opening * 3, 100),
     selected: index < 5,
   };
+}
+
+function compactPayload<T extends Record<string, unknown>>(input: T): Partial<T> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (value === undefined || value === null) continue;
+    if (typeof value === "string" && value.trim() === "") continue;
+    out[key] = value;
+  }
+  return out as Partial<T>;
+}
+
+function forbiddenPropertyNames(message: string): string[] {
+  return [...message.matchAll(/property\s+(\w+)\s+should not exist/gi)].map(
+    (match) => match[1],
+  );
+}
+
+async function patchDroppingUnknownProperties<T>(
+  request: (payload: Record<string, unknown>) => Promise<T>,
+  payload: object,
+): Promise<T> {
+  let body = compactPayload({ ...payload } as Record<string, unknown>);
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      return await request(body);
+    } catch (error) {
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+      if (status !== 400) throw error;
+      const forbidden = forbiddenPropertyNames(getApiErrorMessage(error));
+      if (!forbidden.length) throw error;
+      let dropped = false;
+      const next = { ...body };
+      for (const key of forbidden) {
+        if (key in next) {
+          delete next[key];
+          dropped = true;
+        }
+      }
+      if (!dropped) throw error;
+      body = next;
+    }
+  }
+  throw new Error("Request failed with status code 400");
 }
 
 export const catalogService = {
@@ -176,11 +253,13 @@ export const catalogService = {
   createProduct: async (
     payload: CreateCatalogProductInput,
   ): Promise<CatalogProduct> => {
-    const { data } = await api.post<ApiResponse<CatalogProduct>>(
-      API_ENDPOINTS.PRODUCTS.BASE,
-      payload,
-    );
-    return data.data;
+    return patchDroppingUnknownProperties(async (body) => {
+      const { data } = await api.post<ApiResponse<CatalogProduct>>(
+        API_ENDPOINTS.PRODUCTS.BASE,
+        body,
+      );
+      return data.data;
+    }, payload);
   },
 
   updateProduct: async (
@@ -189,13 +268,17 @@ export const catalogService = {
       entityStatus?: string;
       isVisible?: boolean;
       bulkThreshold?: number;
+      hasVariants?: boolean;
+      unit?: string;
     },
   ): Promise<CatalogProduct> => {
-    const { data } = await api.patch<ApiResponse<CatalogProduct>>(
-      API_ENDPOINTS.PRODUCTS.BY_ID(id),
-      payload,
-    );
-    return data.data;
+    return patchDroppingUnknownProperties(async (body) => {
+      const { data } = await api.patch<ApiResponse<CatalogProduct>>(
+        API_ENDPOINTS.PRODUCTS.BY_ID(id),
+        body,
+      );
+      return data.data;
+    }, payload);
   },
 
   deleteProduct: async (id: string): Promise<void> => {
@@ -209,6 +292,77 @@ export const catalogService = {
     const { data } = await api.patch<ApiResponse<CatalogProduct>>(
       `${API_ENDPOINTS.PRODUCTS.BY_ID(id)}/images`,
       { images },
+    );
+    return data.data;
+  },
+
+  listVariants: async (productId: string): Promise<CatalogProductVariant[]> => {
+    const { data } = await api.get<ApiResponse<CatalogProductVariant[]>>(
+      API_ENDPOINTS.PRODUCTS.VARIANTS(productId),
+    );
+    return data.data;
+  },
+
+  createVariant: async (
+    productId: string,
+    payload: CatalogVariantInput,
+  ): Promise<CatalogProductVariant> => {
+    return patchDroppingUnknownProperties(async (body) => {
+      const { data } = await api.post<ApiResponse<CatalogProductVariant>>(
+        API_ENDPOINTS.PRODUCTS.VARIANTS(productId),
+        body,
+      );
+      return data.data;
+    }, payload);
+  },
+
+  updateVariant: async (
+    productId: string,
+    variantId: string,
+    payload: Partial<CatalogVariantInput>,
+  ): Promise<CatalogProductVariant> => {
+    return patchDroppingUnknownProperties(async (body) => {
+      const { data } = await api.patch<ApiResponse<CatalogProductVariant>>(
+        API_ENDPOINTS.PRODUCTS.VARIANT(productId, variantId),
+        body,
+      );
+      return data.data;
+    }, payload);
+  },
+
+  deleteVariant: async (productId: string, variantId: string): Promise<void> => {
+    await api.delete(API_ENDPOINTS.PRODUCTS.VARIANT(productId, variantId));
+  },
+
+  setVariantStatus: async (
+    productId: string,
+    variantId: string,
+    isActive: boolean,
+  ): Promise<CatalogProductVariant> => {
+    const { data } = await api.patch<ApiResponse<CatalogProductVariant>>(
+      API_ENDPOINTS.PRODUCTS.VARIANT_STATUS(productId, variantId),
+      { isActive },
+    );
+    return data.data;
+  },
+
+  duplicateVariant: async (
+    productId: string,
+    variantId: string,
+  ): Promise<CatalogProductVariant> => {
+    const { data } = await api.post<ApiResponse<CatalogProductVariant>>(
+      API_ENDPOINTS.PRODUCTS.VARIANT_DUPLICATE(productId, variantId),
+    );
+    return data.data;
+  },
+
+  reorderVariants: async (
+    productId: string,
+    variantIds: string[],
+  ): Promise<CatalogProductVariant[]> => {
+    const { data } = await api.patch<ApiResponse<CatalogProductVariant[]>>(
+      API_ENDPOINTS.PRODUCTS.VARIANTS_REORDER(productId),
+      { variantIds },
     );
     return data.data;
   },

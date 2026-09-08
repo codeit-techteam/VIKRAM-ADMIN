@@ -112,11 +112,11 @@ export const NAV_SECTIONS: NavSection[] = [
           {
             label: "Catalog Management",
             items: [
+              { label: "Categories", href: "/customer-app-cms/categories" },
               {
                 label: "Product Categories",
                 href: "/customer-app-cms/catalog",
               },
-              { label: "Categories", href: "/customer-app-cms/categories" },
             ],
           },
           {

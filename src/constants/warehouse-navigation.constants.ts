@@ -23,10 +23,6 @@ export const CENTRAL_WAREHOUSE_NAV_GROUPS: NavChildGroup[] = [
         label: "Inventory Management",
         href: `${ROUTES.CENTRAL_WAREHOUSE}/inventory`,
       },
-      {
-        label: "Product Management",
-        href: ROUTES.CENTRAL_WAREHOUSE_PRODUCTS,
-      },
     ],
   },
   {

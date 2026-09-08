@@ -18,6 +18,7 @@ import { CustomerConfirmationModal } from "@/features/user-management/components
 import { CustomerFiltersBar } from "@/features/user-management/components/CustomerFiltersBar";
 import { CustomerTable } from "@/features/user-management/components/CustomerTable";
 import { EditCustomerDrawer } from "@/features/user-management/components/EditCustomerDrawer";
+import { InviteCustomerDialog } from "@/features/user-management/components/InviteCustomerDialog";
 import { AssignExecutiveDrawer } from "@/features/user-management/components/support-executive/AssignExecutiveDrawer";
 import { UserManagementTabs } from "@/features/user-management/components/UserManagementTabs";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -41,11 +42,16 @@ import {
 import { getApiErrorMessage } from "@/services/api";
 import {
   activateAdminCustomer,
+  bulkAssignAdminCustomers,
+  bulkUpdateAdminCustomerStatus,
   disableAdminCustomer,
+  exportAdminCustomers,
+  fetchAdminCustomerFilterOptions,
   fetchAdminCustomerStats,
   fetchAdminCustomers,
   updateAdminCustomer,
 } from "@/services/customers";
+import { downloadCsvFile } from "@/utils/download-csv";
 import { notify } from "@/utils/notify";
 
 type CustomerStatKey = "total" | "active" | "pending" | "blocked" | "newToday";
@@ -158,17 +164,65 @@ export function CustomersPageContent() {
   const [blockCustomerTarget, setBlockCustomerTarget] =
     useState<CustomerListItem | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [filterOptions, setFilterOptions] = useState({
+    hubs: [] as Array<{ value: string; label: string }>,
+    executives: [] as Array<{ value: string; label: string }>,
+    states: [] as Array<{ value: string; label: string }>,
+    cities: [] as Array<{ value: string; label: string }>,
+  });
 
   const refresh = useCallback(() => setRefreshToken((token) => token + 1), []);
 
   useEffect(() => {
+    let ignore = false;
+    fetchAdminCustomerFilterOptions()
+      .then((options) => {
+        if (ignore) return;
+        setFilterOptions({
+          hubs: options.hubs,
+          executives: options.executives,
+          states: options.states,
+          cities: [],
+        });
+      })
+      .catch(() => {
+        if (!ignore) {
+          setFilterOptions({
+            hubs: [],
+            executives: [],
+            states: [],
+            cities: [],
+          });
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setAppliedFilters((current) => {
+        if (current.search === draftFilters.search) return current;
+        setCurrentPage(1);
+        return { ...current, search: draftFilters.search };
+      });
+    }, 400);
+    return () => window.clearTimeout(handle);
+  }, [draftFilters.search]);
+
+  useEffect(() => {
     const statusParam = searchParams.get("status");
     const kycParam = searchParams.get("kyc");
+    const executiveParam = searchParams.get("executive");
 
-    if (statusParam || kycParam) {
+    if (statusParam || kycParam || executiveParam) {
       const filters: CustomerFilters = {
         ...EMPTY_CUSTOMER_FILTERS,
         ...(statusParam ? { status: statusParam.toUpperCase() } : {}),
+        ...(executiveParam ? { assignedExecutive: executiveParam } : {}),
       };
       if (kycParam) {
         filters.search = `kyc:${kycParam.toUpperCase()}`;
@@ -184,12 +238,17 @@ export function CustomersPageContent() {
 
     async function load() {
       setIsLoading(true);
+      setLoadError(null);
       try {
         const search = appliedFilters.search.trim();
         const [response, nextStats] = await Promise.all([
           fetchAdminCustomers({
             search: search && !search.startsWith("kyc:") ? search : undefined,
             status: mapUiStatusToApiStatus(appliedFilters.status),
+            customerType:
+              appliedFilters.customerType !== "all"
+                ? appliedFilters.customerType
+                : undefined,
             hubId:
               appliedFilters.assignedHub !== "all"
                 ? appliedFilters.assignedHub
@@ -198,6 +257,11 @@ export function CustomersPageContent() {
               appliedFilters.assignedExecutive !== "all"
                 ? appliedFilters.assignedExecutive
                 : undefined,
+            state:
+              appliedFilters.state !== "all" ? appliedFilters.state : undefined,
+            city: appliedFilters.city.trim() || undefined,
+            createdFrom: appliedFilters.registrationDateFrom || undefined,
+            createdTo: appliedFilters.registrationDateTo || undefined,
             page: currentPage,
             limit: CUSTOMER_PAGE_SIZE,
           }),
@@ -211,7 +275,9 @@ export function CustomersPageContent() {
         setStats(nextStats);
       } catch (error) {
         if (ignore) return;
-        notify.error("Failed to load customers", getApiErrorMessage(error));
+        const message = getApiErrorMessage(error);
+        setLoadError(message);
+        notify.error("Failed to load customers", message);
         setCustomers([]);
         setMeta(DEFAULT_META);
         setStats(EMPTY_STATS);
@@ -226,16 +292,6 @@ export function CustomersPageContent() {
       ignore = true;
     };
   }, [currentPage, appliedFilters, refreshToken]);
-
-  const filterOptions = useMemo(
-    () => ({
-      hubs: [] as Array<{ value: string; label: string }>,
-      executives: [] as Array<{ value: string; label: string }>,
-      states: [] as Array<{ value: string; label: string }>,
-      cities: [] as Array<{ value: string; label: string }>,
-    }),
-    [],
-  );
 
   useEffect(() => {
     setSelectedIds((current) =>
@@ -286,13 +342,16 @@ export function CustomersPageContent() {
       if (selectedIds.length === 0) return;
 
       try {
-        await Promise.all(
-          selectedIds.map((id) => {
-            if (status === "ACTIVE") return activateAdminCustomer(id);
-            if (status === "BLOCKED") return disableAdminCustomer(id);
-            return updateAdminCustomer(id, { status: "INACTIVE" });
-          }),
-        );
+        const apiStatus =
+          status === "BLOCKED"
+            ? "SUSPENDED"
+            : status === "INACTIVE"
+              ? "INACTIVE"
+              : "ACTIVE";
+        await bulkUpdateAdminCustomerStatus({
+          ids: selectedIds,
+          status: apiStatus,
+        });
         notify.success(
           `${label} applied to ${selectedIds.length} customer(s).`,
         );
@@ -308,23 +367,71 @@ export function CustomersPageContent() {
     [selectedIds, refresh],
   );
 
-  const handleAssignHub = useCallback(() => {
-    notify.info(
-      `Hub assignment noted for ${selectedIds.length} customer(s).`,
-      "This will sync automatically once the hub-assignment endpoint is available.",
-    );
-    setSelectedIds([]);
-  }, [selectedIds]);
+  const handleAssignHub = useCallback(
+    async (hubId: string) => {
+      if (selectedIds.length === 0) return;
+      try {
+        await bulkAssignAdminCustomers({
+          ids: selectedIds,
+          hubId,
+          reason: "Bulk hub assignment from User Management",
+        });
+        notify.success(
+          `Hub assigned to ${selectedIds.length} customer(s).`,
+        );
+        setSelectedIds([]);
+        setIsAssignHubOpen(false);
+        refresh();
+      } catch (error) {
+        notify.error("Failed to assign hub", getApiErrorMessage(error));
+      }
+    },
+    [selectedIds, refresh],
+  );
 
-  const handleExport = useCallback(() => {
-    const exported = customers.filter((customer) =>
-      selectedIds.includes(customer.id),
-    );
-    notify.success(
-      `Exported ${exported.length} customer record(s).`,
-      "Download will begin when export service is connected.",
-    );
-  }, [customers, selectedIds]);
+  const buildExportParams = useCallback(
+    (ids?: string[]) => ({
+      search: appliedFilters.search.trim() || undefined,
+      status: mapUiStatusToApiStatus(appliedFilters.status),
+      customerType:
+        appliedFilters.customerType !== "all"
+          ? appliedFilters.customerType
+          : undefined,
+      hubId:
+        appliedFilters.assignedHub !== "all"
+          ? appliedFilters.assignedHub
+          : undefined,
+      executiveId:
+        appliedFilters.assignedExecutive !== "all"
+          ? appliedFilters.assignedExecutive
+          : undefined,
+      state: appliedFilters.state !== "all" ? appliedFilters.state : undefined,
+      city: appliedFilters.city.trim() || undefined,
+      createdFrom: appliedFilters.registrationDateFrom || undefined,
+      createdTo: appliedFilters.registrationDateTo || undefined,
+      ids: ids?.length ? ids.join(",") : undefined,
+    }),
+    [appliedFilters],
+  );
+
+  const handleExport = useCallback(async () => {
+    try {
+      const blob = await exportAdminCustomers(
+        buildExportParams(selectedIds.length > 0 ? selectedIds : undefined),
+      );
+      downloadCsvFile(
+        `customers-${new Date().toISOString().slice(0, 10)}.csv`,
+        blob,
+      );
+      notify.success(
+        selectedIds.length > 0
+          ? `Exported ${selectedIds.length} selected customer(s).`
+          : "Customer export downloaded.",
+      );
+    } catch (error) {
+      notify.error("Export failed", getApiErrorMessage(error));
+    }
+  }, [buildExportParams, selectedIds]);
 
   const editCustomer = useMemo(() => {
     if (!editCustomerId) return null;
@@ -340,7 +447,11 @@ export function CustomersPageContent() {
         fullName: payload.name,
         email: payload.email || undefined,
         companyName: payload.address.primaryAddress || undefined,
-        status: mapUiStatusToApiStatus(payload.status) ?? "ACTIVE",
+        businessType: payload.customerType,
+        status:
+          mapUiStatusToApiStatus(payload.status) === "PENDING_VERIFICATION"
+            ? "ACTIVE"
+            : (mapUiStatusToApiStatus(payload.status) ?? "ACTIVE"),
       });
       notify.success("Customer updated", "Profile changes saved successfully.");
       setEditCustomerId(null);
@@ -389,11 +500,20 @@ export function CustomersPageContent() {
         breadcrumbs={getNavBreadcrumbsFromPath("/user-management/customers")}
         actions={
           <>
-            <Button variant="outline" size="lg" className="h-10 gap-2 px-4">
+            <Button
+              variant="outline"
+              size="lg"
+              className="h-10 gap-2 px-4"
+              onClick={handleExport}
+            >
               <Download className="size-4" />
               Export Data
             </Button>
-            <Button size="lg" className="h-10 gap-2 px-4">
+            <Button
+              size="lg"
+              className="h-10 gap-2 px-4"
+              onClick={() => setIsInviteOpen(true)}
+            >
               <Plus className="size-4" />
               Invite New User
             </Button>
@@ -457,6 +577,21 @@ export function CustomersPageContent() {
         )}
       </div>
 
+      {loadError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p>Unable to load customers from the server.</p>
+          <p className="mt-1 text-xs opacity-80">{loadError}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={refresh}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
       <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
         <UserManagementTabs activeTab="customers" className="mb-6" />
 
@@ -519,12 +654,24 @@ export function CustomersPageContent() {
         onConfirm={handleAssignHub}
       />
 
+      <InviteCustomerDialog
+        open={isInviteOpen}
+        onOpenChange={setIsInviteOpen}
+        hubOptions={filterOptions.hubs}
+        executiveOptions={filterOptions.executives}
+        onInvited={refresh}
+      />
+
       <AssignExecutiveDrawer
         open={Boolean(assignExecutiveCustomer)}
         onOpenChange={(open) => {
           if (!open) setAssignExecutiveCustomer(null);
         }}
         customer={assignExecutiveCustomer}
+        onAssigned={() => {
+          setAssignExecutiveCustomer(null);
+          refresh();
+        }}
       />
 
       <EditCustomerDrawer

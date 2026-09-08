@@ -66,6 +66,7 @@ export interface CeCreateOrderPayload {
   deliveryPincode?: string;
   deliveryCity?: string;
   deliveryState?: string;
+  deliveryDate?: string;
 }
 
 export interface CeCreateTicketPayload {
@@ -93,6 +94,8 @@ export interface CeCustomersQuery {
   customerType?: string;
   sortBy?: string;
   sortDir?: "asc" | "desc";
+  membersOnly?: boolean;
+  activeThisMonth?: boolean;
 }
 
 export interface CeOrdersQuery {
@@ -111,6 +114,8 @@ export interface CePaymentsQuery {
   q?: string;
   status?: string;
   linkStatus?: string;
+  customerId?: string;
+  dateFrom?: string;
 }
 
 export interface CeTicketsQuery {
@@ -119,6 +124,8 @@ export interface CeTicketsQuery {
   q?: string;
   status?: string;
   priority?: string;
+  customerId?: string;
+  reason?: SupportTicketReason;
 }
 
 export interface CeSendPaymentLinkResponse {
@@ -147,6 +154,17 @@ export const customerExecutiveService = {
     >(API_ENDPOINTS.CUSTOMER_EXECUTIVE.ACTIVITY, { params: { limit } });
     const payload = unwrap(data);
     return Array.isArray(payload) ? payload : (payload.data ?? []);
+  },
+
+  getProducts: async (params?: {
+    page?: number;
+    limit?: number;
+    q?: string;
+  }): Promise<CePaginatedResult<Record<string, unknown>>> => {
+    const { data } = await api.get<
+      ApiResponse<CePaginatedResult<Record<string, unknown>>>
+    >(API_ENDPOINTS.CUSTOMER_EXECUTIVE.PRODUCTS, { params });
+    return unwrap(data);
   },
 
   lookupCustomer: async (phone: string): Promise<CeLookupResponse> => {
@@ -207,6 +225,26 @@ export const customerExecutiveService = {
   getCustomerById: async (id: string): Promise<Record<string, unknown>> => {
     const { data } = await api.get<ApiResponse<Record<string, unknown>>>(
       API_ENDPOINTS.CUSTOMER_EXECUTIVE.CUSTOMER_BY_ID(id),
+    );
+    return unwrap(data);
+  },
+
+  updateCustomer: async (
+    id: string,
+    payload: {
+      fullName?: string;
+      email?: string;
+      companyName?: string;
+      gstNumber?: string;
+      address?: string;
+      city?: string;
+      state?: string;
+      pincode?: string;
+    },
+  ): Promise<Record<string, unknown>> => {
+    const { data } = await api.patch<ApiResponse<Record<string, unknown>>>(
+      API_ENDPOINTS.CUSTOMER_EXECUTIVE.CUSTOMER_BY_ID(id),
+      payload,
     );
     return unwrap(data);
   },
@@ -328,9 +366,27 @@ export const customerExecutiveService = {
 
   getTickets: async (
     params?: CeTicketsQuery,
-  ): Promise<CePaginatedResult<Record<string, unknown>>> => {
+  ): Promise<
+    CePaginatedResult<Record<string, unknown>> & {
+      stats?: {
+        open: number;
+        inProgress: number;
+        resolvedToday: number;
+        escalated: number;
+      };
+    }
+  > => {
     const { data } = await api.get<
-      ApiResponse<CePaginatedResult<Record<string, unknown>>>
+      ApiResponse<
+        CePaginatedResult<Record<string, unknown>> & {
+          stats?: {
+            open: number;
+            inProgress: number;
+            resolvedToday: number;
+            escalated: number;
+          };
+        }
+      >
     >(API_ENDPOINTS.CUSTOMER_EXECUTIVE.TICKETS, { params });
     return unwrap(data);
   },

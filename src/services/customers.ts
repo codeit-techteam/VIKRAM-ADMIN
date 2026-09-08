@@ -13,12 +13,16 @@ export interface AdminCustomerListItem {
   email: string | null;
   company: string | null;
   gst: string | null;
-  membership: string | null;
+  customerType?: string | null;
+  isVerified?: boolean;
+  city?: string | null;
+  state?: string | null;
   status: string;
   createdAt: string;
   lastLogin: string | null;
   orders: number;
   wallet: { balance: number };
+  loyaltyPoints?: number;
   addresses: number;
   assignedHubId?: string | null;
   assignedHubName?: string | null;
@@ -52,6 +56,9 @@ export interface AdminCustomerDetail {
   assignedHubName?: string | null;
   assignedExecutiveId?: string | null;
   assignedExecutiveName?: string | null;
+  assignedExecutivePhone?: string | null;
+  assignedExecutiveEmail?: string | null;
+  isVerified?: boolean;
   profile: {
     companyName?: string | null;
     legalEntityName?: string | null;
@@ -76,12 +83,6 @@ export interface AdminCustomerDetail {
     currentPoints?: number;
     redeemedPoints?: number;
   } | null;
-  memberships: Array<{
-    id: string;
-    status: string;
-    expiryDate: string;
-    plan: { id: string; name: string };
-  }>;
   orders: unknown[];
 }
 
@@ -99,18 +100,42 @@ type ApiEnvelope<T> = {
   data: T;
 };
 
+export interface AdminCustomerFilterOptions {
+  hubs: Array<{
+    value: string;
+    label: string;
+    city?: string;
+    state?: string;
+    hubType?: string | null;
+  }>;
+  executives: Array<{ value: string; label: string }>;
+  states: Array<{ value: string; label: string }>;
+}
+
 export async function fetchAdminCustomers(params?: {
   search?: string;
   status?: string;
-  membership?: string;
+  customerType?: string;
   hubId?: string;
   executiveId?: string;
+  state?: string;
+  city?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  ids?: string;
   page?: number;
   limit?: number;
 }): Promise<AdminCustomersListResponse> {
   const { data } = await api.get<ApiEnvelope<AdminCustomersListResponse>>(
     API_ENDPOINTS.CUSTOMERS.BASE,
     { params },
+  );
+  return data.data;
+}
+
+export async function fetchAdminCustomerFilterOptions(): Promise<AdminCustomerFilterOptions> {
+  const { data } = await api.get<ApiEnvelope<AdminCustomerFilterOptions>>(
+    API_ENDPOINTS.CUSTOMERS.FILTER_OPTIONS,
   );
   return data.data;
 }
@@ -136,6 +161,65 @@ export async function assignAdminCustomer(
     payload,
   );
   return data.data;
+}
+
+export async function bulkUpdateAdminCustomerStatus(payload: {
+  ids: string[];
+  status: "ACTIVE" | "INACTIVE" | "SUSPENDED";
+}): Promise<{ updated: number; status: string }> {
+  const { data } = await api.post<
+    ApiEnvelope<{ updated: number; status: string }>
+  >(API_ENDPOINTS.CUSTOMERS.BULK_STATUS, payload);
+  return data.data;
+}
+
+export async function bulkAssignAdminCustomers(payload: {
+  ids: string[];
+  hubId?: string | null;
+  executiveId?: string | null;
+  reason?: string;
+}): Promise<{ updated: number }> {
+  const { data } = await api.post<ApiEnvelope<{ updated: number }>>(
+    API_ENDPOINTS.CUSTOMERS.BULK_ASSIGNMENT,
+    payload,
+  );
+  return data.data;
+}
+
+export async function inviteAdminCustomer(payload: {
+  phone: string;
+  fullName: string;
+  email?: string;
+  companyName?: string;
+  gstNumber?: string;
+  businessType?: string;
+  hubId?: string;
+  executiveId?: string;
+}): Promise<AdminCustomerDetail> {
+  const { data } = await api.post<ApiEnvelope<AdminCustomerDetail>>(
+    API_ENDPOINTS.CUSTOMERS.INVITE,
+    payload,
+  );
+  return data.data;
+}
+
+export async function exportAdminCustomers(params?: {
+  search?: string;
+  status?: string;
+  customerType?: string;
+  hubId?: string;
+  executiveId?: string;
+  state?: string;
+  city?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  ids?: string;
+}): Promise<Blob> {
+  const { data } = await api.get<Blob>(API_ENDPOINTS.CUSTOMERS.EXPORT, {
+    params,
+    responseType: "blob",
+  });
+  return data;
 }
 
 export async function fetchAdminCustomer(

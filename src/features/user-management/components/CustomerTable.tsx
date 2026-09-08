@@ -135,7 +135,7 @@ export function CustomerTable({
                 value ? "text-[#1A1A1A]" : "text-[#64748B] italic",
               )}
             >
-              {value || "—"}
+              {value || "Not available"}
             </span>
           );
         },
@@ -151,7 +151,7 @@ export function CustomerTable({
                 value ? "text-[#1A1A1A]" : "text-[#64748B] italic",
               )}
             >
-              {value || "—"}
+              {value || "Not available"}
             </span>
           );
         },
@@ -200,6 +200,18 @@ export function CustomerTable({
             </span>
           );
         },
+      }),
+      columnHelper.accessor("assignedHub", {
+        header: "HUB",
+        cell: ({ getValue }) => (
+          <span className="text-sm text-[#1A1A1A]">{getValue()}</span>
+        ),
+      }),
+      columnHelper.accessor("assignedExecutive", {
+        header: "EXECUTIVE",
+        cell: ({ getValue }) => (
+          <span className="text-sm text-[#1A1A1A]">{getValue()}</span>
+        ),
       }),
       columnHelper.accessor("status", {
         header: "STATUS",

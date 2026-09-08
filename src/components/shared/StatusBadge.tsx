@@ -70,6 +70,11 @@ const statusBadgeVariants = cva(
         STEADY: "bg-blue-100 text-blue-700",
         NEEDS_REVIEW: "bg-amber-100 text-amber-700",
         SENT: "bg-green-100 text-green-700",
+        QUEUED: "bg-blue-100 text-blue-700",
+        SENDING: "bg-amber-100 text-amber-700",
+        PARTIALLY_SENT: "bg-orange-100 text-orange-700",
+        FAILED: "bg-red-100 text-red-700",
+        CANCELLED: "bg-slate-100 text-slate-600",
       },
     },
     defaultVariants: {
@@ -108,6 +113,11 @@ const dotVariants = cva("size-2 shrink-0 rounded-full", {
       STEADY: "hidden",
       NEEDS_REVIEW: "hidden",
       SENT: "hidden",
+      QUEUED: "hidden",
+      SENDING: "hidden",
+      PARTIALLY_SENT: "hidden",
+      FAILED: "hidden",
+      CANCELLED: "hidden",
     },
   },
   defaultVariants: {

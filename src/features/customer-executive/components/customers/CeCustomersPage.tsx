@@ -49,7 +49,6 @@ import {
   type CeCustomerFilters,
 } from "@/features/customer-executive/types";
 import { useCustomerExecutiveStore } from "@/store/customer-executive-store";
-import { formatCurrency } from "@/utils/format-currency";
 import {
   initiateCall,
   openWhatsApp,
@@ -106,9 +105,6 @@ export function CeCustomersPage() {
   const customersError = useCustomerExecutiveStore((s) => s.customersError);
   const queryCustomers = useCustomerExecutiveStore((s) => s.queryCustomers);
   const customersMeta = useCustomerExecutiveStore((s) => s.customersMeta);
-  const getCustomerPendingAmount = useCustomerExecutiveStore(
-    (s) => s.getCustomerPendingAmount,
-  );
   const customers = useCustomerExecutiveStore((s) => s.customers);
 
   const [draftFilters, setDraftFilters] = useState<CeCustomerFilters>(
@@ -249,11 +245,21 @@ export function CeCustomersPage() {
           <HighlightText text={getValue()} query={appliedFilters.search} />
         ),
       }),
+      columnHelper.display({
+        id: "gst",
+        header: "GST",
+        cell: ({ row }) => row.original.gst || "—",
+      }),
       columnHelper.accessor("city", { header: "City" }),
       columnHelper.display({
-        id: "executive",
-        header: "Assigned Executive",
-        cell: () => "—",
+        id: "hub",
+        header: "Hub",
+        cell: ({ row }) => row.original.assignedHubName || "—",
+      }),
+      columnHelper.display({
+        id: "orders",
+        header: "Orders",
+        cell: ({ row }) => row.original.orderCount ?? "—",
       }),
       columnHelper.display({
         id: "lastOrder",
@@ -264,10 +270,12 @@ export function CeCustomersPage() {
             : "—",
       }),
       columnHelper.display({
-        id: "pending",
-        header: "Pending Amount",
+        id: "lastLogin",
+        header: "Last Login",
         cell: ({ row }) =>
-          formatCurrency(getCustomerPendingAmount(row.original.id)),
+          row.original.lastLoginAt
+            ? new Date(row.original.lastLoginAt).toLocaleDateString("en-IN")
+            : "—",
       }),
       columnHelper.accessor("status", {
         header: "Status",
@@ -329,7 +337,7 @@ export function CeCustomersPage() {
         },
       }),
     ],
-    [getCustomerPendingAmount, router, sortBy, sortDir, appliedFilters.search],
+    [router, sortBy, sortDir, appliedFilters.search],
   );
 
   const table = useReactTable({

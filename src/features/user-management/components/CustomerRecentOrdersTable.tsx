@@ -18,7 +18,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { CustomerOrder } from "@/features/user-management/types/customer.types";
-import { CUSTOMER_HUBS } from "@/mock/customers";
 import { formatDate } from "@/utils/format-date";
 
 interface CustomerRecentOrdersTableProps {
@@ -35,8 +34,10 @@ function formatAmount(amount: number): string {
   }).format(amount);
 }
 
-function getHubName(hubId: string): string {
-  return CUSTOMER_HUBS.find((hub) => hub.id === hubId)?.name ?? hubId;
+function getHubName(order: CustomerOrder): string {
+  if (order.hubName?.trim()) return order.hubName.trim();
+  if (order.hubId?.trim()) return order.hubId.trim();
+  return "Not assigned";
 }
 
 const ORDER_STATUS_STYLES: Record<
@@ -72,10 +73,11 @@ export function CustomerRecentOrdersTable({
           <span className="text-[#64748B]">{formatDate(getValue())}</span>
         ),
       }),
-      columnHelper.accessor("hubId", {
+      columnHelper.accessor((row) => getHubName(row), {
+        id: "hub",
         header: "HUB",
         cell: ({ getValue }) => (
-          <span className="text-[#1A1A1A]">{getHubName(getValue())}</span>
+          <span className="text-[#1A1A1A]">{getValue()}</span>
         ),
       }),
       columnHelper.accessor("status", {

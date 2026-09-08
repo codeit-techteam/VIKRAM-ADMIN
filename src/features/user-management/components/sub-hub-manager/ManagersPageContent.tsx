@@ -11,6 +11,7 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
@@ -34,17 +35,10 @@ import {
   type ManagerFilters,
   type SubHubManager,
 } from "@/features/user-management/types/sub-hub-manager.types";
-import {
-  getManagerFilterOptions,
-  queryManagers,
-} from "@/mock/sub-hub-manager-service";
 import { hubManagerService } from "@/services/hubManager.service";
 import { getApiErrorMessage } from "@/services/api";
 import { ROUTES } from "@/constants/routes";
-import { useLogisticsStore } from "@/store/logistics-store";
-import { normalizeHubInventory } from "@/store/sub-hub-state";
-import { useWarehouseErpStore } from "@/store/warehouse-erp-store";
-import { enrichManagersWithOps } from "@/utils/manager-ops-metrics";
+import { downloadCsvFile } from "@/utils/download-csv";
 import { notify } from "@/utils/notify";
 
 type ManagerStatKey = "total" | "available" | "attention" | "leave";
@@ -65,13 +59,25 @@ function getActiveStatKey(filters: ManagerFilters): ManagerStatKey | null {
 }
 
 export function ManagersPageContent() {
+  const router = useRouter();
   const [managers, setManagers] = useState<SubHubManager[]>([]);
   const [fetchError, setFetchError] = useState<string | null>(null);
-
-  const hubInventory = useWarehouseErpStore((state) => state.hubInventory);
-  const requisitions = useWarehouseErpStore((state) => state.requisitions);
-  const transfers = useWarehouseErpStore((state) => state.transfers);
-  const drivers = useLogisticsStore((state) => state.drivers);
+  const [stats, setStats] = useState({
+    totalManagers: 0,
+    managersAvailable: 0,
+    managersNeedAttention: 0,
+    managersOnLeave: 0,
+  });
+  const [meta, setMeta] = useState({
+    page: 1,
+    limit: MANAGER_PAGE_SIZE,
+    total: 0,
+    totalPages: 1,
+  });
+  const [hubOptions, setHubOptions] = useState<
+    Array<{ value: string; label: string; state?: string }>
+  >([]);
+  const [refreshToken, setRefreshToken] = useState(0);
 
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -92,16 +98,45 @@ export function ManagersPageContent() {
   useEffect(() => {
     let active = true;
     setIsLoading(true);
-    hubManagerService
-      .list({ page: 1, limit: 100 })
-      .then((result) => {
+    const status =
+      appliedFilters.status === "ACTIVE"
+        ? "ACTIVE"
+        : appliedFilters.status === "LEAVE"
+          ? "INACTIVE"
+          : undefined;
+
+    Promise.all([
+      hubManagerService.list({
+        page: currentPage,
+        limit: MANAGER_PAGE_SIZE,
+        search: appliedFilters.search.trim() || undefined,
+        hubId:
+          appliedFilters.hubId !== "all" ? appliedFilters.hubId : undefined,
+        region:
+          appliedFilters.region !== "all" ? appliedFilters.region : undefined,
+        status,
+      }),
+      hubManagerService.stats(),
+      hubManagerService.listHubs(),
+    ])
+      .then(([result, nextStats, hubs]) => {
         if (!active) return;
         setManagers(result.data);
+        setMeta(result.meta);
+        setStats(nextStats);
+        setHubOptions(
+          hubs.map((hub) => ({
+            value: hub.id,
+            label: hub.name,
+            state: hub.state,
+          })),
+        );
         setFetchError(null);
       })
       .catch((error) => {
         if (!active) return;
         setFetchError(getApiErrorMessage(error));
+        setManagers([]);
       })
       .finally(() => {
         if (active) setIsLoading(false);
@@ -110,40 +145,35 @@ export function ManagersPageContent() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [appliedFilters, currentPage, refreshToken]);
 
-  const enrichedManagers = useMemo(
-    () =>
-      enrichManagersWithOps(managers, {
-        hubInventory: normalizeHubInventory(hubInventory),
-        requisitions,
-        transfers,
-        drivers,
-      }),
-    [managers, hubInventory, requisitions, transfers, drivers],
-  );
+  const cardManagers = useMemo(() => {
+    const start = (cardPage - 1) * MANAGER_CARDS_PAGE_SIZE;
+    return managers.slice(start, start + MANAGER_CARDS_PAGE_SIZE);
+  }, [managers, cardPage]);
 
-  const tableResult = useMemo(
-    () =>
-      queryManagers(enrichedManagers, {
-        page: currentPage,
-        limit: MANAGER_PAGE_SIZE,
-        filters: appliedFilters,
-      }),
-    [enrichedManagers, currentPage, appliedFilters],
-  );
+  const filterOptions = useMemo(() => {
+    const regions = [
+      ...new Map(
+        hubOptions
+          .filter((hub) => hub.state)
+          .map((hub) => [
+            hub.state,
+            { value: hub.state ?? "", label: hub.state ?? "" },
+          ]),
+      ).values(),
+    ];
+    return {
+      regions,
+      hubs: hubOptions,
+      statuses: [
+        { value: "ACTIVE", label: "Active" },
+        { value: "LEAVE", label: "Inactive / Leave" },
+      ],
+      warehouses: [] as Array<{ value: string; label: string }>,
+    };
+  }, [hubOptions]);
 
-  const cardResult = useMemo(
-    () =>
-      queryManagers(enrichedManagers, {
-        page: cardPage,
-        limit: MANAGER_CARDS_PAGE_SIZE,
-        filters: appliedFilters,
-      }),
-    [enrichedManagers, cardPage, appliedFilters],
-  );
-
-  const filterOptions = useMemo(() => getManagerFilterOptions(), []);
   const activeStatKey = getActiveStatKey(appliedFilters);
 
   const handleApplyFilters = useCallback(() => {
@@ -201,6 +231,7 @@ export function ManagersPageContent() {
           manager.id === managerId ? updated : manager,
         ),
       );
+      setRefreshToken((token) => token + 1);
       notify.success(
         "Manager Transferred",
         "Manager transferred successfully to new hub.",
@@ -222,6 +253,7 @@ export function ManagersPageContent() {
           manager.id === managerId ? updated : manager,
         ),
       );
+      setRefreshToken((token) => token + 1);
       notify.success(
         "Hub Assigned",
         `${updated.name} assigned to the selected hub.`,
@@ -237,6 +269,7 @@ export function ManagersPageContent() {
       setManagers((current) =>
         current.map((item) => (item.id === manager.id ? updated : item)),
       );
+      setRefreshToken((token) => token + 1);
       notify.success(
         "Manager Deactivated",
         `${manager.name} has been deactivated.`,
@@ -247,22 +280,37 @@ export function ManagersPageContent() {
   };
 
   const handleEdit = (manager: SubHubManager) => {
-    notify.success("Edit Manager", `Editing ${manager.name} — form opened.`);
+    router.push(`${ROUTES.SUB_HUB_MANAGERS}/${manager.id}`);
   };
 
-  const handleExport = () => {
-    notify.success("Export Started", "Manager list exported as CSV.");
+  const handleExport = async () => {
+    try {
+      const blob = await hubManagerService.exportCsv({
+        search: appliedFilters.search.trim() || undefined,
+        hubId:
+          appliedFilters.hubId !== "all" ? appliedFilters.hubId : undefined,
+        region:
+          appliedFilters.region !== "all" ? appliedFilters.region : undefined,
+        status:
+          appliedFilters.status === "ACTIVE"
+            ? "ACTIVE"
+            : appliedFilters.status === "LEAVE"
+              ? "INACTIVE"
+              : undefined,
+      });
+      downloadCsvFile(
+        `hub-managers-${new Date().toISOString().slice(0, 10)}.csv`,
+        blob,
+      );
+      notify.success("Export downloaded", "Manager list exported as CSV.");
+    } catch (error) {
+      notify.error("Export failed", getApiErrorMessage(error));
+    }
   };
 
   const handleRefresh = () => {
-    setIsLoading(true);
-    window.setTimeout(() => {
-      setIsLoading(false);
-      notify.success("Refreshed", "Manager data refreshed.");
-    }, 500);
+    setRefreshToken((token) => token + 1);
   };
-
-  const stats = tableResult.stats;
 
   return (
     <div className="space-y-6">
@@ -318,6 +366,21 @@ export function ManagersPageContent() {
       />
 
       <UserManagementTabs activeTab="sub-hub-managers" />
+
+      {fetchError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p>Unable to load hub managers.</p>
+          <p className="mt-1 text-xs opacity-80">{fetchError}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={handleRefresh}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
 
       {/* Summary cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -384,7 +447,7 @@ export function ManagersPageContent() {
             Manager Overview
           </h2>
           <span className="text-sm text-[#64748B]">
-            Showing {cardResult.data.length} of {cardResult.meta.total}
+            Showing {cardManagers.length} of {meta.total}
           </span>
         </div>
 
@@ -393,7 +456,7 @@ export function ManagersPageContent() {
             ? Array.from({ length: 4 }).map((_, i) => (
                 <ManagerCardSkeleton key={i} />
               ))
-            : cardResult.data.map((manager) => (
+            : cardManagers.map((manager) => (
                 <ManagerCard
                   key={manager.id}
                   manager={manager}
@@ -402,12 +465,12 @@ export function ManagersPageContent() {
               ))}
         </div>
 
-        {!isLoading && cardResult.meta.totalPages > 1 && (
+        {!isLoading && meta.total > MANAGER_CARDS_PAGE_SIZE && (
           <Pagination
-            currentPage={cardResult.meta.page}
-            totalPages={cardResult.meta.totalPages}
+            currentPage={cardPage}
+            totalPages={Math.max(1, Math.ceil(managers.length / MANAGER_CARDS_PAGE_SIZE))}
             pageSize={MANAGER_CARDS_PAGE_SIZE}
-            totalItems={cardResult.meta.total}
+            totalItems={managers.length}
             onPageChange={setCardPage}
             itemLabel="managers"
           />
@@ -439,7 +502,7 @@ export function ManagersPageContent() {
         />
 
         <ManagerTable
-          managers={tableResult.data}
+          managers={managers}
           isLoading={isLoading}
           onEdit={handleEdit}
           onTransfer={handleOpenTransfer}
@@ -447,10 +510,10 @@ export function ManagersPageContent() {
         />
 
         <Pagination
-          currentPage={tableResult.meta.page}
-          totalPages={tableResult.meta.totalPages}
-          pageSize={tableResult.meta.limit}
-          totalItems={tableResult.meta.total}
+          currentPage={meta.page}
+          totalPages={meta.totalPages}
+          pageSize={meta.limit}
+          totalItems={meta.total}
           onPageChange={setCurrentPage}
           itemLabel="managers"
         />
@@ -469,7 +532,7 @@ export function ManagersPageContent() {
       <AssignManagerHubDialog
         open={isAssignOpen}
         onClose={() => setIsAssignOpen(false)}
-        managers={enrichedManagers}
+        managers={managers}
         onAssign={handleAssignHub}
       />
     </div>

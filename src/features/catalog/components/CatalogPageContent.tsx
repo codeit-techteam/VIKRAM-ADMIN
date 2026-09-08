@@ -23,8 +23,27 @@ import { notify } from "@/utils/notify";
 const PAGE_SIZE = 10;
 
 function mapProduct(row: CatalogProduct): Product {
-  const price = Number(row.retailPrice ?? 0);
-  const stock = row.stockLeft ?? 0;
+  const activeVariants = (row.variants ?? []).filter(
+    (variant) => variant.isActive !== false,
+  );
+  const cheapest = [...activeVariants].sort((a, b) => {
+    const aPrice = Number(a.sellingPrice ?? a.price ?? 0);
+    const bPrice = Number(b.sellingPrice ?? b.price ?? 0);
+    return aPrice - bPrice;
+  })[0];
+  const price = cheapest
+    ? Number(cheapest.sellingPrice ?? cheapest.price ?? 0)
+    : Number(row.retailPrice ?? 0);
+  const priceUnit =
+    cheapest?.unit ||
+    cheapest?.sizeUnit ||
+    cheapest?.displayUnit ||
+    row.unit ||
+    "Bag";
+  const stock =
+    cheapest != null
+      ? activeVariants.reduce((sum, variant) => sum + (variant.stock ?? 0), 0)
+      : (row.stockLeft ?? 0);
   const isLive = row.entityStatus === "ACTIVE" && row.isVisible !== false;
   let status: Product["status"] = "DRAFT";
   if (isLive && stock <= 20 && stock > 0) status = "LOW_STOCK";
@@ -48,7 +67,7 @@ function mapProduct(row: CatalogProduct): Product {
     brand: row.brand || "—",
     category: row.category?.name || "Uncategorized",
     price,
-    priceUnit: row.unit || "Bag",
+    priceUnit,
     stockUnits: stock,
     status,
     isLive,

@@ -1244,7 +1244,7 @@ export const useWarehouseErpStore = create<WarehouseErpState>((set, get) => ({
         subtitle: "Products in warehouse catalog",
         icon: "inventory" as const,
         variant: "default" as const,
-        href: "/central-warehouse/products",
+        href: "/central-warehouse/inventory",
       },
       {
         id: "pending-requisitions",

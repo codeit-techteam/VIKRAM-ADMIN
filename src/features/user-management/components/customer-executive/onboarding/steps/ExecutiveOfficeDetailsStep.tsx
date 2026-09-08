@@ -1,6 +1,7 @@
 "use client";
 
 import { Briefcase, Info } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
 import { FormSectionCard } from "@/components/shared/FormSectionCard";
@@ -14,28 +15,39 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ExecutiveOnboardingSchema } from "@/features/user-management/schema/executive-onboarding.schema";
+import { BRANCH_OFFICE_OPTIONS } from "@/mock/executive-onboarding";
 import {
-  BRANCH_OFFICE_OPTIONS,
-  getReportingHubById,
-  REPORTING_HUB_OPTIONS,
-} from "@/mock/executive-onboarding";
+  hubManagerService,
+  type ApiHubOption,
+} from "@/services/hubManager.service";
 import { useExecutiveDraftStore } from "@/store/executive-draft-store";
 import { ExecutiveWizardPreview } from "../ExecutiveWizardPreview";
 import { FieldWrapper, StepHeader } from "./ExecutiveBasicInfoStep";
+import { notify } from "@/utils/notify";
 
 export function ExecutiveOfficeDetailsStep() {
   const { control } = useFormContext<ExecutiveOnboardingSchema>();
   const patchDraft = useExecutiveDraftStore((s) => s.patchDraft);
+  const [hubs, setHubs] = useState<ApiHubOption[]>([]);
+
+  useEffect(() => {
+    hubManagerService
+      .listHubs()
+      .then(setHubs)
+      .catch(() => {
+        notify.error("Unable to load hubs", "Hub list could not be fetched.");
+      });
+  }, []);
 
   const handleReportingHubChange = (hubId: string) => {
-    const hub = getReportingHubById(hubId);
+    const hub = hubs.find((item) => item.id === hubId);
     if (!hub) return;
     patchDraft({
       reportingHub: hubId,
       reportingHubName: hub.name,
-      reportingHubRegion: hub.region,
-      reportingHubDepartment: hub.department,
-      reportingHubBranch: hub.branch,
+      reportingHubRegion: hub.state,
+      reportingHubDepartment: "Customer Operations",
+      reportingHubBranch: hub.city,
     });
   };
 
@@ -170,9 +182,9 @@ export function ExecutiveOfficeDetailsStep() {
                       <SelectValue placeholder="Select reporting hub" />
                     </SelectTrigger>
                     <SelectContent>
-                      {REPORTING_HUB_OPTIONS.map((hub) => (
+                      {hubs.map((hub) => (
                         <SelectItem key={hub.id} value={hub.id}>
-                          {hub.name}
+                          {hub.name} · {hub.city}
                         </SelectItem>
                       ))}
                     </SelectContent>

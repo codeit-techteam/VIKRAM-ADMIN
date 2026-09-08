@@ -178,6 +178,22 @@ export const warehouseService = {
     return data;
   },
 
+  adjustInventory: async (payload: {
+    productId: string;
+    availableQty?: number;
+    reservedQty?: number;
+    lowStockThreshold?: number;
+    minimumStock?: number;
+    maximumStock?: number;
+    remarks?: string;
+  }): Promise<WarehouseInventoryRow> => {
+    const { data } = await api.patch<ApiResponse<WarehouseInventoryRow>>(
+      API_ENDPOINTS.WAREHOUSE.INVENTORY,
+      payload,
+    );
+    return data.data;
+  },
+
   listAllocations: async (
     params?: ListParams,
   ): Promise<{ data: MaterialAllocationItem[]; meta: PaginationMeta }> => {

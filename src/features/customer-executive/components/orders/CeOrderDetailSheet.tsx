@@ -90,7 +90,9 @@ export function CeOrderDetailSheet({
     (s) => s.loadOrderDetailFromApi,
   );
   const getOrder = useCustomerExecutiveStore((s) => s.getOrder);
+  const cancelOrder = useCustomerExecutiveStore((s) => s.cancelOrder);
   const [downloadingInvoice, setDownloadingInvoice] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     if (!open || !order?.id) return;
@@ -126,6 +128,21 @@ export function CeOrderDetailSheet({
       notify.error("Invoice unavailable", "Could not download order invoice");
     } finally {
       setDownloadingInvoice(false);
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    setCancelling(true);
+    try {
+      await cancelOrder(liveOrder.id, "Cancelled by customer executive");
+      notify.success("Order cancelled", liveOrder.orderNumber);
+    } catch (error) {
+      notify.error(
+        "Cancel failed",
+        error instanceof Error ? error.message : "Try again",
+      );
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -519,6 +536,18 @@ export function CeOrderDetailSheet({
             >
               <Download className="size-4" />
               Invoice PDF
+            </Button>
+          )}
+          {(liveOrder.rawBackendStatus === "PENDING" ||
+            liveOrder.rawBackendStatus === "CONFIRMED") && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              disabled={cancelling}
+              onClick={() => void handleCancelOrder()}
+            >
+              Cancel Order
             </Button>
           )}
           <Button

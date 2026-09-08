@@ -25,6 +25,8 @@ import type {
 
 interface NotificationHistoryTableProps {
   notifications: PushNotification[];
+  onSendDraft?: (id: string) => void;
+  sendingDraftId?: string | null;
 }
 
 const columnHelper = createColumnHelper<PushNotification>();
@@ -43,12 +45,23 @@ function getStatusBadgeProps(status: NotificationStatus): {
       className: "bg-blue-100 text-blue-700",
     };
   }
+  if (status === "QUEUED" || status === "SENDING") {
+    return { status, className: "bg-amber-100 text-amber-800" };
+  }
+  if (status === "PARTIALLY_SENT") {
+    return { status, className: "bg-orange-100 text-orange-700" };
+  }
+  if (status === "FAILED" || status === "CANCELLED") {
+    return { status, className: "bg-red-100 text-red-700" };
+  }
 
   return { status };
 }
 
 export function NotificationHistoryTable({
   notifications,
+  onSendDraft,
+  sendingDraftId,
 }: NotificationHistoryTableProps) {
   const columns = useMemo(
     () => [
@@ -121,7 +134,21 @@ export function NotificationHistoryTable({
           const notification = row.original;
 
           if (notification.status === "DRAFT") {
-            return <span className="text-sm text-gray-400">—</span>;
+            return (
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-400">Not sent</span>
+                {onSendDraft ? (
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-primary hover:underline disabled:opacity-50"
+                    disabled={sendingDraftId === notification.id}
+                    onClick={() => onSendDraft(notification.id)}
+                  >
+                    {sendingDraftId === notification.id ? "Queuing…" : "Send"}
+                  </button>
+                ) : null}
+              </div>
+            );
           }
 
           if (notification.status === "SCHEDULED") {
@@ -130,15 +157,37 @@ export function NotificationHistoryTable({
             );
           }
 
+          if (notification.status === "QUEUED" || notification.status === "SENDING") {
+            return (
+              <span className="text-sm text-[#64748B]">
+                {notification.status === "SENDING" ? "Sending…" : "Queued…"}
+              </span>
+            );
+          }
+
+          const recipients = notification.recipientCount ?? 0;
+          const sent = notification.sentCount ?? 0;
+          const failed = notification.failedCount ?? 0;
+          const opened = notification.openedCount ?? 0;
+          const openRate =
+            (notification.deliveredCount ?? 0) > 0
+              ? `${notification.openRatePercent ?? 0}%`
+              : "0%";
+
           return (
-            <span className="text-sm font-medium text-[#1A1A1A]">
-              {formatCount(notification.sentCount ?? 0)} sent
-            </span>
+            <div className="space-y-0.5 text-sm text-[#1A1A1A]">
+              <p className="font-medium">
+                Recipients {formatCount(recipients)} · Sent {formatCount(sent)}
+              </p>
+              <p className="text-[#64748B]">
+                Opened {formatCount(opened)} ({openRate}) · Failed {formatCount(failed)}
+              </p>
+            </div>
           );
         },
       }),
     ],
-    [],
+    [onSendDraft, sendingDraftId],
   );
 
   const table = useReactTable({

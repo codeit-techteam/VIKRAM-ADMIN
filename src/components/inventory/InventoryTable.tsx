@@ -51,6 +51,8 @@ interface InventoryTableProps {
   onPageChange: (page: number) => void;
   onViewItem?: (item: InventoryItem) => void;
   onEditItem?: (item: InventoryItem) => void;
+  onTransferItem?: (item: InventoryItem) => void;
+  onDeleteItem?: (item: InventoryItem) => void;
   header?: React.ReactNode;
 }
 
@@ -87,22 +89,27 @@ function InventoryRowActions({
   item,
   onView,
   onEdit,
+  onTransfer,
+  onDelete,
 }: {
   item: InventoryItem;
   onView?: (item: InventoryItem) => void;
   onEdit?: (item: InventoryItem) => void;
+  onTransfer?: (item: InventoryItem) => void;
+  onDelete?: (item: InventoryItem) => void;
 }) {
   return (
-    <div className="flex items-center justify-end gap-1">
+    <div
+      className="flex items-center justify-end gap-1"
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
       <Button
         type="button"
         variant="ghost"
         size="icon-sm"
         className="size-8 text-[#64748B] hover:text-[#1A1A1A]"
-        onClick={(event) => {
-          event.stopPropagation();
-          onView?.(item);
-        }}
+        onClick={() => onView?.(item)}
         aria-label={`View ${item.productName}`}
       >
         <Eye className="size-4" />
@@ -112,10 +119,7 @@ function InventoryRowActions({
         variant="ghost"
         size="icon-sm"
         className="size-8 text-[#64748B] hover:text-[#1A1A1A]"
-        onClick={(event) => {
-          event.stopPropagation();
-          onEdit?.(item);
-        }}
+        onClick={() => onEdit?.(item)}
         aria-label={`Edit ${item.productName}`}
       >
         <Pencil className="size-4" />
@@ -128,7 +132,6 @@ function InventoryRowActions({
               variant="ghost"
               size="icon-sm"
               className="size-8 text-[#64748B] hover:text-[#1A1A1A]"
-              onClick={(event) => event.stopPropagation()}
               aria-label={`More actions for ${item.productName}`}
             >
               <MoreHorizontal className="size-4" />
@@ -136,12 +139,19 @@ function InventoryRowActions({
           }
         />
         <DropdownMenuContent align="end" className="w-44">
-          <DropdownMenuItem disabled className="gap-2 text-[#64748B]">
+          <DropdownMenuItem
+            className="gap-2"
+            onClick={() => onTransfer?.(item)}
+          >
             <ArrowRightLeft className="size-4" />
             Transfer
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem disabled className="gap-2 text-red-500">
+          <DropdownMenuItem
+            variant="destructive"
+            className="gap-2"
+            onClick={() => onDelete?.(item)}
+          >
             <Trash2 className="size-4" />
             Delete
           </DropdownMenuItem>
@@ -160,6 +170,8 @@ export function InventoryTable({
   onPageChange,
   onViewItem,
   onEditItem,
+  onTransferItem,
+  onDeleteItem,
   header,
 }: InventoryTableProps) {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -253,11 +265,13 @@ export function InventoryTable({
             item={row.original}
             onView={onViewItem}
             onEdit={onEditItem}
+            onTransfer={onTransferItem}
+            onDelete={onDeleteItem}
           />
         ),
       }),
     ],
-    [onEditItem, onViewItem],
+    [onDeleteItem, onEditItem, onTransferItem, onViewItem],
   );
 
   const table = useReactTable({
@@ -319,7 +333,15 @@ export function InventoryTable({
                     onClick={() => onViewItem?.(row.original)}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="py-4">
+                      <TableCell
+                        key={cell.id}
+                        className="py-4"
+                        onClick={
+                          cell.column.id === "actions"
+                            ? (event) => event.stopPropagation()
+                            : undefined
+                        }
+                      >
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),

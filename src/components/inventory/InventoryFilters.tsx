@@ -14,6 +14,7 @@ interface InventoryFiltersProps {
   onAdvancedFilter?: () => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  hasActiveFilters?: boolean;
   trailingContent?: ReactNode;
 }
 
@@ -24,6 +25,7 @@ export function InventoryFilters({
   onAdvancedFilter,
   onRefresh,
   isRefreshing = false,
+  hasActiveFilters = false,
   trailingContent,
 }: InventoryFiltersProps) {
   return (
@@ -41,7 +43,12 @@ export function InventoryFilters({
             type="button"
             variant="outline"
             size="sm"
-            className="h-9 gap-2 border-gray-200 px-3 text-sm font-medium text-[#64748B]"
+            className={cn(
+              "h-9 gap-2 border-gray-200 px-3 text-sm font-medium",
+              hasActiveFilters
+                ? "border-primary text-primary"
+                : "text-[#64748B]",
+            )}
             onClick={onAdvancedFilter}
           >
             <Filter className="size-4" />

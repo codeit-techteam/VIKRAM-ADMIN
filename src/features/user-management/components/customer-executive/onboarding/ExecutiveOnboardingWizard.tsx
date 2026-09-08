@@ -191,20 +191,30 @@ export function ExecutiveOnboardingWizard() {
         throw new Error("Generate credentials before creating the executive.");
       }
 
+      const hubCandidate = data.assignedHubs?.[0] || data.reportingHub;
+      const hubId =
+        typeof hubCandidate === "string" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          hubCandidate,
+        )
+          ? hubCandidate
+          : undefined;
+
       const created = await createAdminUser({
         email: data.email,
         password: data.tempPassword,
         fullName: data.fullName,
         phone: data.phone,
         role: "CUSTOMER_EXECUTIVE",
+        hubId,
       });
 
       const result: CreateExecutiveResult = {
         id: created.id,
         employeeId: created.id.slice(0, 8).toUpperCase(),
         name: created.fullName,
-        hubName: "Not available",
-        region: "Not available",
+        hubName: created.assignedHubName ?? "Not assigned",
+        region: created.assignedHubState ?? "Not assigned",
         username: created.email,
         credentialsSent: false,
       };

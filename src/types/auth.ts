@@ -18,6 +18,14 @@ export interface User {
   sidebar?: SidebarNavItem[];
   phone?: string;
   isActive: boolean;
+  assignedHubId?: string | null;
+  assignedHub?: {
+    id: string;
+    name: string;
+    code: string;
+    city: string;
+    state: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -53,6 +61,10 @@ export function mapAdminUser(admin: {
   permissions?: string[];
   sidebar?: SidebarNavItem[];
   lastLoginAt?: string | null;
+  phone?: string | null;
+  isActive?: boolean;
+  assignedHubId?: string | null;
+  assignedHub?: User["assignedHub"];
 }): User {
   return {
     id: admin.id,
@@ -62,7 +74,10 @@ export function mapAdminUser(admin: {
     role: admin.role as Role,
     permissions: admin.permissions,
     sidebar: admin.sidebar,
-    isActive: true,
+    phone: admin.phone ?? undefined,
+    isActive: admin.isActive ?? true,
+    assignedHubId: admin.assignedHubId ?? null,
+    assignedHub: admin.assignedHub ?? null,
     createdAt: admin.lastLoginAt ?? new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

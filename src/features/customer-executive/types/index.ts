@@ -77,11 +77,26 @@ export interface CeCustomer {
   customerType: CustomerType;
   status: CustomerStatus;
   assignedExecutiveId: string;
+  assignedHubId?: string;
+  assignedHubName?: string;
   photoUrl?: string;
   creditLimit: number;
   lifetimePurchase: number;
   createdAt: string;
   lastOrderAt?: string;
+  lastLoginAt?: string;
+  orderCount?: number;
+  adminNotes?: string;
+  isMember?: boolean;
+}
+
+export interface CeProductVariant {
+  id: string;
+  label: string;
+  sku: string;
+  unit: string;
+  unitPrice: number;
+  inStock: boolean;
 }
 
 export interface CeProduct {
@@ -92,10 +107,12 @@ export interface CeProduct {
   unitPrice: number;
   imageUrl?: string;
   category: string;
+  variants?: CeProductVariant[];
 }
 
 export interface CeOrderItem {
   productId: string;
+  variantId?: string;
   productName: string;
   sku: string;
   unit: string;
@@ -284,6 +301,9 @@ export interface CeExecutiveProfile {
   phone: string;
   shift: string;
   avatarInitials: string;
+  assignedHubId?: string | null;
+  assignedHubName?: string | null;
+  isActive?: boolean;
 }
 
 export interface CeCustomerFilters {

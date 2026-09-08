@@ -39,43 +39,6 @@ function getStepIndex(step: TrackingStep): number {
   return -1;
 }
 
-function MapMock({ vehicleLabel }: { vehicleLabel: string }) {
-  return (
-    <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-gray-100">
-      <div className="absolute inset-0 bg-[linear-gradient(135deg,#f0f0f0_25%,transparent_25%),linear-gradient(225deg,#f0f0f0_25%,transparent_25%),linear-gradient(45deg,#f0f0f0_25%,transparent_25%),linear-gradient(315deg,#f0f0f0_25%,#e8e8e8_25%)] bg-[length:20px_20px]" />
-      <svg className="absolute inset-0 size-full" viewBox="0 0 400 300">
-        <path
-          d="M 50 200 Q 150 100 250 150 T 350 80"
-          fill="none"
-          stroke="#ff6b00"
-          strokeWidth="3"
-          strokeDasharray="8 4"
-        />
-        <circle cx="280" cy="120" r="8" fill="#ff6b00" />
-        <circle cx="350" cy="80" r="6" fill="#1A1A1A" />
-      </svg>
-      <div className="absolute top-1/3 left-2/3 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center">
-        <div className="bg-primary rounded-lg px-2 py-1 text-[10px] font-semibold text-white">
-          {vehicleLabel}
-        </div>
-        <Truck className="text-primary size-6" />
-      </div>
-      <div className="absolute right-4 bottom-4 left-4 rounded-lg bg-white/90 p-2 text-xs shadow-sm">
-        <div className="flex gap-4">
-          <span className="flex items-center gap-1">
-            <span className="bg-primary size-2 rounded-full" />
-            Vehicle Location
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="size-2 rounded-full bg-[#1A1A1A]" />
-            Delivery Point
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function CeTrackingPage() {
   const searchParams = useSearchParams();
   const initialOrder = searchParams.get("order") ?? "";
@@ -206,8 +169,8 @@ export function CeTrackingPage() {
                     <span className="text-primary text-lg font-bold">
                       #{liveOrder.orderNumber}
                     </span>
-                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-                      LIVE
+                    <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
+                      Tracking
                     </Badge>
                     <CeStatusBadge
                       status={liveOrder.status}
@@ -418,14 +381,26 @@ export function CeTrackingPage() {
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <MapPin className="size-4" />
-                  Real-time Location
+                  Location
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <MapMock vehicleLabel={vehicleNumber ?? "Vehicle"} />
+              <CardContent className="space-y-3">
+                <p className="text-sm text-[#64748B]">
+                  Live GPS is not available for this shipment. Status below is
+                  taken from the order timeline.
+                </p>
+                <div>
+                  <p className="text-xs text-[#64748B]">Delivery address</p>
+                  <p className="font-medium">{liveOrder.deliveryAddress}</p>
+                  {liveOrder.deliveryPincode ? (
+                    <p className="text-sm text-[#64748B]">
+                      PIN: {liveOrder.deliveryPincode}
+                    </p>
+                  ) : null}
+                </div>
               </CardContent>
             </Card>
           </div>

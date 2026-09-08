@@ -13,23 +13,26 @@ import type {
 } from "@/features/user-management/types/customer.types";
 
 /** Backend customer status -> UI status. */
-export function mapApiStatusToUiStatus(status: string): CustomerStatus {
+export function mapApiStatusToUiStatus(
+  status: string,
+  isVerified?: boolean,
+): CustomerStatus {
   switch (status) {
-    case "ACTIVE":
-      return "ACTIVE";
     case "SUSPENDED":
       return "BLOCKED";
     case "INACTIVE":
       return "INACTIVE";
+    case "ACTIVE":
+      return isVerified === false ? "PENDING_VERIFICATION" : "ACTIVE";
     default:
-      return "INACTIVE";
+      return isVerified === false ? "PENDING_VERIFICATION" : "INACTIVE";
   }
 }
 
-/** UI status -> backend status. */
+/** UI status -> backend list/write status. */
 export function mapUiStatusToApiStatus(
   status: string,
-): "ACTIVE" | "INACTIVE" | "SUSPENDED" | undefined {
+): "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING_VERIFICATION" | undefined {
   switch (status) {
     case "ACTIVE":
       return "ACTIVE";
@@ -37,6 +40,8 @@ export function mapUiStatusToApiStatus(
       return "INACTIVE";
     case "BLOCKED":
       return "SUSPENDED";
+    case "PENDING_VERIFICATION":
+      return "PENDING_VERIFICATION";
     default:
       return undefined;
   }
@@ -101,12 +106,18 @@ function mapOrders(
     const status = mapOrderStatus(String(order.orderStatus ?? "PENDING"));
     const createdAt = String(order.createdAt ?? new Date().toISOString());
 
+    const hub =
+      order.hub && typeof order.hub === "object"
+        ? (order.hub as { id?: unknown; name?: unknown })
+        : null;
+
     return {
       id,
       orderId: String(order.orderNumber ?? id),
       customerId,
       date: createdAt,
-      hubId: order.hubId ? String(order.hubId) : "",
+      hubId: hub?.id ? String(hub.id) : order.hubId ? String(order.hubId) : "",
+      hubName: hub?.name ? String(hub.name) : undefined,
       status,
       amount: toNumber(order.grandTotal),
       orderSource: "CUSTOMER_APP",
@@ -149,10 +160,10 @@ function defaultAddressFromDetail(detail: AdminCustomerDetail) {
 export function mapAdminCustomerToListItem(
   row: AdminCustomerListItem,
 ): CustomerListItem {
-  const status = mapApiStatusToUiStatus(row.status);
+  const status = mapApiStatusToUiStatus(row.status, row.isVerified);
   const name = row.name?.trim() || row.phone;
-  const hubName = row.assignedHubName ?? "—";
-  const executiveName = row.assignedExecutiveName ?? "—";
+  const hubName = row.assignedHubName?.trim() || "Not assigned";
+  const executiveName = row.assignedExecutiveName?.trim() || "Not assigned";
 
   return {
     id: row.id,
@@ -160,14 +171,14 @@ export function mapAdminCustomerToListItem(
     name,
     phone: row.phone,
     email: row.email ?? "",
-    customerType: "CONTRACTOR",
+    customerType: mapBusinessTypeToCustomerType(row.customerType),
     status,
     kycStatus: row.gst ? "VERIFIED" : "PENDING",
     registrationDate: row.createdAt,
     address: {
       primaryAddress: row.company ?? "",
-      city: "",
-      state: "",
+      city: row.city ?? "",
+      state: row.state ?? "",
       pincode: "",
     },
     activity: {
@@ -195,9 +206,8 @@ export function mapAdminCustomerToListItem(
     },
     company: row.company ?? undefined,
     gst: row.gst ?? undefined,
-    membership: row.membership ?? undefined,
     lastLogin: row.lastLogin ?? undefined,
-    walletBalance: row.wallet?.balance,
+    walletBalance: row.wallet?.balance ?? row.loyaltyPoints,
   };
 }
 
@@ -211,7 +221,10 @@ export function mapAdminCustomerToDetail(
     email: detail.email,
     company: detail.profile?.companyName ?? null,
     gst: detail.profile?.gstNumber ?? null,
-    membership: detail.memberships?.[0]?.plan?.name ?? null,
+    customerType: detail.profile?.businessType ?? null,
+    isVerified: detail.isVerified,
+    city: detail.addresses?.find((a) => a.isDefault)?.city ?? detail.addresses?.[0]?.city ?? null,
+    state: detail.addresses?.find((a) => a.isDefault)?.state ?? detail.addresses?.[0]?.state ?? null,
     status: detail.status,
     createdAt: detail.createdAt,
     lastLogin: detail.lastLogin,
@@ -278,11 +291,11 @@ export function mapAdminCustomerToDetail(
           executiveId: detail.assignedExecutiveId,
           executiveName:
             executiveName === "Not available" ? "—" : executiveName,
-          employeeId: "—",
+          employeeId: "Not available",
           hubId: detail.assignedHubId ?? "",
-          hubName: hubName === "Not available" ? "—" : hubName,
-          phone: "—",
-          email: "—",
+          hubName: hubName === "Not available" ? "Not assigned" : hubName,
+          phone: detail.assignedExecutivePhone ?? "Not available",
+          email: detail.assignedExecutiveEmail ?? "Not available",
           reason: "CUSTOMER_SUPPORT",
           priority: "MEDIUM",
           assignedDate: detail.updatedAt ?? detail.createdAt,

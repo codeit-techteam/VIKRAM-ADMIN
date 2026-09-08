@@ -2,6 +2,7 @@
 
 import { InventoryStatusBadge } from "@/components/inventory/InventoryStatusBadge";
 import { SafeRemoteImage } from "@/components/shared/SafeRemoteImage";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -16,11 +17,14 @@ import {
 } from "@/mock/inventory";
 import type { InventoryItem } from "@/types/inventory.types";
 import { cn } from "@/lib/utils";
+import { ArrowRightLeft, Pencil } from "lucide-react";
 
 interface InventoryDetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   item: InventoryItem | null;
+  onEdit?: (item: InventoryItem) => void;
+  onTransfer?: (item: InventoryItem) => void;
 }
 
 function Metric({
@@ -56,6 +60,8 @@ export function InventoryDetailSheet({
   open,
   onOpenChange,
   item,
+  onEdit,
+  onTransfer,
 }: InventoryDetailSheetProps) {
   const available = item ? getAvailableStock(item) : 0;
   const status = item ? getInventoryStockStatus(item) : "in-stock";
@@ -142,6 +148,32 @@ export function InventoryDetailSheet({
                 </div>
               </section>
             </div>
+
+            {onEdit || onTransfer ? (
+              <div className="flex items-center justify-end gap-2 border-t border-gray-100 p-5">
+                {onTransfer ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => onTransfer(item)}
+                  >
+                    <ArrowRightLeft className="size-4" />
+                    Transfer
+                  </Button>
+                ) : null}
+                {onEdit ? (
+                  <Button
+                    type="button"
+                    className="gap-2"
+                    onClick={() => onEdit(item)}
+                  >
+                    <Pencil className="size-4" />
+                    Edit Stock
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
           </>
         ) : null}
       </SheetContent>

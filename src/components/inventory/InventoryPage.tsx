@@ -4,7 +4,14 @@ import Link from "next/link";
 import { Calendar, Download, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { isAxiosError } from "axios";
 
+import { ConfirmationDialog } from "@/components/allocation/ConfirmationDialog";
+import { InventoryAdjustDialog } from "@/components/inventory/InventoryAdjustDialog";
+import {
+  InventoryAdvancedFilterDialog,
+  type InventoryAdvancedFilters,
+} from "@/components/inventory/InventoryAdvancedFilterDialog";
 import { InventoryDetailSheet } from "@/components/inventory/InventoryDetailSheet";
 import { InventoryFilters } from "@/components/inventory/InventoryFilters";
 import {
@@ -13,6 +20,7 @@ import {
 } from "@/components/inventory/InventoryStatsCard";
 import { InventoryTable } from "@/components/inventory/InventoryTable";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { CreateTransferDialog } from "@/components/transfers/CreateTransferDialog";
 import { Button } from "@/components/ui/button";
 import { getNavBreadcrumbsFromPath } from "@/constants/navigation.constants";
 import { ROUTES } from "@/constants/routes";
@@ -31,6 +39,14 @@ import type {
   InventoryStockStatus,
 } from "@/types/inventory.types";
 import { notify } from "@/utils/notify";
+
+function getApiErrorMessage(error: unknown, fallback: string): string {
+  if (isAxiosError<{ message?: string }>(error)) {
+    return error.response?.data?.message || error.message || fallback;
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
 
 const CLICKABLE_STATS: InventoryStatKey[] = [
   "inventory-items",
@@ -114,6 +130,14 @@ export function InventoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [inStockOnly, setInStockOnly] = useState(false);
 
   const loadInventory = useCallback(async (background = false) => {
     if (background) setIsRefreshing(true);
@@ -247,16 +271,23 @@ export function InventoryPage() {
   }, [activeCategory, inventoryItems]);
 
   const filteredItems = useMemo(() => {
-    const statusFilter = activeStat ? STAT_STATUS_MAP[activeStat] : undefined;
+    const statusFilter = inStockOnly
+      ? "in-stock"
+      : activeStat
+        ? STAT_STATUS_MAP[activeStat]
+        : undefined;
+    const query = searchQuery.trim().toLowerCase();
 
-    if (!statusFilter) {
-      return categoryFilteredItems;
-    }
-
-    return categoryFilteredItems.filter(
-      (item) => getInventoryStockStatus(item) === statusFilter,
-    );
-  }, [activeStat, categoryFilteredItems]);
+    return categoryFilteredItems.filter((item) => {
+      const matchesStatus =
+        !statusFilter || getInventoryStockStatus(item) === statusFilter;
+      const matchesSearch =
+        query.length === 0 ||
+        item.productName.toLowerCase().includes(query) ||
+        item.sku.toLowerCase().includes(query);
+      return matchesStatus && matchesSearch;
+    });
+  }, [activeStat, categoryFilteredItems, inStockOnly, searchQuery]);
 
   const paginatedItems = useMemo(() => {
     const start = (currentPage - 1) * INVENTORY_PAGE_SIZE;
@@ -287,12 +318,14 @@ export function InventoryPage() {
   const handleCategoryChange = (slug: InventoryCategoryFilter["slug"]) => {
     setActiveCategory(slug);
     setActiveStat(null);
+    setInStockOnly(false);
     setCurrentPage(1);
   };
 
   const handleStatClick = (statId: InventoryStatKey) => {
     if (!CLICKABLE_STATS.includes(statId)) return;
 
+    setInStockOnly(false);
     if (statId === "inventory-items") {
       setActiveStat(null);
     } else {
@@ -302,6 +335,126 @@ export function InventoryPage() {
   };
 
   const handleRefresh = () => void loadInventory(true);
+
+  const handleViewItem = (item: InventoryItem) => {
+    setSelectedItem(item);
+    setDetailOpen(true);
+  };
+
+  const handleEditItem = (item: InventoryItem) => {
+    setSelectedItem(item);
+    setDetailOpen(false);
+    setAdjustOpen(true);
+  };
+
+  const handleTransferItem = (item: InventoryItem) => {
+    setSelectedItem(item);
+    setDetailOpen(false);
+    setTransferOpen(true);
+  };
+
+  const handleDeleteItem = (item: InventoryItem) => {
+    setSelectedItem(item);
+    setDeleteOpen(true);
+  };
+
+  const handleAdjustConfirm = async (payload: {
+    availableQty: number;
+    minimumStock: number;
+    remarks: string;
+  }) => {
+    if (!selectedItem?.productId) {
+      notify.error("Unable to update inventory", "Product id is missing.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await warehouseService.adjustInventory({
+        productId: selectedItem.productId,
+        availableQty: payload.availableQty,
+        minimumStock: payload.minimumStock,
+        lowStockThreshold: payload.minimumStock,
+        remarks: payload.remarks,
+      });
+      notify.success(
+        "Inventory updated",
+        `${selectedItem.productName} stock was saved.`,
+      );
+      setSelectedItem((current) =>
+        current
+          ? {
+              ...current,
+              availableStock: payload.availableQty,
+              currentStock: payload.availableQty + current.committedStock,
+              minimumStock: payload.minimumStock,
+            }
+          : current,
+      );
+      setAdjustOpen(false);
+      await loadInventory(true);
+    } catch (error) {
+      notify.error(
+        "Unable to update inventory",
+        getApiErrorMessage(error, "Please try again."),
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedItem?.productId) {
+      notify.error("Unable to delete SKU", "Product id is missing.");
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await catalogService.deleteProduct(selectedItem.productId);
+      notify.success(
+        "SKU removed",
+        `${selectedItem.productName} was deleted from inventory.`,
+      );
+      setDeleteOpen(false);
+      setDetailOpen(false);
+      setSelectedItem(null);
+      await loadInventory(true);
+    } catch (error) {
+      notify.error(
+        "Unable to delete SKU",
+        getApiErrorMessage(error, "Please try again."),
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const advancedFilters: InventoryAdvancedFilters = {
+    search: searchQuery,
+    status: inStockOnly
+      ? "in-stock"
+      : ((activeStat ? STAT_STATUS_MAP[activeStat] : null) ?? "all"),
+  };
+
+  const handleApplyAdvancedFilters = (next: InventoryAdvancedFilters) => {
+    setSearchQuery(next.search);
+    setInStockOnly(next.status === "in-stock");
+    if (next.status === "low-stock") {
+      setActiveStat("low-stock-alerts");
+    } else if (next.status === "out-of-stock") {
+      setActiveStat("out-of-stock-items");
+    } else {
+      setActiveStat(null);
+    }
+    setCurrentPage(1);
+  };
+
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 ||
+    inStockOnly ||
+    activeStat === "low-stock-alerts" ||
+    activeStat === "out-of-stock-items";
 
   const handleExportCsv = async () => {
     try {
@@ -320,15 +473,6 @@ export function InventoryPage() {
         "Exported the currently loaded inventory instead.",
       );
     }
-  };
-
-  const handleViewItem = (item: InventoryItem) => {
-    setSelectedItem(item);
-    setDetailOpen(true);
-  };
-
-  const handleEditItem = (item: InventoryItem) => {
-    void item;
   };
 
   return (
@@ -402,14 +546,17 @@ export function InventoryPage() {
           onPageChange={setCurrentPage}
           onViewItem={handleViewItem}
           onEditItem={handleEditItem}
+          onTransferItem={handleTransferItem}
+          onDeleteItem={handleDeleteItem}
           header={
             <InventoryFilters
               categories={categoryFilters}
               activeCategory={activeCategory}
               onCategoryChange={handleCategoryChange}
-              onAdvancedFilter={() => {}}
+              onAdvancedFilter={() => setFilterOpen(true)}
               onRefresh={handleRefresh}
               isRefreshing={isRefreshing}
+              hasActiveFilters={hasActiveFilters}
             />
           }
         />
@@ -419,6 +566,42 @@ export function InventoryPage() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         item={selectedItem}
+        onEdit={handleEditItem}
+        onTransfer={handleTransferItem}
+      />
+
+      <InventoryAdjustDialog
+        open={adjustOpen}
+        onOpenChange={setAdjustOpen}
+        item={selectedItem}
+        isSubmitting={isSaving}
+        onConfirm={(payload) => void handleAdjustConfirm(payload)}
+      />
+
+      <InventoryAdvancedFilterDialog
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        value={advancedFilters}
+        onApply={handleApplyAdvancedFilters}
+      />
+
+      <CreateTransferDialog
+        open={transferOpen}
+        onOpenChange={setTransferOpen}
+      />
+
+      <ConfirmationDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete this SKU?"
+        message={
+          selectedItem
+            ? `“${selectedItem.productName}” will be removed from the catalog and warehouse inventory.`
+            : "This SKU will be removed from inventory."
+        }
+        confirmLabel="Delete"
+        isSubmitting={isDeleting}
+        onConfirm={() => void handleDeleteConfirm()}
       />
     </div>
   );

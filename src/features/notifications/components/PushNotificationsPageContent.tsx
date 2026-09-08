@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   BellRing,
@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
+import axios from "axios";
 
 import {
   CharCounterInput,
@@ -39,12 +40,7 @@ import {
 } from "@/components/ui/select";
 import { AudienceSelector } from "@/features/notifications/components/AudienceSelector";
 import { NotificationHistoryTable } from "@/features/notifications/components/NotificationHistoryTable";
-import {
-  DEEP_LINK_CATEGORY_OPTIONS,
-  DEEP_LINK_OFFER_OPTIONS,
-  DEEP_LINK_OPTIONS,
-  DEEP_LINK_PRODUCT_OPTIONS,
-} from "@/features/notifications/constants/notification.mock";
+import { DEEP_LINK_OPTIONS } from "@/features/notifications/constants/notification.mock";
 import {
   pushNotificationSchema,
   type PushNotificationSchema,
@@ -53,6 +49,7 @@ import type {
   AudienceType,
   DeepLinkTarget,
   DeliveryMode,
+  PushComposerOptions,
   PushNotification,
   PushNotificationStats,
 } from "@/features/notifications/types/notification.types";
@@ -68,12 +65,23 @@ const DELIVERY_OPTIONS: { value: DeliveryMode; label: string }[] = [
   { value: "scheduled", label: "Schedule for Later" },
 ];
 
+const LIVE_STATUSES = new Set(["QUEUED", "SENDING"]);
+
 function formatSubscriberCount(value: number): string {
   if (value >= 1000) {
     return `${(value / 1000).toFixed(1)}K`;
   }
-
   return value.toString();
+}
+
+function apiErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    const payload = error.response?.data as
+      | { message?: string; error?: string }
+      | undefined;
+    return payload?.message || payload?.error || error.message || fallback;
+  }
+  return error instanceof Error ? error.message : fallback;
 }
 
 export function PushNotificationsPageContent() {
@@ -86,7 +94,12 @@ export function PushNotificationsPageContent() {
   const imagePreviewUrlRef = useRef<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [sendingDraftId, setSendingDraftId] = useState<string | null>(null);
   const [history, setHistory] = useState<PushNotification[]>([]);
+  const [composerOptions, setComposerOptions] =
+    useState<PushComposerOptions | null>(null);
   const [stats, setStats] = useState<PushNotificationStats>({
     totalSentThisMonth: 0,
     avgOpenRatePercent: 0,
@@ -94,7 +107,7 @@ export function PushNotificationsPageContent() {
     scheduledCount: 0,
   });
 
-  const { control, handleSubmit, watch, setValue, reset } =
+  const { control, handleSubmit, watch, setValue, reset, getValues } =
     useForm<PushNotificationSchema>({
       resolver: zodResolver(pushNotificationSchema),
       defaultValues: {
@@ -114,18 +127,19 @@ export function PushNotificationsPageContent() {
   const deliveryMode = watch("deliveryMode");
 
   const loadData = useCallback(async () => {
-    setIsLoading(true);
     try {
-      const [historyData, statsData] = await Promise.all([
+      const [historyData, statsData, options] = await Promise.all([
         notificationsService.getHistory(),
         notificationsService.getStats(),
+        notificationsService.getOptions().catch(() => null),
       ]);
       setHistory(historyData);
       setStats(statsData);
+      if (options) setComposerOptions(options);
     } catch (error) {
       notify.error(
         "Failed to load notifications",
-        error instanceof Error ? error.message : "Please try again.",
+        apiErrorMessage(error, "Please try again."),
       );
     } finally {
       setIsLoading(false);
@@ -135,6 +149,15 @@ export function PushNotificationsPageContent() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    const hasLive = history.some((row) => LIVE_STATUSES.has(row.status));
+    if (!hasLive) return;
+    const timer = window.setInterval(() => {
+      void loadData();
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [history, loadData]);
 
   const scrollToComposer = () => {
     composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -185,28 +208,35 @@ export function PushNotificationsPageContent() {
     };
   }, []);
 
-  const onSubmit = async (data: PushNotificationSchema) => {
-    if (data.deliveryMode === "scheduled") {
-      notify.error(
-        "Scheduling not supported",
-        "The notifications API sends immediately. Choose Send Now.",
-      );
-      return;
-    }
+  const uploadImageIfNeeded = async (): Promise<string | undefined> => {
+    if (!imageFile) return undefined;
+    const uploaded = await uploadMediaFile(imageFile, "thumbnails", {
+      onProgress: (percent) => {
+        setUploadFile({ name: imageFile.name, progress: percent });
+      },
+    });
+    return uploaded.publicUrl;
+  };
 
+  const resetComposer = () => {
+    reset({
+      title: "",
+      message: "",
+      imageUrl: undefined,
+      audienceType: "all",
+      audienceTargets: [],
+      deepLinkTarget: "home",
+      deepLinkValue: "",
+      deliveryMode: "now",
+      scheduledAt: "",
+    });
+    handleImageChange(null);
+  };
+
+  const onSubmit = async (data: PushNotificationSchema) => {
     setIsSubmitting(true);
     try {
-      // Backend Notification model has no image field — upload is optional/future-ready.
-      let imageUrl: string | undefined;
-      if (imageFile) {
-        const uploaded = await uploadMediaFile(imageFile, "thumbnails", {
-          onProgress: (percent) => {
-            setUploadFile({ name: imageFile.name, progress: percent });
-          },
-        });
-        imageUrl = uploaded.publicUrl;
-      }
-
+      const imageUrl = await uploadImageIfNeeded();
       const result = await notificationsService.send({
         title: data.title,
         message: data.message,
@@ -215,46 +245,123 @@ export function PushNotificationsPageContent() {
         deepLinkTarget: data.deepLinkTarget,
         deepLinkValue: data.deepLinkValue,
         imageUrl,
+        deliveryMode: data.deliveryMode,
+        scheduledAt: data.scheduledAt,
       });
 
-      notify.success(
-        "Notification sent",
-        result.sentTo != null
-          ? `Delivered to ${result.sentTo.toLocaleString("en-IN")} customers.`
-          : "Notification created successfully.",
-      );
+      if (result.status === "QUEUED") {
+        notify.success(
+          "Notification queued successfully",
+          "Delivery is running in the background. History will update live.",
+        );
+      } else if (result.status === "SCHEDULED") {
+        notify.success("Notification scheduled", result.scheduledAt ?? "");
+      } else {
+        notify.success(
+          "Notification sent",
+          `Sent ${result.totalSent.toLocaleString("en-IN")} · Failed ${result.totalFailed.toLocaleString("en-IN")}`,
+        );
+      }
 
-      reset({
-        title: "",
-        message: "",
-        imageUrl: undefined,
-        audienceType: "all",
-        audienceTargets: [],
-        deepLinkTarget: "home",
-        deepLinkValue: "",
-        deliveryMode: "now",
-        scheduledAt: "",
-      });
-      handleImageChange(null);
+      resetComposer();
       await loadData();
     } catch (error) {
-      notify.error(
-        "Send failed",
-        error instanceof Error ? error.message : "Unable to send notification.",
-      );
+      notify.error("Send failed", apiErrorMessage(error, "Unable to send notification."));
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const deepLinkSecondaryOptions =
-    deepLinkTarget === "product"
-      ? DEEP_LINK_PRODUCT_OPTIONS
-      : deepLinkTarget === "offer"
-        ? DEEP_LINK_OFFER_OPTIONS
-        : deepLinkTarget === "category"
-          ? DEEP_LINK_CATEGORY_OPTIONS
-          : [];
+  const onSaveDraft = async () => {
+    const data = getValues();
+    if (!data.title.trim() || !data.message.trim()) {
+      notify.error("Draft incomplete", "Title and message are required.");
+      return;
+    }
+    setIsSavingDraft(true);
+    try {
+      const imageUrl = await uploadImageIfNeeded();
+      await notificationsService.send({
+        ...data,
+        imageUrl,
+        saveAsDraft: true,
+      });
+      notify.success("Draft saved", "This notification was not sent.");
+      resetComposer();
+      await loadData();
+    } catch (error) {
+      notify.error("Draft failed", apiErrorMessage(error, "Unable to save draft."));
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  const onSendDraft = async (id: string) => {
+    setSendingDraftId(id);
+    try {
+      await notificationsService.sendDraft(id);
+      notify.success(
+        "Notification queued successfully",
+        "Delivery is running in the background. History will update live.",
+      );
+      await loadData();
+    } catch (error) {
+      notify.error(
+        "Send failed",
+        apiErrorMessage(error, "Unable to send this draft."),
+      );
+    } finally {
+      setSendingDraftId(null);
+    }
+  };
+
+  const onSendTest = async () => {
+    const data = getValues();
+    if (!data.title.trim() || !data.message.trim()) {
+      notify.error("Test incomplete", "Title and message are required.");
+      return;
+    }
+    setIsTesting(true);
+    try {
+      const imageUrl = await uploadImageIfNeeded();
+      const result = await notificationsService.sendTest({
+        title: data.title,
+        message: data.message,
+        imageUrl,
+        deepLinkTarget: data.deepLinkTarget,
+        deepLinkValue: data.deepLinkValue,
+      });
+      if (result.sent <= 0) {
+        notify.error(
+          "Test not delivered",
+          result.fcmConfigured
+            ? "FCM rejected the test device token."
+            : "Firebase is not configured on the server.",
+        );
+        return;
+      }
+      notify.success(
+        "Test sent",
+        `Delivered to ${result.sent} registered device${result.sent === 1 ? "" : "s"}.`,
+      );
+    } catch (error) {
+      notify.error(
+        "Test failed",
+        apiErrorMessage(error, "No registered device found for test notification."),
+      );
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const deepLinkSecondaryOptions = useMemo(() => {
+    if (deepLinkTarget === "product") return composerOptions?.products ?? [];
+    if (deepLinkTarget === "offer") return composerOptions?.offers ?? [];
+    if (deepLinkTarget === "category") return composerOptions?.categories ?? [];
+    return [];
+  }, [composerOptions, deepLinkTarget]);
+
+  const busy = isSubmitting || isSavingDraft || isTesting;
 
   return (
     <div className="space-y-6">
@@ -304,7 +411,7 @@ export function PushNotificationsPageContent() {
           value={
             stats.avgOpenRatePercent > 0
               ? `${stats.avgOpenRatePercent}%`
-              : "—"
+              : "0%"
           }
           icon={BellRing}
           iconContainerClassName="bg-emerald-50"
@@ -382,7 +489,7 @@ export function PushNotificationsPageContent() {
                 <Label className={fieldLabelClassName}>
                   Notification Image{" "}
                   <span className="font-normal tracking-normal text-gray-400 normal-case">
-                    (Optional — stored in R2; not yet attached by API)
+                    (Optional — uploaded to R2)
                   </span>
                 </Label>
                 <FileDropzone
@@ -413,6 +520,7 @@ export function PushNotificationsPageContent() {
                       <AudienceSelector
                         audienceType={audienceField.value as AudienceType}
                         audienceTargets={targetsField.value ?? []}
+                        options={composerOptions}
                         onAudienceTypeChange={(value) => {
                           audienceField.onChange(value);
                           targetsField.onChange([]);
@@ -453,14 +561,18 @@ export function PushNotificationsPageContent() {
                   )}
                 />
 
-                {deepLinkTarget === "custom_url" ? (
+                {deepLinkTarget === "custom_url" || deepLinkTarget === "order" ? (
                   <Controller
                     name="deepLinkValue"
                     control={control}
                     render={({ field }) => (
                       <Input
                         {...field}
-                        placeholder="https://bajriwala.in/offers/monsoon-sale"
+                        placeholder={
+                          deepLinkTarget === "order"
+                            ? "Order ID"
+                            : "https://bajriwala.in/offers/monsoon-sale"
+                        }
                       />
                     )}
                   />
@@ -480,7 +592,7 @@ export function PushNotificationsPageContent() {
                         </SelectTrigger>
                         <SelectContent>
                           {deepLinkSecondaryOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
+                            <SelectItem key={option.id} value={option.id}>
                               {option.label}
                             </SelectItem>
                           ))}
@@ -527,10 +639,6 @@ export function PushNotificationsPageContent() {
                             {...field}
                           />
                         </div>
-                        <p className="text-xs text-amber-600">
-                          Scheduling is not available on the current API —
-                          notifications are sent immediately.
-                        </p>
                       </div>
                     )}
                   />
@@ -542,25 +650,29 @@ export function PushNotificationsPageContent() {
                   type="button"
                   variant="outline"
                   className="sm:flex-1"
-                  disabled
+                  disabled={busy}
+                  onClick={() => void onSaveDraft()}
                 >
-                  Save as Draft
+                  {isSavingDraft ? "Saving..." : "Save as Draft"}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   className="sm:flex-1"
-                  disabled
+                  disabled={busy}
+                  onClick={() => void onSendTest()}
                 >
-                  Send Test to Me
+                  {isTesting ? "Sending test..." : "Send Test to Me"}
                 </Button>
                 <Button
                   type="submit"
                   className="sm:flex-1"
-                  disabled={isSubmitting}
+                  disabled={busy}
                 >
                   {isSubmitting
-                    ? "Sending..."
+                    ? deliveryMode === "scheduled"
+                      ? "Scheduling..."
+                      : "Queued..."
                     : deliveryMode === "scheduled"
                       ? "Schedule Notification"
                       : "Send Notification"}
@@ -582,7 +694,7 @@ export function PushNotificationsPageContent() {
                 Notification History
               </h2>
               <p className="mt-1 text-sm text-[#64748B]">
-                Recent broadcasts and announcements from the API.
+                Live campaign status, audience, and delivery stats.
               </p>
             </div>
           </div>
@@ -597,7 +709,11 @@ export function PushNotificationsPageContent() {
               No notifications yet. Send your first broadcast above.
             </p>
           ) : (
-            <NotificationHistoryTable notifications={history} />
+            <NotificationHistoryTable
+              notifications={history}
+              onSendDraft={onSendDraft}
+              sendingDraftId={sendingDraftId}
+            />
           )}
         </div>
       ) : null}

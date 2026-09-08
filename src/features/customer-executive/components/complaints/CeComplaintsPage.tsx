@@ -63,6 +63,7 @@ export function CeComplaintsPage() {
   const complaintsError = useCustomerExecutiveStore((s) => s.complaintsError);
   const queryComplaints = useCustomerExecutiveStore((s) => s.queryComplaints);
   const complaints = useCustomerExecutiveStore((s) => s.complaints);
+  const complaintsStats = useCustomerExecutiveStore((s) => s.complaintsStats);
   const currentExecutive = useCustomerExecutiveStore((s) => s.currentExecutive);
   const updateComplaintStatus = useCustomerExecutiveStore(
     (s) => s.updateComplaintStatus,
@@ -131,12 +132,12 @@ export function CeComplaintsPage() {
 
   const stats = useMemo(
     () => ({
-      open: complaints.filter((c) => c.status === "OPEN").length,
-      inProgress: complaints.filter((c) => c.status === "IN_PROGRESS").length,
-      resolved: complaints.filter((c) => c.status === "RESOLVED").length,
-      escalated: complaints.filter((c) => c.status === "ESCALATED").length,
+      open: complaintsStats?.open ?? 0,
+      inProgress: complaintsStats?.inProgress ?? 0,
+      resolved: complaintsStats?.resolvedToday ?? 0,
+      escalated: complaintsStats?.escalated ?? 0,
     }),
-    [complaints],
+    [complaintsStats],
   );
 
   const escalationNotif = notifications.find(

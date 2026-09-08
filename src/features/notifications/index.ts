@@ -2,14 +2,7 @@ export { AudienceSelector } from "./components/AudienceSelector";
 export { NotificationHistoryTable } from "./components/NotificationHistoryTable";
 export { PhoneNotificationPreview } from "./components/PhoneNotificationPreview";
 export { PushNotificationsPageContent } from "./components/PushNotificationsPageContent";
-export {
-  AUDIENCE_CITY_HUB_OPTIONS,
-  AUDIENCE_SEGMENT_OPTIONS,
-  DEEP_LINK_CATEGORY_OPTIONS,
-  DEEP_LINK_OFFER_OPTIONS,
-  DEEP_LINK_OPTIONS,
-  DEEP_LINK_PRODUCT_OPTIONS,
-} from "./constants/notification.mock";
+export { DEEP_LINK_OPTIONS } from "./constants/notification.mock";
 export {
   pushNotificationSchema,
   type PushNotificationSchema,

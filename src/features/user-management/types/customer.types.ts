@@ -180,10 +180,9 @@ export interface CustomerRecord {
   blockReason?: CustomerBlockReason;
   blockedAt?: string;
   supportExecutiveAssignment?: SupportExecutiveAssignment;
-  /** Real-backend-only fields (admin customers API). Optional so mock data keeps working. */
+  /** Admin customers API fields. */
   company?: string | null;
   gst?: string | null;
-  membership?: string | null;
   lastLogin?: string | null;
   walletBalance?: number;
 }
@@ -195,6 +194,7 @@ export interface CustomerOrder {
   customerName?: string;
   date: string;
   hubId: string;
+  hubName?: string;
   status: CustomerOrderStatus;
   amount: number;
   orderSource: OrderSource;

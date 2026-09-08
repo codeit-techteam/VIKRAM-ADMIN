@@ -75,11 +75,13 @@ export function mapApiManagerToSubHubManager(
 }
 
 export const hubManagerService = {
-  list: async (params?: {
+    list: async (params?: {
     page?: number;
     limit?: number;
     search?: string;
     hubId?: string;
+    region?: string;
+    status?: string;
   }): Promise<PaginatedResponse<SubHubManager>> => {
     const { data } = await api.get<
       ApiResponse<{
@@ -91,6 +93,36 @@ export const hubManagerService = {
       data: data.data.data.map(mapApiManagerToSubHubManager),
       meta: data.data.meta,
     };
+  },
+
+  stats: async (): Promise<{
+    totalManagers: number;
+    managersAvailable: number;
+    managersOnLeave: number;
+    managersNeedAttention: number;
+  }> => {
+    const { data } = await api.get<
+      ApiResponse<{
+        totalManagers: number;
+        managersAvailable: number;
+        managersOnLeave: number;
+        managersNeedAttention: number;
+      }>
+    >(API_ENDPOINTS.HUB_MANAGERS.STATS);
+    return data.data;
+  },
+
+  exportCsv: async (params?: {
+    search?: string;
+    hubId?: string;
+    region?: string;
+    status?: string;
+  }): Promise<Blob> => {
+    const { data } = await api.get<Blob>(API_ENDPOINTS.HUB_MANAGERS.EXPORT, {
+      params,
+      responseType: "blob",
+    });
+    return data;
   },
 
   getById: async (id: string): Promise<SubHubManager> => {

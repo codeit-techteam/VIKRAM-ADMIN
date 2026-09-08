@@ -18,6 +18,9 @@ export const pushNotificationSchema = z
       "product",
       "offer",
       "category",
+      "order",
+      "cart",
+      "notifications",
       "custom_url",
     ]),
     deepLinkValue: z.string().optional(),
@@ -39,6 +42,15 @@ export const pushNotificationSchema = z
       Boolean(data.deepLinkValue && data.deepLinkValue.length > 0),
     {
       message: "Custom URL is required",
+      path: ["deepLinkValue"],
+    },
+  )
+  .refine(
+    (data) =>
+      !["product", "offer", "category", "order"].includes(data.deepLinkTarget) ||
+      Boolean(data.deepLinkValue && data.deepLinkValue.length > 0),
+    {
+      message: "Select a destination",
       path: ["deepLinkValue"],
     },
   );

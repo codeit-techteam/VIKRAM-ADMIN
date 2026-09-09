@@ -66,6 +66,24 @@ const UNIT_PLACEHOLDERS: Partial<Record<VariantAttribute, string>> = {
   Capacity: "e.g. L",
 };
 
+function numberFieldText(value: number) {
+  return value === 0 ? "" : String(value);
+}
+
+function parseNumberField(raw: string) {
+  if (raw.trim() === "") return 0;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function sanitizeNumberFieldText(raw: string) {
+  if (raw.trim() === "") return "";
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) return raw;
+  if (parsed === 0 && !raw.includes(".")) return "";
+  return raw;
+}
+
 export function VariantFormDialog({
   open,
   attribute,
@@ -86,18 +104,24 @@ export function VariantFormDialog({
         price: defaultPrice,
       }),
   );
+  const [mrpText, setMrpText] = useState(() => numberFieldText(draft.mrp));
+  const [priceText, setPriceText] = useState(() => numberFieldText(draft.price));
+  const [stockText, setStockText] = useState(() => numberFieldText(draft.stock));
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    setDraft(
+    const next =
       initial ??
-        createEmptyVariant(0, {
-          unit: defaultUnit,
-          mrp: defaultMrp,
-          price: defaultPrice,
-        }),
-    );
+      createEmptyVariant(0, {
+        unit: defaultUnit,
+        mrp: defaultMrp,
+        price: defaultPrice,
+      });
+    setDraft(next);
+    setMrpText(numberFieldText(next.mrp));
+    setPriceText(numberFieldText(next.price));
+    setStockText(numberFieldText(next.stock));
     setError(null);
   }, [open, initial, defaultUnit, defaultMrp, defaultPrice]);
 
@@ -226,9 +250,17 @@ export function VariantFormDialog({
               <Input
                 type="number"
                 min={0}
-                value={draft.mrp}
-                onChange={(event) =>
-                  setField("mrp", Number(event.target.value) || 0)
+                inputMode="decimal"
+                placeholder="e.g. 99"
+                value={mrpText}
+                onFocus={(event) => event.target.select()}
+                onChange={(event) => {
+                  const raw = event.target.value;
+                  setMrpText(sanitizeNumberFieldText(raw));
+                  setField("mrp", parseNumberField(raw));
+                }}
+                onBlur={(event) =>
+                  setMrpText(numberFieldText(parseNumberField(event.target.value)))
                 }
               />
             </div>
@@ -237,9 +269,19 @@ export function VariantFormDialog({
               <Input
                 type="number"
                 min={0}
-                value={draft.price}
-                onChange={(event) =>
-                  setField("price", Number(event.target.value) || 0)
+                inputMode="decimal"
+                placeholder="e.g. 89"
+                value={priceText}
+                onFocus={(event) => event.target.select()}
+                onChange={(event) => {
+                  const raw = event.target.value;
+                  setPriceText(sanitizeNumberFieldText(raw));
+                  setField("price", parseNumberField(raw));
+                }}
+                onBlur={(event) =>
+                  setPriceText(
+                    numberFieldText(parseNumberField(event.target.value)),
+                  )
                 }
               />
             </div>
@@ -265,9 +307,19 @@ export function VariantFormDialog({
               <Input
                 type="number"
                 min={0}
-                value={draft.stock}
-                onChange={(event) =>
-                  setField("stock", Math.max(0, Number(event.target.value) || 0))
+                inputMode="numeric"
+                placeholder="e.g. 10"
+                value={stockText}
+                onFocus={(event) => event.target.select()}
+                onChange={(event) => {
+                  const raw = event.target.value;
+                  setStockText(sanitizeNumberFieldText(raw));
+                  setField("stock", parseNumberField(raw));
+                }}
+                onBlur={(event) =>
+                  setStockText(
+                    numberFieldText(parseNumberField(event.target.value)),
+                  )
                 }
               />
             </div>

@@ -36,6 +36,7 @@ export const PRODUCT_FORM_DEFAULT_VALUES: ProductFormSchema = {
   grade: "",
   description: "",
   images: [],
+  video: null,
   unit: "Bag",
   mrp: 0,
   sellingPrice: 0,

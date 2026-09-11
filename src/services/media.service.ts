@@ -24,6 +24,7 @@ export type MediaFolder =
   | "offers"
   | "products"
   | "products/gallery"
+  | "products/video"
   | "categories"
   | "brands"
   | "testimonials"

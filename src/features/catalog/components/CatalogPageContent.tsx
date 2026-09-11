@@ -14,6 +14,7 @@ import { ProductTable } from "@/features/catalog/components/ProductTable";
 import type { Product } from "@/features/catalog/types/product.types";
 import {
   catalogService,
+  isProductVideoMedia,
   type CatalogCategory,
   type CatalogProduct,
 } from "@/services/catalog.service";
@@ -49,11 +50,14 @@ function mapProduct(row: CatalogProduct): Product {
   if (isLive && stock <= 20 && stock > 0) status = "LOW_STOCK";
   else if (isLive) status = "LIVE";
 
-  const urls = (row.images ?? [])
+  const imageRows = (row.images ?? []).filter(
+    (img) => !isProductVideoMedia(img),
+  );
+  const urls = imageRows
     .map((img) => img.url?.trim())
     .filter((url): url is string => Boolean(url) && url.startsWith("http"));
   const primary =
-    row.images?.find((img) => img.isPrimary && img.url?.startsWith("http"))
+    imageRows.find((img) => img.isPrimary && img.url?.startsWith("http"))
       ?.url ||
     urls.find((url) => url.includes("r2.dev")) ||
     urls[0] ||

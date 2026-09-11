@@ -32,11 +32,39 @@ export interface CatalogProductVariant {
   displayOrder?: number;
 }
 
+/** Marker stored in altText when production backend has no VIDEO media type yet. */
+export const PRODUCT_VIDEO_ALT = "PRODUCT_VIDEO";
+
+export function isProductVideoMedia(input: {
+  url?: string | null;
+  type?: string | null;
+  mimeType?: string | null;
+  altText?: string | null;
+}): boolean {
+  if (input.type === "VIDEO") return true;
+  const alt = input.altText?.trim().toUpperCase();
+  if (alt === PRODUCT_VIDEO_ALT || alt === "__PRODUCT_VIDEO__" || alt === "VIDEO") {
+    return true;
+  }
+  if (input.mimeType?.toLowerCase().startsWith("video/")) return true;
+  const url = input.url?.trim() ?? "";
+  const path = url.split("?")[0].split("#")[0].toLowerCase();
+  if (/\.(mp4|webm|mov|m4v)$/.test(path)) return true;
+  if (path.includes("/videos/") || path.includes("/products/video/")) return true;
+  return false;
+}
+
 export interface CatalogProductImage {
   id: string;
   url: string;
+  type?: "IMAGE" | "VIDEO";
+  altText?: string | null;
   isPrimary?: boolean;
   displayOrder?: number;
+  storageKey?: string | null;
+  mimeType?: string | null;
+  fileSize?: number | null;
+  thumbnailUrl?: string | null;
 }
 
 export interface CatalogProduct {
@@ -287,13 +315,91 @@ export const catalogService = {
 
   setImages: async (
     id: string,
-    images: Array<{ url: string; isPrimary?: boolean }>,
+    images: Array<{
+      url: string;
+      isPrimary?: boolean;
+      altText?: string;
+      storageKey?: string;
+      mimeType?: string;
+      fileSize?: number;
+    }>,
   ) => {
-    const { data } = await api.patch<ApiResponse<CatalogProduct>>(
-      `${API_ENDPOINTS.PRODUCTS.BY_ID(id)}/images`,
-      { images },
-    );
-    return data.data;
+    // Production DO currently accepts only url / altText / isPrimary
+    // (forbidNonWhitelisted). Drop extra media fields so gallery save works.
+    const compatibleImages = images.map((img) => ({
+      url: img.url,
+      isPrimary: img.isPrimary,
+      ...(img.altText ? { altText: img.altText } : {}),
+    }));
+    return patchDroppingUnknownProperties(async (body) => {
+      const { data } = await api.patch<ApiResponse<CatalogProduct>>(
+        `${API_ENDPOINTS.PRODUCTS.BY_ID(id)}/images`,
+        body,
+      );
+      return data.data;
+    }, { images: compatibleImages });
+  },
+
+  setVideo: async (
+    id: string,
+    payload: {
+      url: string;
+      storageKey?: string;
+      mimeType?: string;
+      fileSize?: number;
+      thumbnailUrl?: string | null;
+    },
+  ) => {
+    try {
+      const { data } = await api.post<ApiResponse<CatalogProduct>>(
+        `${API_ENDPOINTS.PRODUCTS.BY_ID(id)}/media/video`,
+        compactPayload(payload as Record<string, unknown>),
+      );
+      return data.data;
+    } catch (error) {
+      const status = axios.isAxiosError(error)
+        ? error.response?.status
+        : undefined;
+      if (status !== 404) throw error;
+
+      // Production DO fallback: persist video as a gallery row marked PRODUCT_VIDEO.
+      const product = await catalogService.getProduct(id);
+      for (const img of product.images ?? []) {
+        if (!isProductVideoMedia(img)) continue;
+        await api.delete(
+          `${API_ENDPOINTS.PRODUCTS.BY_ID(id)}/images/${img.id}`,
+        );
+      }
+      await api.post(`${API_ENDPOINTS.PRODUCTS.BY_ID(id)}/images`, {
+        url: payload.url,
+        altText: PRODUCT_VIDEO_ALT,
+        isPrimary: false,
+      });
+      return catalogService.getProduct(id);
+    }
+  },
+
+  removeVideo: async (id: string) => {
+    try {
+      const { data } = await api.delete<ApiResponse<CatalogProduct>>(
+        `${API_ENDPOINTS.PRODUCTS.BY_ID(id)}/media/video`,
+      );
+      return data.data;
+    } catch (error) {
+      const status = axios.isAxiosError(error)
+        ? error.response?.status
+        : undefined;
+      if (status !== 404) throw error;
+
+      const product = await catalogService.getProduct(id);
+      for (const img of product.images ?? []) {
+        if (!isProductVideoMedia(img)) continue;
+        await api.delete(
+          `${API_ENDPOINTS.PRODUCTS.BY_ID(id)}/images/${img.id}`,
+        );
+      }
+      return catalogService.getProduct(id);
+    }
   },
 
   listVariants: async (productId: string): Promise<CatalogProductVariant[]> => {

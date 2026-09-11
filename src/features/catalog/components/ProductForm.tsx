@@ -9,7 +9,7 @@ import {
   Plus,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
@@ -52,6 +52,7 @@ import {
 } from "@/features/catalog/schema/product-form.schema";
 import {
   catalogService,
+  isProductVideoMedia,
   type CatalogCategory,
   type CatalogProduct,
   type CatalogProductVariant,
@@ -83,14 +84,61 @@ function toNumber(value: number | string | null | undefined, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function parseVariantValueAndUnit(variant: CatalogProductVariant): {
+  value: string;
+  unit: string;
+} {
+  const unit =
+    variant.unit?.trim() ||
+    variant.sizeUnit?.trim() ||
+    variant.displayUnit?.trim() ||
+    "";
+  let rawValue = variant.value?.trim() || "";
+
+  // Repair corrupted "1" → "!" values seen in some production rows.
+  if (rawValue === "!" || rawValue === "｜" || rawValue === "¡") {
+    if (variant.size != null && Number(variant.size) > 0) {
+      rawValue = String(Number(variant.size));
+    } else {
+      const fromLabel = variant.label?.match(/^(\d+(?:\.\d+)?)/);
+      rawValue = fromLabel?.[1] ?? rawValue;
+    }
+  }
+
+  if (rawValue) {
+    if (unit && rawValue.toLowerCase().endsWith(` ${unit.toLowerCase()}`)) {
+      return {
+        value: rawValue.slice(0, -(unit.length + 1)).trim() || rawValue,
+        unit,
+      };
+    }
+    return { value: rawValue, unit };
+  }
+
+  const label = variant.label?.trim() || "";
+  if (!label) return { value: "", unit };
+  if (unit && label.toLowerCase().endsWith(` ${unit.toLowerCase()}`)) {
+    return {
+      value: label.slice(0, -(unit.length + 1)).trim() || label,
+      unit,
+    };
+  }
+  const match = label.match(/^(.+?)\s+([A-Za-z]+)$/);
+  if (match) {
+    return { value: match[1].trim(), unit: unit || match[2] };
+  }
+  return { value: label, unit };
+}
+
 function mapApiVariant(variant: CatalogProductVariant, index: number): ProductVariantFormValue {
   const price = toNumber(variant.sellingPrice ?? variant.price);
   const mrp = toNumber(variant.mrp, price);
+  const parsed = parseVariantValueAndUnit(variant);
   return {
     id: variant.id,
     clientKey: variant.id || newVariantClientKey(),
-    value: variant.value || variant.label || "",
-    unit: variant.unit || variant.sizeUnit || variant.displayUnit || "",
+    value: parsed.value,
+    unit: parsed.unit,
     sku: variant.sku || "",
     mrp: mrp > 0 ? Math.max(mrp, price) : price,
     price,
@@ -137,26 +185,69 @@ function mapMetaVariant(
   };
 }
 
+/** Keep one row per value+unit; prefer persisted ids and richer stock/price data. */
+function dedupeFormVariants(
+  variants: ProductVariantFormValue[],
+): ProductVariantFormValue[] {
+  const bestByKey = new Map<string, ProductVariantFormValue>();
+
+  for (const variant of variants) {
+    const key = commerceVariantKey(variant.value, variant.unit);
+    const existing = bestByKey.get(key);
+    if (!existing) {
+      bestByKey.set(key, variant);
+      continue;
+    }
+
+    const preferNew =
+      (!existing.id && Boolean(variant.id)) ||
+      (Boolean(existing.id) === Boolean(variant.id) &&
+        (variant.stock > existing.stock ||
+          (variant.stock === existing.stock && variant.price < existing.price)));
+
+    if (preferNew) {
+      bestByKey.set(key, {
+        ...variant,
+        id: variant.id || existing.id,
+        clientKey: variant.id || existing.id || variant.clientKey,
+      });
+    } else if (!existing.id && variant.id) {
+      bestByKey.set(key, { ...existing, id: variant.id, clientKey: variant.id });
+    }
+  }
+
+  return [...bestByKey.values()].map((variant, index) => ({
+    ...variant,
+    displayOrder: index,
+  }));
+}
+
 function mergeFormVariants(
   apiVariants: ProductVariantFormValue[],
   metaVariants: ProductVariantFormValue[],
 ): ProductVariantFormValue[] {
-  if (metaVariants.length === 0) return apiVariants;
-  if (apiVariants.length === 0) return metaVariants;
+  if (metaVariants.length === 0) return dedupeFormVariants(apiVariants);
+  if (apiVariants.length === 0) return dedupeFormVariants(metaVariants);
   const used = new Set(
     apiVariants.map((variant) => commerceVariantKey(variant.value, variant.unit)),
   );
   const extras = metaVariants.filter(
     (variant) => !used.has(commerceVariantKey(variant.value, variant.unit)),
   );
-  return extras.length ? [...apiVariants, ...extras] : apiVariants;
+  return dedupeFormVariants(
+    extras.length ? [...apiVariants, ...extras] : apiVariants,
+  );
 }
 
 function mapProductToFormValues(product: CatalogProduct): ProductFormSchema {
   const retail = toNumber(product.retailPrice);
   const mrp = toNumber(product.mrp, retail);
-  const httpImages = (product.images ?? []).filter((img) =>
-    img.url?.startsWith("http"),
+  const mediaRows = product.images ?? [];
+  const httpImages = mediaRows.filter(
+    (img) => img.url?.startsWith("http") && !isProductVideoMedia(img),
+  );
+  const videoRow = mediaRows.find(
+    (img) => img.url?.startsWith("http") && isProductVideoMedia(img),
   );
   const commerceMeta = parseCatalogCommerceMeta(product.description);
   const apiVariants = (product.variants ?? []).map(mapApiVariant);
@@ -194,9 +285,23 @@ function mapProductToFormValues(product: CatalogProduct): ProductFormSchema {
       stripCatalogCommerceMeta(product.description)?.trim() ||
       "<p>Update this product description for the Customer App.</p>",
     images: httpImages.map((img, index) => ({
+      id: img.id,
       url: img.url,
       isMain: img.isPrimary ?? index === 0,
+      storageKey: img.storageKey ?? undefined,
+      mimeType: img.mimeType ?? undefined,
+      fileSize: img.fileSize ?? undefined,
     })),
+    video: videoRow
+      ? {
+          id: videoRow.id,
+          url: videoRow.url,
+          storageKey: videoRow.storageKey ?? undefined,
+          mimeType: videoRow.mimeType ?? undefined,
+          fileSize: videoRow.fileSize ?? undefined,
+          thumbnailUrl: videoRow.thumbnailUrl ?? null,
+        }
+      : null,
     unit: (cheapestUnit || commerceMeta?.unit || product.unit || "Bag").trim(),
     mrp: mrp > 0 ? Math.max(mrp, retail) : Math.max(retail, 1),
     sellingPrice: retail > 0 ? retail : 1,
@@ -388,7 +493,8 @@ export function ProductForm({ productId }: ProductFormProps) {
   const [categories, setCategories] = useState<CatalogCategory[]>([]);
   const [saving, setSaving] = useState(false);
   const [loadingProduct, setLoadingProduct] = useState(isEdit);
-  const { control, handleSubmit, getValues, reset, setValue, setError } =
+  const hadInitialVideoRef = useRef(false);
+  const { control, getValues, reset, setValue, setError } =
     useForm<ProductFormSchema>({
       resolver: zodResolver(productFormSchema),
       defaultValues: PRODUCT_FORM_DEFAULT_VALUES,
@@ -444,7 +550,9 @@ export function ProductForm({ productId }: ProductFormProps) {
           // Product detail already includes variants; mapped list is preferred.
         }
         if (cancelled) return;
-        reset(mapProductToFormValues({ ...product, variants }));
+        const mapped = mapProductToFormValues({ ...product, variants });
+        hadInitialVideoRef.current = Boolean(mapped.video?.url);
+        reset(mapped);
       })
       .catch((error) => {
         if (cancelled) return;
@@ -484,11 +592,22 @@ export function ProductForm({ productId }: ProductFormProps) {
       }
     }
 
+    // Drop duplicate value+unit rows so media updates are never blocked by
+    // legacy duplicate variants already present in the database.
+    const uniqueVariants = dedupeFormVariants(data.variants);
+    if (uniqueVariants.length !== data.variants.length) {
+      setValue("variants", uniqueVariants);
+      data = { ...data, variants: uniqueVariants };
+    }
+
     setSaving(true);
     try {
       const imagePayload = data.images.map((img) => ({
         url: img.url,
         isPrimary: img.isMain,
+        storageKey: img.storageKey,
+        mimeType: img.mimeType,
+        fileSize: img.fileSize,
       }));
 
       if (!imagePayload.some((img) => img.isPrimary) && imagePayload[0]) {
@@ -528,9 +647,28 @@ export function ProductForm({ productId }: ProductFormProps) {
         hasVariants: data.hasVariants,
       };
 
+      const persistVideo = async (targetProductId: string) => {
+        if (data.video?.url) {
+          await catalogService.setVideo(targetProductId, {
+            url: data.video.url,
+            storageKey: data.video.storageKey,
+            mimeType: data.video.mimeType,
+            fileSize: data.video.fileSize,
+            thumbnailUrl: data.video.thumbnailUrl,
+          });
+          hadInitialVideoRef.current = true;
+          return;
+        }
+        if (hadInitialVideoRef.current) {
+          await catalogService.removeVideo(targetProductId);
+          hadInitialVideoRef.current = false;
+        }
+      };
+
       if (isEdit && productId) {
         await catalogService.updateProduct(productId, coreFields);
         await catalogService.setImages(productId, imagePayload);
+        await persistVideo(productId);
         const savedVariants = await syncProductVariants(
           productId,
           data.variantAttribute,
@@ -542,7 +680,7 @@ export function ProductForm({ productId }: ProductFormProps) {
         }
         notify.success(
           publish
-            ? "Product updated — changes will show in the Customer App"
+            ? "Product updated — images & video will show in the Customer App"
             : "Draft saved",
         );
       } else {
@@ -577,6 +715,8 @@ export function ProductForm({ productId }: ProductFormProps) {
           await catalogService.setImages(created.id, imagePayload);
         }
 
+        await persistVideo(created.id);
+
         if (data.hasVariants) {
           await syncProductVariants(
             created.id,
@@ -587,7 +727,9 @@ export function ProductForm({ productId }: ProductFormProps) {
         }
 
         notify.success(
-          publish ? "Product published to Customer App" : "Draft saved",
+          publish
+            ? "Product published — Customer App will show the same media"
+            : "Draft saved",
         );
       }
 
@@ -641,13 +783,43 @@ export function ProductForm({ productId }: ProductFormProps) {
     }, 400);
   };
 
-  const onSaveDraft = () => {
-    const data = getValues();
-    void persist(data, false);
+  const submitWithDedupe = (publish: boolean) => {
+    const current = getValues();
+    const uniqueVariants = dedupeFormVariants(current.variants ?? []);
+    if (uniqueVariants.length !== (current.variants ?? []).length) {
+      setValue("variants", uniqueVariants, {
+        shouldDirty: true,
+        shouldValidate: false,
+      });
+      notify.info(
+        "Duplicate variants removed",
+        "Removed duplicate pack sizes so the product can be saved.",
+      );
+    }
+
+    const prepared: ProductFormSchema = {
+      ...current,
+      variants: uniqueVariants,
+    };
+    const parsed = productFormSchema.safeParse(prepared);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      notify.error(
+        "Cannot update product",
+        issue?.message || "Please fix the highlighted fields and try again.",
+      );
+      return;
+    }
+    void persist(parsed.data, publish);
   };
 
-  const onPublish = (data: ProductFormSchema) => {
-    void persist(data, true);
+  const onSaveDraft = () => {
+    submitWithDedupe(false);
+  };
+
+  const onPublishSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    submitWithDedupe(true);
   };
 
   if (loadingProduct) {
@@ -660,7 +832,7 @@ export function ProductForm({ productId }: ProductFormProps) {
 
   return (
     <form
-      onSubmit={handleSubmit(onPublish)}
+      onSubmit={onPublishSubmit}
       className="relative -mx-6 -mb-6 flex min-h-[calc(100vh-4rem)] flex-col"
     >
       <div className="flex-1 space-y-6 px-6 pt-0 pb-24">
@@ -884,9 +1056,17 @@ export function ProductForm({ productId }: ProductFormProps) {
             name="images"
             render={({ field, fieldState }) => (
               <div className="space-y-2">
-                <MediaUploadGrid
-                  images={field.value}
-                  onChange={field.onChange}
+                <Controller
+                  control={control}
+                  name="video"
+                  render={({ field: videoField }) => (
+                    <MediaUploadGrid
+                      images={field.value}
+                      onChange={field.onChange}
+                      video={videoField.value}
+                      onVideoChange={videoField.onChange}
+                    />
+                  )}
                 />
                 {fieldState.error && (
                   <p className="text-destructive text-sm">

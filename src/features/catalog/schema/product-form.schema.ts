@@ -3,6 +3,19 @@ import { z } from "zod";
 const productImageSchema = z.object({
   url: z.string().url(),
   isMain: z.boolean(),
+  storageKey: z.string().optional(),
+  mimeType: z.string().optional(),
+  fileSize: z.number().optional(),
+  id: z.string().uuid().optional(),
+});
+
+const productVideoSchema = z.object({
+  url: z.string().url(),
+  storageKey: z.string().optional(),
+  mimeType: z.string().optional(),
+  fileSize: z.number().optional(),
+  thumbnailUrl: z.string().url().optional().nullable(),
+  id: z.string().uuid().optional(),
 });
 
 const bulkTierSchema = z.object({
@@ -109,7 +122,9 @@ export const productFormSchema = z
       }),
     images: z
       .array(productImageSchema)
-      .min(1, "Add at least one product image"),
+      .min(1, "Add at least one product image")
+      .max(6, "Maximum 6 product images are allowed"),
+    video: productVideoSchema.nullable(),
     unit: z.string().max(30),
     mrp: z.number().min(0, "MRP cannot be negative"),
     sellingPrice: z.number().min(0, "Selling price cannot be negative"),
@@ -231,6 +246,7 @@ export const productFormSchema = z
 
 export type ProductFormSchema = z.infer<typeof productFormSchema>;
 export type ProductImage = z.infer<typeof productImageSchema>;
+export type ProductVideo = z.infer<typeof productVideoSchema>;
 export type BulkTier = z.infer<typeof bulkTierSchema>;
 export type DeliverySla = (typeof deliverySlaValues)[number];
 export type ProductVariantFormValue = z.infer<typeof productVariantFormSchema>;
